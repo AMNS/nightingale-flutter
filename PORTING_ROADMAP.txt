@@ -82,38 +82,42 @@ LAYER 7: DRAWING / OUTPUT (Port drawing logic, discard QuickDraw) - ~9,500 lines
 DETAILED PHASE PLAN
 ===================
 
-PHASE 0A: Project Setup (1 week)
-  [ ] Create Rust project structure
-  [ ] Set up cargo.toml with dependencies (serde, etc.)
-  [ ] Establish testing framework (test .ngl files)
-  [ ] Document build process
+PHASE 0A: Project Setup (1 week) — COMPLETE
+  [x] Create Rust project structure
+  [x] Set up cargo.toml with dependencies (serde, etc.)
+  [x] Establish testing framework (test .ngl files)
+  [x] Document build process
 
-PHASE 1: TYPE DEFINITIONS (2-3 weeks)
-  [ ] NBasicTypes.h → types.rs (DDIST, LINK, coordinate types)
-  [ ] NLimits.h → constants.rs (all limits)
-  [ ] defs.h → enums.rs, macros.rs (l_dur, accidentals, conversions)
-  [ ] style.h → style.rs (notation parameters)
-  [ ] NObjTypes.h → objects.rs (ANOTE, MEASURE, SYNC, etc. - ~30 structs)
-  [ ] NObjTypesN105.h → objects_n105.rs (legacy format adapters)
-  [ ] NDocAndCnfgTypes.h → document.rs (document, config, fonts)
-  
-  [ ] Test: Parse .ngl file header and validate struct sizes match C++
+PHASE 1: TYPE DEFINITIONS (2-3 weeks) — COMPLETE
+  [x] NBasicTypes.h → basic_types.rs (DDIST, LINK, coordinate types)
+  [x] NLimits.h → limits.rs (all limits)
+  [x] defs.h → defs.rs (l_dur, accidentals, object type constants)
+  [x] NObjTypes.h → obj_types.rs (ANOTE, MEASURE, SYNC, etc. - 25 structs)
+  [x] NObjTypesN105.h → obj_types.rs (N105 size table, legacy format)
+  [x] NDocAndCnfgTypes.h → doc_types.rs (document, config, fonts)
+  [ ] style.h → style.rs (notation parameters) — deferred to Layer 4
 
-PHASE 2: INFRASTRUCTURE (3-4 weeks)
-  [ ] StringPool.cp → string_pool.rs (reference-counted pools)
+  [x] Test: Parse .ngl file header and validate struct sizes match C++
+
+PHASE 2: INFRASTRUCTURE (3-4 weeks) — PARTIAL
+  [x] HeapFileIO.cp → ngl/reader.rs (binary read, N103/N105 format)
+  [x] HeapFileIO.cp → ngl/interpret.rs (variable-stride heap interpreter)
+  [x] StringPool.cp → ngl/reader.rs (decode only — read-side string pool)
   [ ] Objects.cp → heap.rs, allocator.rs (HeapAlloc, LinkToPtr, Init*)
-  [ ] HeapFileIO.cp → file_io.rs (binary read/write, format conversion)
-  
-  [ ] Test: Load .ngl file → round-trip save → binary compare
-  [ ] Test: Verify N105 → modern struct conversion works
-  [ ] Test: String pool operations (add, retrieve, save/restore)
+  [ ] .ngl binary writer (write support)
 
-PHASE 3: MUSICAL LOGIC (5-8 weeks)
-  [ ] Context.cp → context.rs (GetContext, ContextKeySig, Fix*)
+  [x] Test: Load .ngl file → verify heap counts and object types
+  [x] Test: All 16 .ngl fixture files parse successfully
+  [x] Test: String pool decode (offset 0, negative offsets)
+  [ ] Test: Load .ngl file → round-trip save → binary compare (needs writer)
+
+PHASE 3: MUSICAL LOGIC (5-8 weeks) — PARTIAL
+  [x] Context.cp → context.rs (GetContext, ContextKeySig, build_context_map)
+  [x] Notelist parser → notelist/parser.rs (V1/V2, 13 record types)
   [ ] Utility.cp → utility.rs (CalcYStem, GetNoteYStem, etc.)
   [ ] SpaceTime.cp → spacing.rs (SymWidth*, CalcSpaceNeeded, LDur2Code, etc.)
   [ ] SpaceHighLevel.cp → layout.rs (JustifySystems, RespaceBars, etc.)
-  
+
   [ ] Test: Compare spacing output on test scores
   [ ] Test: Stem positions match original on various note patterns
   [ ] Test: System justification produces same widths as C++
@@ -262,33 +266,30 @@ Phase 7: flutter_rust_bridge bindings (~300 lines)
 TOTAL EXPECTED OUTPUT: ~15,000 lines of Rust code + ~5,000 lines of tests
 
 
-NEXT STEPS
-==========
+CURRENT STATUS (as of 2026-02-23)
+==================================
 
-1. IMMEDIATE (this week):
-   - Review this dependency map with team
-   - Prioritize early wins (Phase 1-2 infrastructure first)
-   - Allocate developer time
+Rust source lines:  ~7,600 (across 8 modules + 2 submodules)
+Test count:         57 (50 unit + 7 integration)
+Test fixture files: 16 .ngl + 15 .nl notelist examples
+Commits:            2 (foundation + infrastructure)
+Pre-commit hook:    cargo fmt + clippy -D warnings + cargo test
 
-2. WEEK 1-2:
-   - Create Rust project structure
-   - Begin Phase 1 (type definitions)
-   - Set up test framework
+COMPLETED:
+  - Phase 0A: Project setup
+  - Phase 1: All type definitions (except style.h)
+  - Phase 2 (partial): NGL reader, heap interpreter, string pool decode
+  - Phase 3 (partial): Context system, notelist parser
 
-3. WEEK 2-3:
-   - Complete Phase 1
-   - Obtain reference .ngl test files
-   - Begin Phase 2
-
-4. ONGOING:
-   - Weekly progress reviews
-   - Continuous golden-file testing
-   - Performance benchmarking
+NEXT STEPS:
+  1. Cross-validation: compare NGL binary interpretation against notelist text
+  2. Score accessors: headL/tailL, numStaves, string pool integration
+  3. Duration math / spacing foundations (SpaceTime.cp port begins)
 
 ================================================================================
-Generated: 2026-02-23
+Generated: 2026-02-23 | Last updated: 2026-02-23
 Files in this directory:
-  - DEPENDENCY_ANALYSIS.txt (this file)
+  - PORTING_ROADMAP.txt (this file)
   - DEPENDENCY_CHAIN.csv (spreadsheet format)
   - DEPENDENCY_DIAGRAM.md (Mermaid graph)
 ================================================================================

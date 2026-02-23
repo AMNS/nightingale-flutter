@@ -12,10 +12,12 @@
 //! - `error`: Error types for NGL operations
 //! - `reader`: Reads .ngl files from disk into raw heap data
 //! - `interpret`: Decodes raw N105 bytes into typed Rust structs
+//! - `doc_header`: Parses the 72-byte document header
 //! - `writer`: (future) Writes .ngl files to disk
 //!
 //! Source: Nightingale/doc/Notes/NgaleFileFormatStatus.txt
 
+pub mod doc_header;
 pub mod error;
 pub mod interpret;
 pub mod reader;
@@ -24,6 +26,7 @@ pub mod reader;
 // pub mod writer;
 
 // Re-export key types for convenience
+pub use doc_header::DocumentHeader;
 pub use error::{NglError, Result};
 pub use interpret::{
     interpret_heap, unpack_anote_n105, unpack_anotebeam_n105, unpack_aslur_n105,

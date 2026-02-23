@@ -212,6 +212,142 @@ impl InterpretedScore {
             .map(|slurs| slurs.iter().take(count as usize).cloned().collect())
             .unwrap_or_default()
     }
+
+    /// Get the head (first) object of the score list.
+    ///
+    /// Returns the first HEADER object if present (index 1 in typical files).
+    pub fn head(&self) -> Option<&InterpretedObject> {
+        self.objects.first()
+    }
+
+    /// Get the tail (last) object of the score list.
+    ///
+    /// Returns the last object following the linked list from head.
+    /// In practice, this walks the `right` links until finding NILINK.
+    pub fn tail(&self) -> Option<&InterpretedObject> {
+        if self.objects.is_empty() {
+            return None;
+        }
+
+        // Walk from head following right links until we find the tail
+        let mut current = self.objects.first()?;
+        while current.header.right != NILINK {
+            current = self.get(current.header.right)?;
+        }
+        Some(current)
+    }
+
+    /// Count the number of staves in the score.
+    ///
+    /// This counts AStaff subobjects in the first Staff object found in the score.
+    /// All Staff objects in a Nightingale score have the same number of staves.
+    pub fn num_staves(&self) -> usize {
+        // Find the first Staff object (type 6)
+        for obj in &self.objects {
+            if obj.header.obj_type == STAFF_TYPE as i8 {
+                return obj.header.n_entries as usize;
+            }
+        }
+        0
+    }
+
+    /// Get the score object list (HEADER→...→TAIL) as a Vec.
+    ///
+    /// Returns all objects in the main score list by walking the `right` links.
+    pub fn score_list(&self) -> Vec<&InterpretedObject> {
+        let mut result = Vec::new();
+        if self.objects.is_empty() {
+            return result;
+        }
+
+        // Start from the first object (should be HEADER)
+        let mut current_link = 1;
+        while let Some(obj) = self.get(current_link) {
+            result.push(obj);
+            if obj.header.right == NILINK {
+                break;
+            }
+            current_link = obj.header.right;
+        }
+        result
+    }
+
+    /// Get the master page list (second HEADER→...→TAIL) as a Vec.
+    ///
+    /// The master page list typically starts after the main score list.
+    /// We identify it by finding a second HEADER object.
+    pub fn master_page_list(&self) -> Vec<&InterpretedObject> {
+        let mut result = Vec::new();
+
+        // Find the second HEADER (master page list head)
+        let mut header_count = 0;
+        let mut start_link = NILINK;
+
+        for obj in &self.objects {
+            if obj.header.obj_type == HEADER_TYPE as i8 {
+                header_count += 1;
+                if header_count == 2 {
+                    start_link = obj.index;
+                    break;
+                }
+            }
+        }
+
+        if start_link == NILINK {
+            return result;
+        }
+
+        // Walk the master page list
+        let mut current_link = start_link;
+        while let Some(obj) = self.get(current_link) {
+            result.push(obj);
+            if obj.header.right == NILINK {
+                break;
+            }
+            current_link = obj.header.right;
+        }
+        result
+    }
+
+    /// Count objects by type.
+    ///
+    /// Returns the number of objects with the given type byte.
+    pub fn count_by_type(&self, obj_type: u8) -> usize {
+        self.objects
+            .iter()
+            .filter(|obj| obj.header.obj_type == obj_type as i8)
+            .count()
+    }
+
+    /// Get all SYNCs (note/rest containers) from the score list.
+    ///
+    /// Returns only objects with type SYNC_TYPE (2).
+    pub fn syncs(&self) -> Vec<&InterpretedObject> {
+        self.objects
+            .iter()
+            .filter(|obj| obj.header.obj_type == SYNC_TYPE as i8)
+            .collect()
+    }
+
+    /// Get all MEASUREs from the score list.
+    ///
+    /// Returns only objects with type MEASURE_TYPE (7).
+    pub fn measure_objects(&self) -> Vec<&InterpretedObject> {
+        self.objects
+            .iter()
+            .filter(|obj| obj.header.obj_type == MEASURE_TYPE as i8)
+            .collect()
+    }
+
+    /// Decode a string from the string pool at the given offset.
+    ///
+    /// This is a convenience wrapper around the reader's decode_string function.
+    /// The string pool is typically from NglFile::string_pool.
+    ///
+    /// Returns Some(String) if successful, None if the offset is invalid.
+    pub fn decode_string(pool: &[u8], offset: i32) -> Option<String> {
+        reader_decode_string(pool, offset)
+    }
 }
 
 struct ObjectWalker<'a> {
@@ -919,7 +1055,7 @@ pub fn unpack_apsmeas_n105(_data: &[u8]) -> Result<APsMeas, String> {
 // =============================================================================
 
 use crate::defs::*;
-use crate::ngl::reader::NglFile;
+use crate::ngl::reader::{decode_string as reader_decode_string, NglFile};
 
 /// Interpret all heaps from an NGL file into an InterpretedScore.
 ///
