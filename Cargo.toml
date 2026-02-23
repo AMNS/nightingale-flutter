@@ -11,6 +11,8 @@ repository = "https://github.com/AMNS/Nightingale"
 binrw = "0.14"
 # Error handling
 thiserror = "2"
+# PDF generation — maps directly from PS_Stdio.cp PostScript primitives
+pdf-writer = "0.14"
 
 [dev-dependencies]
 # Snapshot testing

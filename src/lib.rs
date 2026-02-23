@@ -21,3 +21,4 @@ pub mod limits;
 pub mod ngl;
 pub mod notelist;
 pub mod obj_types;
+pub mod render;
