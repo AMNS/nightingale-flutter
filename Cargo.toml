@@ -1,0 +1,17 @@
+[package]
+name = "nightingale-core"
+version = "0.1.0"
+edition = "2021"
+description = "Nightingale music notation engine — Rust port"
+license = "MPL-2.0"
+repository = "https://github.com/AMNS/Nightingale"
+
+[dependencies]
+# Binary parsing (big-endian Mac 68k/PPC formats)
+binrw = "0.14"
+# Error handling
+thiserror = "2"
+
+[dev-dependencies]
+# Snapshot testing
+insta = "1"

@@ -1,0 +1,29 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# macOS
+.DS_Store
+._*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Original Nightingale C++ source (checked out separately)
+/Nightingale/
+
+# Flutter (when we add it later)
+nightingale_app/.dart_tool/
+nightingale_app/build/
+nightingale_app/.packages
+
+# Icebox (previous work, reference only — not tracked)
+/icebox/
+
+# Temporary files
+*.tmp

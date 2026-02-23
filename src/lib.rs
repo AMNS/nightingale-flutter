@@ -1,0 +1,20 @@
+//! Nightingale music notation engine — Rust port.
+//!
+//! Ported from the C++ codebase at <https://github.com/AMNS/Nightingale>
+//! (branch: `develop`, commit 969e320).
+//!
+//! This crate provides:
+//! - Binary .ngl file reading (N103/N105 formats)
+//! - Score data model (object list with typed heaps)
+//! - Engraving algorithms (beams, slurs, spacing, etc.)
+//! - Platform-agnostic rendering commands
+//!
+//! See CLAUDE.md for architecture decisions and porting plan.
+//! See PORTING_ROADMAP.txt for the systematic porting order.
+
+pub mod basic_types;
+pub mod defs;
+pub mod doc_types;
+pub mod limits;
+pub mod ngl;
+pub mod obj_types;
