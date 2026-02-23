@@ -9,13 +9,14 @@
 use nightingale_core::ngl::{NglFile, NglVersion};
 
 #[test]
-fn test_read_n105_file() {
-    let path = "tests/fixtures/01_me_and_lucy_simple.ngl";
+fn test_read_n103_primary_file() {
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
 
     let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
 
-    // Verify version
-    assert_eq!(ngl.version, NglVersion::N105, "Expected N105 format");
+    // All our current fixture files are N103 (written by Nightingale 5.x but tagged N103).
+    // N105 test fixtures will be added when available.
+    assert_eq!(ngl.version, NglVersion::N103, "Expected N103 format");
 
     // Verify all 25 heaps were read
     assert_eq!(ngl.heaps.len(), 25, "Expected 25 heaps (types 0-24)");
@@ -80,7 +81,7 @@ fn test_read_n103_file() {
 fn test_decode_strings() {
     use nightingale_core::ngl::decode_string;
 
-    let path = "tests/fixtures/01_me_and_lucy_simple.ngl";
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
     let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
 
     // Offset 0 is the canonical empty string
@@ -161,4 +162,139 @@ fn test_read_all_fixture_files() {
         n103_count,
         n105_count
     );
+}
+
+#[test]
+fn test_interpret_heap_basic() {
+    use nightingale_core::ngl::interpret_heap;
+
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
+    let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
+
+    let score = interpret_heap(&ngl).expect("Failed to interpret heap");
+
+    // Should have objects (at least 2 HEADERs and 2 TAILs: score + master page lists)
+    assert!(
+        score.objects.len() >= 4,
+        "Should have at least 2 HEADERs and 2 TAILs (score + master page)"
+    );
+
+    // First object should be HEADER (type 0) — the score object list head
+    assert_eq!(
+        score.objects[0].header.obj_type, 0,
+        "First object should be HEADER"
+    );
+
+    // Should have notes, staves, measures, etc.
+    println!("\n=== Interpreted Score Stats ===");
+    println!("Total objects: {}", score.objects.len());
+    println!("Notes: {} sync groups", score.notes.len());
+    println!("Staffs: {} staff groups", score.staffs.len());
+    println!("Measures: {} measure groups", score.measures.len());
+    println!("Clefs: {} clef groups", score.clefs.len());
+    println!("KeySigs: {} keysig groups", score.keysigs.len());
+    println!("TimeSigs: {} timesig groups", score.timesigs.len());
+    println!("NoteBeams: {} beam groups", score.notebeams.len());
+    println!("Slurs: {} slur groups", score.slurs.len());
+}
+
+#[test]
+fn test_object_walker() {
+    use nightingale_core::ngl::interpret_heap;
+
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
+    let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
+    let score = interpret_heap(&ngl).expect("Failed to interpret heap");
+
+    // Walk the score object list using the iterator (follows right links from HEADER)
+    let mut walk_count = 0;
+    let mut obj_types: std::collections::HashMap<i8, usize> = std::collections::HashMap::new();
+
+    for obj in score.walk() {
+        walk_count += 1;
+        *obj_types.entry(obj.header.obj_type).or_insert(0) += 1;
+    }
+
+    println!("\n=== Object Walk Stats ===");
+    println!("Total objects walked (score list): {}", walk_count);
+    println!("Total objects in heap: {}", score.objects.len());
+    println!("Object counts by type:");
+    let mut types: Vec<_> = obj_types.iter().collect();
+    types.sort_by_key(|(t, _)| *t);
+    for (obj_type, count) in types {
+        println!("  Type {:2}: {}", obj_type, count);
+    }
+
+    // Should have walked some objects (the score list, excluding master page list)
+    assert!(walk_count > 0, "Should have walked at least one object");
+
+    // Walk follows one linked list (score), so it may be less than total objects
+    // (the master page list is a separate linked list: HEADER->PAGE->SYSTEM->STAFF->...->TAIL)
+    assert!(
+        walk_count <= score.objects.len(),
+        "Walk should not exceed total objects"
+    );
+
+    // Score list should have at least 100 objects for a real score
+    assert!(
+        walk_count > 100,
+        "Score list should have substantial objects, got {}",
+        walk_count
+    );
+}
+
+#[test]
+fn test_count_objects_by_type() {
+    use nightingale_core::defs::*;
+    use nightingale_core::ngl::interpret_heap;
+
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
+    let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
+    let score = interpret_heap(&ngl).expect("Failed to interpret heap");
+
+    let mut counts: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+
+    for obj in &score.objects {
+        *counts.entry(obj.header.obj_type as u8).or_insert(0) += 1;
+    }
+
+    // Must have exactly 2 HEADERs and 2 TAILs (score list + master page list)
+    assert_eq!(
+        *counts.get(&HEADER_TYPE).unwrap_or(&0),
+        2,
+        "Should have exactly 2 HEADERs (score + master page)"
+    );
+    assert_eq!(
+        *counts.get(&TAIL_TYPE).unwrap_or(&0),
+        2,
+        "Should have exactly 2 TAILs (score + master page)"
+    );
+
+    // Should have at least one PAGE and one SYSTEM
+    assert!(
+        *counts.get(&PAGE_TYPE).unwrap_or(&0) > 0,
+        "Should have at least 1 PAGE"
+    );
+    assert!(
+        *counts.get(&SYSTEM_TYPE).unwrap_or(&0) > 0,
+        "Should have at least 1 SYSTEM"
+    );
+
+    // Should have at least one SYNC (notes)
+    assert!(
+        *counts.get(&SYNC_TYPE).unwrap_or(&0) > 0,
+        "Should have at least 1 SYNC"
+    );
+
+    println!("\n=== Object Type Counts ===");
+    println!("HEADER: {}", counts.get(&HEADER_TYPE).unwrap_or(&0));
+    println!("TAIL: {}", counts.get(&TAIL_TYPE).unwrap_or(&0));
+    println!("SYNC: {}", counts.get(&SYNC_TYPE).unwrap_or(&0));
+    println!("PAGE: {}", counts.get(&PAGE_TYPE).unwrap_or(&0));
+    println!("SYSTEM: {}", counts.get(&SYSTEM_TYPE).unwrap_or(&0));
+    println!("STAFF: {}", counts.get(&STAFF_TYPE).unwrap_or(&0));
+    println!("MEASURE: {}", counts.get(&MEASURE_TYPE).unwrap_or(&0));
+    println!("CLEF: {}", counts.get(&CLEF_TYPE).unwrap_or(&0));
+    println!("KEYSIG: {}", counts.get(&KEYSIG_TYPE).unwrap_or(&0));
+    println!("TIMESIG: {}", counts.get(&TIMESIG_TYPE).unwrap_or(&0));
 }

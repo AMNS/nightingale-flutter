@@ -26,7 +26,8 @@ pub mod reader;
 // Re-export key types for convenience
 pub use error::{NglError, Result};
 pub use interpret::{
-    unpack_anote_n105, unpack_anotebeam_n105, unpack_aslur_n105, unpack_object_header_n105,
-    unpack_subobj_header_n105, InterpretedObject, InterpretedScore, ObjData,
+    interpret_heap, unpack_anote_n105, unpack_anotebeam_n105, unpack_aslur_n105,
+    unpack_object_header_n105, unpack_subobj_header_n105, InterpretedObject, InterpretedScore,
+    ObjData,
 };
 pub use reader::{decode_string, HeapData, NglFile, NglVersion};

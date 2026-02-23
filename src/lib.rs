@@ -13,8 +13,10 @@
 //! See PORTING_ROADMAP.txt for the systematic porting order.
 
 pub mod basic_types;
+pub mod context;
 pub mod defs;
 pub mod doc_types;
 pub mod limits;
 pub mod ngl;
+pub mod notelist;
 pub mod obj_types;

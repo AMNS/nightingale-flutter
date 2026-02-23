@@ -34,7 +34,9 @@
 //!
 //! Source: NObjTypesN105.h lines 12-27, Ngale5ProgQuickRef-TN1.txt lines 214-229
 
-use crate::basic_types::{DPoint, Link, Point, Rect, ShortQd, NILINK};
+use crate::basic_types::{
+    DPoint, DRect, KsInfo, KsItem, Link, Point, Rect, ShortQd, ShortStd, NILINK,
+};
 use crate::obj_types::{
     AClef, AConnect, ADynamic, AGraphic, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteOttava,
     ANoteTuple, APsMeas, ARptEnd, ASlur, AStaff, ATimeSig, BeamSet, Clef, Connect, Dynamic, Ending,
@@ -341,6 +343,56 @@ pub fn unpack_subobj_header_n105(data: &[u8]) -> Result<SubObjHeader, String> {
     })
 }
 
+/// Unpack KsInfo from raw bytes (7 bytes for N105 WHOLE_KSINFO).
+///
+/// KsInfo stores a key signature as an array of KsItem structs.
+/// The N105 binary format uses a compact representation.
+///
+/// Source: NBasicTypes.h lines 64-67, NObjTypesN105.h WHOLE_KSINFO
+fn unpack_ksinfo_n105(data: &[u8], offset: usize) -> KsInfo {
+    // Return empty key signature if not enough data
+    if data.len() <= offset {
+        return KsInfo {
+            ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
+            n_ks_items: 0,
+        };
+    }
+
+    let n_ks_items = data[offset] as i8;
+
+    // In N105, key signature items are stored compactly.
+    // For now, create a default KsInfo with the count.
+    // Full implementation would unpack the individual KsItem structs.
+    let mut ks_info = KsInfo {
+        ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
+        n_ks_items,
+    };
+
+    // Unpack individual key signature items (simplified for now)
+    // N105 stores them as a packed array, but we'll just read what we can
+    // Limit to available bytes and MAX_KSITEMS
+    // Ensure we never exceed the array bounds (0..MAX_KSITEMS-1)
+    let max_items = n_ks_items
+        .min((crate::basic_types::MAX_KSITEMS - 1) as i8)
+        .min(((data.len().saturating_sub(offset + 1)) / 2) as i8)
+        .max(0); // Ensure non-negative
+
+    for i in 0..=max_items as usize {
+        if i >= crate::basic_types::MAX_KSITEMS {
+            break; // Safety check
+        }
+        let item_offset = offset + 1 + i * 2;
+        if item_offset + 1 < data.len() {
+            ks_info.ks_item[i] = KsItem {
+                letcode: data[item_offset] as i8,
+                sharp: data[item_offset + 1],
+            };
+        }
+    }
+
+    ks_info
+}
+
 /// Unpack N105 ANOTE_5 from raw bytes (30 bytes).
 ///
 /// This is the most complex subobject, with extensive bitfield packing.
@@ -596,29 +648,230 @@ pub fn unpack_aslur_n105(data: &[u8]) -> Result<ASlur, String> {
 
 // Stub unpackers for other subobject types (to be fully implemented):
 
-pub fn unpack_astaff_n105(_data: &[u8]) -> Result<AStaff, String> {
-    // TODO: Implement full ASTAFF_5 unpacking (50 bytes, bitfields in byte 3 and final byte)
-    Err("ASTAFF unpacking not yet implemented".to_string())
+/// Unpack N105 ASTAFF_5 from raw bytes (50 bytes).
+///
+/// Source: NObjTypesN105.h lines 180-220
+pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
+    if data.len() < 50 {
+        return Err(format!("ASTAFF too short: {} bytes", data.len()));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let staffn = data[2] as i8;
+
+    // Byte 3: selected:1 | visible:1 | filler:6
+    let b3 = data[3];
+    let selected = (b3 & 0x80) != 0;
+    let visible = (b3 & 0x40) != 0;
+    let filler_stf = (b3 & 0x20) != 0;
+
+    let staff_top = i16::from_be_bytes([data[4], data[5]]);
+    let staff_left = i16::from_be_bytes([data[6], data[7]]);
+    let staff_right = i16::from_be_bytes([data[8], data[9]]);
+    let staff_height = i16::from_be_bytes([data[10], data[11]]);
+    let staff_lines = data[12] as i8;
+    let font_size = i16::from_be_bytes([data[13], data[14]]);
+    let flag_leading = i16::from_be_bytes([data[15], data[16]]);
+    let min_stem_free = i16::from_be_bytes([data[17], data[18]]);
+    let ledger_width = i16::from_be_bytes([data[19], data[20]]);
+    let note_head_width = i16::from_be_bytes([data[21], data[22]]);
+    let frac_beam_width = i16::from_be_bytes([data[23], data[24]]);
+    let space_below = i16::from_be_bytes([data[25], data[26]]);
+    let clef_type = data[27] as i8;
+    let dynamic_type = data[28] as i8;
+
+    // KsInfo: 7 bytes starting at offset 29
+    let ks_info = unpack_ksinfo_n105(data, 29);
+
+    let time_sig_type = data[36] as i8;
+    let numerator = data[37] as i8;
+    let denominator = data[38] as i8;
+    let filler = data[39];
+
+    // Byte 40: showLedgers:1 | showLines:7
+    let b40 = data[40];
+    let show_ledgers = (b40 & 0x80) != 0;
+    let show_lines = b40 & 0x7F;
+
+    Ok(AStaff {
+        next,
+        staffn,
+        selected,
+        visible,
+        filler_stf,
+        staff_top,
+        staff_left,
+        staff_right,
+        staff_height,
+        staff_lines,
+        font_size,
+        flag_leading,
+        min_stem_free,
+        ledger_width,
+        note_head_width,
+        frac_beam_width,
+        space_below,
+        clef_type,
+        dynamic_type,
+        ks_info,
+        time_sig_type,
+        numerator,
+        denominator,
+        filler,
+        show_ledgers: if show_ledgers { 1 } else { 0 },
+        show_lines,
+    })
 }
 
-pub fn unpack_ameasure_n105(_data: &[u8]) -> Result<AMeasure, String> {
-    // TODO: Implement full AMEASURE_5 unpacking (40 bytes, bitfields in byte 4 and measure_num)
-    Err("AMEASURE unpacking not yet implemented".to_string())
+/// Unpack N105 AMEASURE_5 from raw bytes (40 bytes).
+///
+/// Source: NObjTypesN105.h lines 222-253
+pub fn unpack_ameasure_n105(data: &[u8]) -> Result<AMeasure, String> {
+    if data.len() < 40 {
+        return Err(format!("AMEASURE too short: {} bytes", data.len()));
+    }
+
+    let header = unpack_subobj_header_n105(data)?;
+
+    // Byte 4: measureVisible:1 | connAbove:1 | filler1:6
+    let b4 = data[4];
+    let measure_visible = (b4 & 0x80) != 0;
+    let conn_above = (b4 & 0x40) != 0;
+    let filler1 = b4 & 0x3F;
+
+    let filler2 = data[5] as i8;
+    let reserved_m = i16::from_be_bytes([data[6], data[7]]);
+    let measure_num = i16::from_be_bytes([data[8], data[9]]);
+
+    // DRect: 4 x i16
+    let meas_size_rect = DRect {
+        top: i16::from_be_bytes([data[10], data[11]]),
+        left: i16::from_be_bytes([data[12], data[13]]),
+        bottom: i16::from_be_bytes([data[14], data[15]]),
+        right: i16::from_be_bytes([data[16], data[17]]),
+    };
+
+    let conn_staff = data[18] as i8;
+    let clef_type = data[19] as i8;
+    let dynamic_type = data[20] as i8;
+
+    // KsInfo: 7 bytes starting at offset 21
+    let ks_info = unpack_ksinfo_n105(data, 21);
+
+    let time_sig_type = data[28] as i8;
+    let numerator = data[29] as i8;
+    let denominator = data[30] as i8;
+    let x_mn_std_offset = i16::from_be_bytes([data[31], data[32]]) as ShortStd;
+    let y_mn_std_offset = i16::from_be_bytes([data[33], data[34]]) as ShortStd;
+
+    Ok(AMeasure {
+        header,
+        measure_visible,
+        conn_above,
+        filler1,
+        filler2,
+        reserved_m,
+        measure_num,
+        meas_size_rect,
+        conn_staff,
+        clef_type,
+        dynamic_type,
+        ks_info,
+        time_sig_type,
+        numerator,
+        denominator,
+        x_mn_std_offset,
+        y_mn_std_offset,
+    })
 }
 
-pub fn unpack_aclef_n105(_data: &[u8]) -> Result<AClef, String> {
-    // TODO: Implement full ACLEF_5 unpacking (10 bytes, bitfields in byte 4)
-    Err("ACLEF unpacking not yet implemented".to_string())
+/// Unpack N105 ACLEF_5 from raw bytes (10 bytes).
+///
+/// Source: NObjTypesN105.h lines 255-266
+pub fn unpack_aclef_n105(data: &[u8]) -> Result<AClef, String> {
+    if data.len() < 10 {
+        return Err(format!("ACLEF too short: {} bytes", data.len()));
+    }
+
+    let header = unpack_subobj_header_n105(data)?;
+
+    let filler1 = data[4];
+    let small = data[5];
+    let filler2 = data[6];
+    let xd = i16::from_be_bytes([data[6], data[7]]);
+    let yd = i16::from_be_bytes([data[8], data[9]]);
+
+    Ok(AClef {
+        header,
+        filler1,
+        small,
+        filler2,
+        xd,
+        yd,
+    })
 }
 
-pub fn unpack_akeysig_n105(_data: &[u8]) -> Result<AKeySig, String> {
-    // TODO: Implement full AKEYSIG_5 unpacking (24 bytes, bitfields in byte 4)
-    Err("AKEYSIG unpacking not yet implemented".to_string())
+/// Unpack N105 AKEYSIG_5 from raw bytes (24 bytes).
+///
+/// Source: NObjTypesN105.h lines 268-293
+pub fn unpack_akeysig_n105(data: &[u8]) -> Result<AKeySig, String> {
+    if data.len() < 24 {
+        return Err(format!("AKEYSIG too short: {} bytes", data.len()));
+    }
+
+    let header = unpack_subobj_header_n105(data)?;
+
+    // Byte 4: nonstandard:1 | filler1:7
+    let b4 = data[4];
+    let nonstandard = (b4 & 0x80) != 0;
+    let filler1 = b4 & 0x7F;
+
+    let small = data[5];
+    let filler2 = data[6] as i8;
+    let xd = i16::from_be_bytes([data[7], data[8]]);
+
+    // KsInfo: 7 bytes starting at offset 9
+    let ks_info = unpack_ksinfo_n105(data, 9);
+
+    Ok(AKeySig {
+        header,
+        nonstandard: if nonstandard { 1 } else { 0 },
+        filler1,
+        small,
+        filler2,
+        xd,
+        ks_info,
+    })
 }
 
-pub fn unpack_atimesig_n105(_data: &[u8]) -> Result<ATimeSig, String> {
-    // TODO: Implement full ATIMESIG_5 unpacking (12 bytes, bitfields in byte 4)
-    Err("ATIMESIG unpacking not yet implemented".to_string())
+/// Unpack N105 ATIMESIG_5 from raw bytes (12 bytes).
+///
+/// Source: NObjTypesN105.h lines 295-308
+pub fn unpack_atimesig_n105(data: &[u8]) -> Result<ATimeSig, String> {
+    if data.len() < 12 {
+        return Err(format!("ATIMESIG too short: {} bytes", data.len()));
+    }
+
+    let header = unpack_subobj_header_n105(data)?;
+
+    let filler = data[4];
+    let small = data[5];
+    let conn_staff = data[6] as i8;
+    let xd = i16::from_be_bytes([data[7], data[8]]);
+    let yd = i16::from_be_bytes([data[9], data[10]]);
+    let numerator = data[11] as i8;
+    let denominator = if data.len() > 12 { data[12] as i8 } else { 4 };
+
+    Ok(ATimeSig {
+        header,
+        filler,
+        small,
+        conn_staff,
+        xd,
+        yd,
+        numerator,
+        denominator,
+    })
 }
 
 pub fn unpack_aconnect_n105(_data: &[u8]) -> Result<AConnect, String> {
@@ -659,6 +912,616 @@ pub fn unpack_arptend_n105(_data: &[u8]) -> Result<ARptEnd, String> {
 pub fn unpack_apsmeas_n105(_data: &[u8]) -> Result<APsMeas, String> {
     // TODO: Implement full APSMEAS_5 unpacking (6 bytes, bitfields in byte 4)
     Err("APSMEAS unpacking not yet implemented".to_string())
+}
+
+// =============================================================================
+// Heap Interpretation
+// =============================================================================
+
+use crate::defs::*;
+use crate::ngl::reader::NglFile;
+
+/// Interpret all heaps from an NGL file into an InterpretedScore.
+///
+/// This is the main entry point for converting raw .ngl binary data into
+/// typed Rust structs. It:
+/// 1. Walks the object heap (heap 24) and unpacks all objects
+/// 2. For each object with subobjects, unpacks the subobject heap
+/// 3. Stores everything in InterpretedScore for efficient access
+///
+/// **Critical**: The object heap (type 24) stores objects in **variable-length**
+/// format in the file. Each object uses only its type-specific byte count
+/// (from N105_OBJ_SIZES), NOT the uniform obj_size stride. The C++ reader
+/// calls MoveObjSubobjs() to expand objects to uniform slots after reading.
+/// We replicate this by walking the packed data and assigning sequential
+/// 1-based indices.
+///
+/// Source: HeapFileIO.cp ReadObjHeap() (line 973), WriteObject() (line 659)
+pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
+    let mut score = InterpretedScore::new();
+
+    // Get the object heap (type 24)
+    let obj_heap = &ngl.heaps[OBJ_TYPE as usize];
+    let obj_size = obj_heap.obj_size as usize; // uniform in-memory size (e.g. 46)
+    let obj_data = &obj_heap.obj_data;
+
+    // The reader prepends obj_size bytes of zeros for slot 0 (NILINK),
+    // then the rest is sizeAllObjsFile bytes of variable-length packed objects.
+    // We walk the packed region, reading each object's type byte at offset 10
+    // to determine its actual file size from N105_OBJ_SIZES.
+
+    let data_start = obj_size; // skip slot 0 padding
+    let data_end = obj_data.len();
+    let mut cursor = data_start;
+    let mut obj_idx: u16 = 1; // 1-based index matching C++ LINK values
+
+    while cursor < data_end && obj_idx <= obj_heap.obj_count {
+        // Need at least 23 bytes for the object header
+        if cursor + 23 > data_end {
+            break;
+        }
+
+        // Read the type byte at offset 10 within the object header
+        let obj_type = obj_data[cursor + 10];
+
+        // Look up the actual file size for this object type
+        let file_obj_size = if (obj_type as usize) < crate::obj_types::N105_OBJ_SIZES.len() {
+            crate::obj_types::N105_OBJ_SIZES[obj_type as usize] as usize
+        } else {
+            // Invalid type — bail out since data is corrupt
+            eprintln!(
+                "Warning: Object {} at offset {} has invalid type {}, stopping",
+                obj_idx, cursor, obj_type as i8
+            );
+            break;
+        };
+
+        if file_obj_size == 0 {
+            // Type 14 (MODNR) has 0 object size — no MODNR objects exist
+            eprintln!(
+                "Warning: Object {} has zero-length type {}, stopping",
+                obj_idx, obj_type
+            );
+            break;
+        }
+
+        if cursor + file_obj_size > data_end {
+            eprintln!(
+                "Warning: Object {} at offset {} truncated (need {} bytes, have {})",
+                obj_idx,
+                cursor,
+                file_obj_size,
+                data_end - cursor
+            );
+            break;
+        }
+
+        // Pad to uniform obj_size for header unpacking (some unpackers check len >= obj_size)
+        let mut obj_bytes_padded = vec![0u8; obj_size.max(file_obj_size)];
+        obj_bytes_padded[..file_obj_size]
+            .copy_from_slice(&obj_data[cursor..cursor + file_obj_size]);
+        let obj_bytes = &obj_bytes_padded[..];
+
+        // Unpack the 23-byte object header
+        let header = unpack_object_header_n105(obj_bytes)?;
+
+        // Based on obj_type, unpack the type-specific data after byte 23
+        let data = match header.obj_type as u8 {
+            HEADER_TYPE => ObjData::Header(Header {
+                header: header.clone(),
+            }),
+            TAIL_TYPE => ObjData::Tail(Tail {
+                header: header.clone(),
+            }),
+
+            SYNC_TYPE => {
+                let time_stamp = if obj_bytes.len() >= 25 {
+                    u16::from_be_bytes([obj_bytes[23], obj_bytes[24]])
+                } else {
+                    0
+                };
+                ObjData::Sync(Sync {
+                    header: header.clone(),
+                    time_stamp,
+                })
+            }
+
+            MEASURE_TYPE => {
+                // Measure: 46 bytes total, 23 bytes after header
+                let filler_m = if obj_bytes.len() > 23 {
+                    obj_bytes[23] as i8
+                } else {
+                    0
+                };
+                let l_measure = if obj_bytes.len() >= 26 {
+                    u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
+                } else {
+                    NILINK
+                };
+                let r_measure = if obj_bytes.len() >= 28 {
+                    u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                } else {
+                    NILINK
+                };
+                let system_l = if obj_bytes.len() >= 30 {
+                    u16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                } else {
+                    NILINK
+                };
+                let staff_l = if obj_bytes.len() >= 32 {
+                    u16::from_be_bytes([obj_bytes[30], obj_bytes[31]])
+                } else {
+                    NILINK
+                };
+                let fake_meas = if obj_bytes.len() >= 34 {
+                    i16::from_be_bytes([obj_bytes[32], obj_bytes[33]])
+                } else {
+                    0
+                };
+                let space_percent = if obj_bytes.len() >= 36 {
+                    i16::from_be_bytes([obj_bytes[34], obj_bytes[35]])
+                } else {
+                    100
+                };
+                let measure_b_box = if obj_bytes.len() >= 44 {
+                    Rect {
+                        top: i16::from_be_bytes([obj_bytes[36], obj_bytes[37]]),
+                        left: i16::from_be_bytes([obj_bytes[38], obj_bytes[39]]),
+                        bottom: i16::from_be_bytes([obj_bytes[40], obj_bytes[41]]),
+                        right: i16::from_be_bytes([obj_bytes[42], obj_bytes[43]]),
+                    }
+                } else {
+                    Rect {
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        right: 0,
+                    }
+                };
+                let l_time_stamp = if obj_bytes.len() >= 48 {
+                    i32::from_be_bytes([obj_bytes[44], obj_bytes[45], obj_bytes[46], obj_bytes[47]])
+                } else {
+                    0
+                };
+                ObjData::Measure(Measure {
+                    header: header.clone(),
+                    filler_m,
+                    l_measure,
+                    r_measure,
+                    system_l,
+                    staff_l,
+                    fake_meas,
+                    space_percent,
+                    measure_b_box,
+                    l_time_stamp,
+                })
+            }
+
+            STAFF_TYPE => {
+                let l_staff = if obj_bytes.len() >= 26 {
+                    u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
+                } else {
+                    NILINK
+                };
+                let r_staff = if obj_bytes.len() >= 28 {
+                    u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                } else {
+                    NILINK
+                };
+                let system_l = if obj_bytes.len() >= 30 {
+                    u16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                } else {
+                    NILINK
+                };
+                ObjData::Staff(Staff {
+                    header: header.clone(),
+                    l_staff,
+                    r_staff,
+                    system_l,
+                })
+            }
+
+            SYSTEM_TYPE => {
+                let l_system = if obj_bytes.len() >= 26 {
+                    u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
+                } else {
+                    NILINK
+                };
+                let r_system = if obj_bytes.len() >= 28 {
+                    u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                } else {
+                    NILINK
+                };
+                let page_l = if obj_bytes.len() >= 30 {
+                    u16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                } else {
+                    NILINK
+                };
+                let system_num = if obj_bytes.len() >= 32 {
+                    i16::from_be_bytes([obj_bytes[30], obj_bytes[31]])
+                } else {
+                    0
+                };
+                let system_rect = if obj_bytes.len() >= 40 {
+                    DRect {
+                        top: i16::from_be_bytes([obj_bytes[32], obj_bytes[33]]),
+                        left: i16::from_be_bytes([obj_bytes[34], obj_bytes[35]]),
+                        bottom: i16::from_be_bytes([obj_bytes[36], obj_bytes[37]]),
+                        right: i16::from_be_bytes([obj_bytes[38], obj_bytes[39]]),
+                    }
+                } else {
+                    DRect {
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        right: 0,
+                    }
+                };
+                ObjData::System(System {
+                    header: header.clone(),
+                    l_system,
+                    r_system,
+                    page_l,
+                    system_num,
+                    system_rect,
+                    sys_desc_ptr: 0,
+                })
+            }
+
+            PAGE_TYPE => {
+                let l_page = if obj_bytes.len() >= 26 {
+                    u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
+                } else {
+                    NILINK
+                };
+                let r_page = if obj_bytes.len() >= 28 {
+                    u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                } else {
+                    NILINK
+                };
+                let sheet_num = if obj_bytes.len() >= 30 {
+                    i16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                } else {
+                    0
+                };
+                let header_str_offset = if obj_bytes.len() >= 34 {
+                    i32::from_be_bytes([obj_bytes[30], obj_bytes[31], obj_bytes[32], obj_bytes[33]])
+                } else {
+                    0
+                };
+                let footer_str_offset = if obj_bytes.len() >= 38 {
+                    i32::from_be_bytes([obj_bytes[34], obj_bytes[35], obj_bytes[36], obj_bytes[37]])
+                } else {
+                    0
+                };
+                ObjData::Page(Page {
+                    header: header.clone(),
+                    l_page,
+                    r_page,
+                    sheet_num,
+                    header_str_offset,
+                    footer_str_offset,
+                })
+            }
+
+            CLEF_TYPE => {
+                let in_measure = if obj_bytes.len() > 23 {
+                    obj_bytes[23] != 0
+                } else {
+                    false
+                };
+                ObjData::Clef(Clef {
+                    header: header.clone(),
+                    in_measure,
+                })
+            }
+
+            KEYSIG_TYPE => {
+                let in_measure = if obj_bytes.len() > 23 {
+                    obj_bytes[23] != 0
+                } else {
+                    false
+                };
+                ObjData::KeySig(KeySig {
+                    header: header.clone(),
+                    in_measure,
+                })
+            }
+
+            TIMESIG_TYPE => {
+                let in_measure = if obj_bytes.len() > 23 {
+                    obj_bytes[23] != 0
+                } else {
+                    false
+                };
+                ObjData::TimeSig(TimeSig {
+                    header: header.clone(),
+                    in_measure,
+                })
+            }
+
+            BEAMSET_TYPE | SLUR_TYPE | TUPLET_TYPE | GRAPHIC_TYPE | OTTAVA_TYPE | SPACER_TYPE
+            | ENDING_TYPE | TEMPO_TYPE => {
+                // These all have ExtObjHeader (staffn byte at offset 23)
+                // For now, create minimal objects - full implementation can be added later
+                match header.obj_type as u8 {
+                    BEAMSET_TYPE => {
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        ObjData::BeamSet(BeamSet {
+                            header: header.clone(),
+                            ext_header,
+                            voice: if obj_bytes.len() > 24 {
+                                obj_bytes[24] as i8
+                            } else {
+                                1
+                            },
+                            thin: 0,
+                            beam_rests: 0,
+                            feather: 0,
+                            grace: 0,
+                            first_system: 0,
+                            cross_staff: 0,
+                            cross_system: 0,
+                        })
+                    }
+                    SLUR_TYPE => {
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        ObjData::Slur(Slur {
+                            header: header.clone(),
+                            ext_header,
+                            voice: if obj_bytes.len() > 24 {
+                                obj_bytes[24] as i8
+                            } else {
+                                1
+                            },
+                            philler: 0,
+                            cross_staff: 0,
+                            cross_stf_back: 0,
+                            cross_system: 0,
+                            temp_flag: false,
+                            used: false,
+                            tie: false,
+                            first_sync_l: NILINK,
+                            last_sync_l: NILINK,
+                        })
+                    }
+                    _ => ObjData::GrSync(GrSync {
+                        header: header.clone(),
+                    }),
+                }
+            }
+
+            GRSYNC_TYPE => ObjData::GrSync(GrSync {
+                header: header.clone(),
+            }),
+            PSMEAS_TYPE => ObjData::PsMeas(PsMeas {
+                header: header.clone(),
+                filler: 0,
+            }),
+
+            RPTEND_TYPE | CONNECT_TYPE | DYNAMIC_TYPE => {
+                // Simple objects with minimal unpacking for now
+                ObjData::GrSync(GrSync {
+                    header: header.clone(),
+                })
+            }
+
+            _ => {
+                // Should not happen — we already validated the type above
+                eprintln!(
+                    "Warning: Skipping object {} with unhandled type: {}",
+                    obj_idx, header.obj_type
+                );
+                // Still advance past this object (we know its size from the type lookup)
+                cursor += file_obj_size;
+                obj_idx += 1;
+                continue;
+            }
+        };
+
+        score.objects.push(InterpretedObject {
+            index: obj_idx,
+            header,
+            data,
+        });
+
+        // Advance cursor past this variable-length object
+        cursor += file_obj_size;
+        obj_idx += 1;
+    }
+
+    // Now unpack subobject heaps for objects that have subobjects
+    for obj in &score.objects {
+        if obj.header.first_sub_obj == NILINK || obj.header.first_sub_obj == 0 {
+            continue;
+        }
+
+        let heap_type = obj.header.obj_type as usize;
+        if heap_type >= ngl.heaps.len() {
+            continue;
+        }
+
+        let subobj_heap = &ngl.heaps[heap_type];
+        if subobj_heap.obj_count == 0 {
+            continue;
+        }
+
+        let sub_size = subobj_heap.obj_size as usize;
+        let sub_data = &subobj_heap.obj_data;
+
+        // Unpack subobjects based on type
+        match obj.header.obj_type as u8 {
+            SYNC_TYPE | GRSYNC_TYPE => {
+                // Unpack ANOTE subobjects
+                let mut notes = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(note) = unpack_anote_n105(&sub_data[offset..offset + sub_size]) {
+                            notes.push(note);
+                        }
+                    }
+                }
+                if !notes.is_empty() {
+                    if obj.header.obj_type as u8 == SYNC_TYPE {
+                        score.notes.insert(obj.header.first_sub_obj, notes);
+                    } else {
+                        score.grnotes.insert(obj.header.first_sub_obj, notes);
+                    }
+                }
+            }
+
+            STAFF_TYPE => {
+                // Unpack ASTAFF subobjects
+                let mut staffs = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(staff) = unpack_astaff_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            staffs.push(staff);
+                        }
+                    }
+                }
+                if !staffs.is_empty() {
+                    score.staffs.insert(obj.header.first_sub_obj, staffs);
+                }
+            }
+
+            MEASURE_TYPE => {
+                // Unpack AMEASURE subobjects
+                let mut measures = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(meas) = unpack_ameasure_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            measures.push(meas);
+                        }
+                    }
+                }
+                if !measures.is_empty() {
+                    score.measures.insert(obj.header.first_sub_obj, measures);
+                }
+            }
+
+            CLEF_TYPE => {
+                // Unpack ACLEF subobjects
+                let mut clefs = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(clef) = unpack_aclef_n105(&sub_data[offset..offset + sub_size]) {
+                            clefs.push(clef);
+                        }
+                    }
+                }
+                if !clefs.is_empty() {
+                    score.clefs.insert(obj.header.first_sub_obj, clefs);
+                }
+            }
+
+            KEYSIG_TYPE => {
+                // Unpack AKEYSIG subobjects
+                let mut keysigs = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(ks) = unpack_akeysig_n105(&sub_data[offset..offset + sub_size]) {
+                            keysigs.push(ks);
+                        }
+                    }
+                }
+                if !keysigs.is_empty() {
+                    score.keysigs.insert(obj.header.first_sub_obj, keysigs);
+                }
+            }
+
+            TIMESIG_TYPE => {
+                // Unpack ATIMESIG subobjects
+                let mut timesigs = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(ts) = unpack_atimesig_n105(&sub_data[offset..offset + sub_size]) {
+                            timesigs.push(ts);
+                        }
+                    }
+                }
+                if !timesigs.is_empty() {
+                    score.timesigs.insert(obj.header.first_sub_obj, timesigs);
+                }
+            }
+
+            BEAMSET_TYPE => {
+                // Unpack ANOTEBEAM subobjects
+                let mut notebeams = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(beam) =
+                            unpack_anotebeam_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            notebeams.push(beam);
+                        }
+                    }
+                }
+                if !notebeams.is_empty() {
+                    score.notebeams.insert(obj.header.first_sub_obj, notebeams);
+                }
+            }
+
+            SLUR_TYPE => {
+                // Unpack ASLUR subobjects
+                let mut slurs = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(slur) = unpack_aslur_n105(&sub_data[offset..offset + sub_size]) {
+                            slurs.push(slur);
+                        }
+                    }
+                }
+                if !slurs.is_empty() {
+                    score.slurs.insert(obj.header.first_sub_obj, slurs);
+                }
+            }
+
+            _ => {
+                // Other subobject types not yet implemented
+            }
+        }
+    }
+
+    Ok(score)
 }
 
 // =============================================================================
