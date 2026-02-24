@@ -48,30 +48,31 @@
 - [x] 20 PDF primitive smoke tests + 2 HBD_33 pipeline tests + 4 punted roadmap tests
 
 ### Recently Completed
+- [x] **Multiple voices per staff**: VoiceRole enum (Single/Upper/Lower), auto voice role detection, UPPER stems-up, LOWER stems-down, shorter 2v stems (stemLen2v=12), multi-voice rest offset
+- [x] **Visual regression test framework**: insta snapshot-based, HBD_33 blessed snapshot with command counts, staff/barline/beam geometry, glyph distribution
 - [x] **Beam slope**: port GetBeamEndYStems (Beam.cp:181) + FixSyncInBeamset (Beam.cp:272), 33% slope reduction
-- [x] **Beam group stem unification**: port NormalStemUpDown (Objects.cp:1594) for beam groups — all notes in a beamset share consistent stem direction based on group's pitch centroid relative to staff midline
+- [x] **Beam group stem unification**: port NormalStemUpDown (Objects.cp:1594) for beam groups — voice-role-aware
 - [x] **Renderer stem direction fix**: beam renderer now uses per-note ystem vs yd (matching OG) instead of heuristic
 - [x] **OG source line endings**: converted all 276 .cp/.h files to Unix LF — no more `tr` preprocessing
 
-### Next: Layout & Rendering Fixes (priority order)
-- [ ] **Multiple voices per staff**: support 2+ voices on same staff (UPPER_DI/LOWER_DI stem rules, voice separation)
+### Next: Engraving & Layout (priority order)
 - [ ] **System breaks**: render multi-system scores (line-break logic, system-level layout)
-- [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
+- [ ] **Rest rendering**: show rests at beat positions without notes (multi-voice rest offset)
 - [ ] **Duration-proportional spacing**: port SymWidthRight/CalcSpaceNeeded (SpaceTime.cp)
+- [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
-- [ ] **Rest rendering**: show rests at beat positions without notes
 - [ ] **Final barline**: double barline at end of piece
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
 
 ### Deferred
-- [ ] Visual regression test framework (perceptual hash comparison, blessed images)
 - [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
 - [ ] .ngl binary writer
 - [ ] N105 format test fixtures
 
-## Phase 3: Engraving Engine — NOT STARTED
-- [ ] Port Beam.cp / GRBeam.cp -> beam module
+## Phase 3: Engraving Engine — PARTIALLY IN PROGRESS
+- [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam slope in to_score.rs
+- [x] Port Objects.cp NormalStemUpDown -> beam group stem unification
 - [ ] Port SpaceTime.cp / SpaceHighLevel.cp -> spacing module
 - [ ] Port Slurs.cp -> slur module
 - [ ] Port Tuplet.cp -> tuplet module
@@ -89,9 +90,9 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~19,500 |
-| Rust test lines | ~2,300 |
-| Test count | 158 (104 unit + 46 integration + 8 doctest) |
+| Rust source lines | ~20,200 |
+| Rust test lines | ~2,700 |
+| Test count | 161 (104 unit + 49 integration + 8 doctest) |
 | Test fixture files | 16 .ngl + 15 .nl |
-| Commits | 5 |
+| Commits | 6 |
 | Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |

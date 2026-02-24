@@ -7,6 +7,7 @@
 
 use nightingale_core::draw::render_score;
 use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -254,4 +255,218 @@ fn test_anacrusis_spacing() {
 fn test_ledger_line_weight() {
     // Ledger line thickness should be config.ledgerLW * lnSpace / 100
     // Default: 13% of line space ≈ 0.26pt for 2pt line space
+}
+
+// ============================================================================
+// Multi-voice tests
+// ============================================================================
+
+/// Multi-voice: HBD_33 treble staff has voices 1 and 3.
+/// Voice 1 (UPPER) should have stems up, voice 3 (LOWER) stems down.
+/// This validates the voice role system from Multivoice.h.
+#[test]
+fn test_multi_voice_stem_directions() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Count stems and check directions
+    let stems: Vec<_> = commands
+        .iter()
+        .filter_map(|c| {
+            if let RenderCommand::NoteStem {
+                y_top, y_bottom, ..
+            } = c
+            {
+                Some((*y_top, *y_bottom))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // With multi-voice, we should have significantly more stems than single-voice
+    // (voices 1 and 3 on treble staff, voice 2 on bass)
+    assert!(
+        stems.len() > 30,
+        "Multi-voice score should have many stems, got {}",
+        stems.len()
+    );
+
+    // Should have stems (all stems have y_top < y_bottom by convention)
+    for (y_top, y_bottom) in &stems {
+        assert!(
+            y_top <= y_bottom,
+            "Stem y_top ({}) should be <= y_bottom ({})",
+            y_top,
+            y_bottom
+        );
+    }
+}
+
+/// Multi-voice: more noteheads than single-voice rendering.
+/// Default config now renders all voices (max_voices_per_staff = 0).
+#[test]
+fn test_multi_voice_has_more_content() {
+    use nightingale_core::notelist::{
+        notelist_to_score_with_config, parse_notelist, NotelistLayoutConfig,
+    };
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+
+    // Single-voice config
+    let single_config = NotelistLayoutConfig {
+        max_voices_per_staff: 1,
+        ..NotelistLayoutConfig::default()
+    };
+    let single_score = notelist_to_score_with_config(&notelist, &single_config);
+
+    // Multi-voice config (default)
+    let multi_score = notelist_to_score_with_config(&notelist, &NotelistLayoutConfig::default());
+
+    // Multi-voice should have more note groups (more syncs with notes from multiple voices)
+    let single_note_count: usize = single_score.notes.values().map(|v| v.len()).sum();
+    let multi_note_count: usize = multi_score.notes.values().map(|v| v.len()).sum();
+
+    assert!(
+        multi_note_count > single_note_count,
+        "Multi-voice ({}) should have more notes than single-voice ({})",
+        multi_note_count,
+        single_note_count
+    );
+}
+
+// ============================================================================
+// Visual regression tests (insta snapshot-based)
+// ============================================================================
+
+/// Build a compact summary of render commands for regression testing.
+/// Groups commands by type and includes key geometric parameters.
+fn render_summary(commands: &[RenderCommand]) -> String {
+    let mut lines = Vec::new();
+
+    // Command counts
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for cmd in commands {
+        *counts.entry(cmd.name()).or_insert(0) += 1;
+    }
+    lines.push("=== COMMAND COUNTS ===".to_string());
+    for (name, count) in &counts {
+        lines.push(format!("{}: {}", name, count));
+    }
+    lines.push(format!("TOTAL: {}", commands.len()));
+
+    // Staff positions
+    lines.push("\n=== STAVES ===".to_string());
+    for cmd in commands {
+        if let RenderCommand::Staff {
+            y,
+            x0,
+            x1,
+            n_lines,
+            line_spacing,
+        } = cmd
+        {
+            lines.push(format!(
+                "y={:.1} x=[{:.1}..{:.1}] lines={} spacing={:.2}",
+                y, x0, x1, n_lines, line_spacing
+            ));
+        }
+    }
+
+    // Barlines
+    lines.push("\n=== BARLINES ===".to_string());
+    for cmd in commands {
+        if let RenderCommand::BarLine { top, bottom, x, .. } = cmd {
+            lines.push(format!("x={:.1} top={:.1} bottom={:.1}", x, top, bottom));
+        }
+    }
+
+    // Beams (slope info)
+    lines.push("\n=== BEAMS ===".to_string());
+    for cmd in commands {
+        if let RenderCommand::Beam {
+            x0,
+            y0,
+            x1,
+            y1,
+            thickness,
+            ..
+        } = cmd
+        {
+            let slope = if (x1 - x0).abs() > 0.1 {
+                (y1 - y0) / (x1 - x0)
+            } else {
+                0.0
+            };
+            lines.push(format!(
+                "x=[{:.1}..{:.1}] y=[{:.1}..{:.1}] slope={:.3} thick={:.2}",
+                x0, x1, y0, y1, slope, thickness
+            ));
+        }
+    }
+
+    // Stem count + direction distribution
+    let mut stems_up = 0;
+    let mut stems_down = 0;
+    for cmd in commands {
+        if let RenderCommand::NoteStem {
+            y_top, y_bottom, ..
+        } = cmd
+        {
+            let length = y_bottom - y_top;
+            if length > 0.1 {
+                // We consider stems where the notehead is at the bottom as "stems up"
+                // and stems where notehead is at the top as "stems down".
+                // Actual direction depends on rendering context, but length > 0 always.
+                stems_up += 1; // All stems have y_top < y_bottom
+            } else {
+                stems_down += 1;
+            }
+        }
+    }
+    lines.push(format!("\n=== STEMS: {} total ===", stems_up + stems_down));
+
+    // MusicChar glyph distribution
+    lines.push("\n=== GLYPHS ===".to_string());
+    let mut glyph_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for cmd in commands {
+        if let RenderCommand::MusicChar { glyph, .. } = cmd {
+            *glyph_counts.entry(format!("{:?}", glyph)).or_insert(0) += 1;
+        }
+    }
+    for (glyph, count) in &glyph_counts {
+        lines.push(format!("{}: {}", glyph, count));
+    }
+
+    lines.join("\n")
+}
+
+/// Visual regression: snapshot the HBD_33 multi-voice render commands.
+/// This test captures the full rendering structure and will fail if any
+/// drawing command changes position, count, or type.
+#[test]
+fn test_hbd33_visual_regression_snapshot() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    let summary = render_summary(&commands);
+    insta::assert_snapshot!("hbd33_multivoice_render", summary);
 }

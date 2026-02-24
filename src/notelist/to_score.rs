@@ -40,6 +40,26 @@ use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, TIMESIG_TYPE};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
+use std::collections::BTreeSet;
+
+// ===========================================================================
+// Voice roles — port of Multivoice.h constants
+// ===========================================================================
+
+/// Voice role constants from Multivoice.h.
+/// Determines stem direction and stem length for each voice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceRole {
+    /// Single voice on staff: traditional midline-based stem direction.
+    /// (VCROLE_SINGLE = 6 in OG)
+    Single,
+    /// Upper voice in multi-voice notation: stems always UP.
+    /// (VCROLE_UPPER = 3 in OG)
+    Upper,
+    /// Lower voice in multi-voice notation: stems always DOWN.
+    /// (VCROLE_LOWER = 4 in OG)
+    Lower,
+}
 
 // ===========================================================================
 // Pitch conversion — faithful port from C++
@@ -315,6 +335,10 @@ pub struct NotelistLayoutConfig {
     /// Maximum voices per staff (0 = no limit). Voice 1 is always included;
     /// higher-numbered voices are filtered out if this is set to 1.
     pub max_voices_per_staff: usize,
+    /// Rest vertical offset (in half-lines) for multi-voice notation.
+    /// Rests in upper voice move up by this amount, lower voice down.
+    /// Default: 2 (= 1 staff space). Reference: config.restMVOffset (Initialize.cp).
+    pub rest_mv_offset: i16,
     /// If true, skip events before the first barline (anacrusis/pickup).
     pub skip_anacrusis: bool,
     /// Beam slope as percentage of natural slope (0=flat, 100=full slope).
@@ -342,12 +366,13 @@ impl Default for NotelistLayoutConfig {
             system_right: (page_width - margin_right_pt) * 16, // 8928 DDIST
             system_top: margin_top_pt * 16,   // 1152 DDIST
             inter_system: 1600,               // ~100pt
-            inter_staff: staff_height + 384,  // staff height + 24pt gap
+            inter_staff: staff_height * 5 / 2, // 2.5× staff height (Score.cp:200 initStfTop2)
             stem_len_normal: 14,              // 3.5 interline spaces (Initialize.cp:757)
             stem_len_2v: 12,                  // 3 interline spaces (Initialize.cp:758)
             stem_len_outside: 10,             // 2.5 interline spaces (Initialize.cp:759)
             max_measures: 4,                  // Anacrusis + 3 full measures
-            max_voices_per_staff: 1,          // Default to voice 1 only for clean output
+            max_voices_per_staff: 0,          // No limit — render all voices
+            rest_mv_offset: 2,                // 1 staff space (Initialize.cp config.restMVOffset)
             skip_anacrusis: false,            // Include pickup beats by default
             rel_beam_slope: 33,               // 33% of natural slope (Beam.cp:214)
         }
@@ -431,6 +456,58 @@ pub fn notelist_to_score_with_config(
         Box::new(move |staff: i8, voice: i8| allowed.contains(&(staff, voice)))
     } else {
         Box::new(|_staff: i8, _voice: i8| true) // no filter
+    };
+
+    // ---- VOICE ROLE DETERMINATION ----
+    // Port of IIAutoMultiVoice / Multivoice.h voice role system.
+    //
+    // For each staff, determine which voices are present. If only one voice
+    // exists on a staff, it's SINGLE (traditional stem rules). If 2+ voices
+    // exist, lowest-numbered = UPPER (stems always up), highest = LOWER
+    // (stems always down). Any middle voices get UPPER.
+    //
+    // The voice role table maps (staff, voice) → VoiceRole.
+    let voice_roles: std::collections::HashMap<(i8, i8), VoiceRole> = {
+        let mut staff_voices: Vec<BTreeSet<i8>> = vec![BTreeSet::new(); num_staves + 1];
+        for record in &notelist.records {
+            match record {
+                NotelistRecord::Note { voice, staff, .. }
+                | NotelistRecord::Rest { voice, staff, .. } => {
+                    let s = *staff as usize;
+                    if s > 0 && s <= num_staves {
+                        // Only count allowed voices
+                        if voice_allowed(*staff, *voice) {
+                            staff_voices[s].insert(*voice);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut roles = std::collections::HashMap::new();
+        #[allow(clippy::needless_range_loop)]
+        for s in 1..=num_staves {
+            let voices: Vec<i8> = staff_voices[s].iter().copied().collect();
+            if voices.len() <= 1 {
+                // Single voice: traditional stem rules
+                for &v in &voices {
+                    roles.insert((s as i8, v), VoiceRole::Single);
+                }
+            } else {
+                // Multi-voice: lowest-numbered = UPPER, highest = LOWER
+                // Middle voices (if any) are UPPER
+                let last_idx = voices.len() - 1;
+                for (i, &v) in voices.iter().enumerate() {
+                    let role = if i == last_idx {
+                        VoiceRole::Lower
+                    } else {
+                        VoiceRole::Upper
+                    };
+                    roles.insert((s as i8, v), role);
+                }
+            }
+        }
+        roles
     };
 
     // Collect clef assignments (staff→clef_type)
@@ -1343,23 +1420,38 @@ pub fn notelist_to_score_with_config(
                             // Stem and accidental calculations — faithful port from OG Nightingale
                             let n_staff_lines: i16 = 5; // Standard 5-line staff
 
-                            // Compute stem direction — port of GetCStemInfo (Utility.cp:158-194)
-                            // VCROLE_SINGLE: stemDown = (halfLn <= staffLines-1)
-                            // For 5-line staff: halfLn <= 4 → stems down (at or above middle)
-                            //                   halfLn > 4  → stems up (below middle)
+                            // Determine voice role for stem direction
+                            let role = voice_roles
+                                .get(&(*staff, *voice))
+                                .copied()
+                                .unwrap_or(VoiceRole::Single);
+
+                            // Compute stem direction — port of NormalStemUpDown (Objects.cp:1457-1497)
+                            // VCROLE_SINGLE: position-based (halfLn <= staffLines-1)
+                            // VCROLE_UPPER: always stem up (return 1)
+                            // VCROLE_LOWER: always stem down (return -1)
                             let stem_down = match stem_info.chars().next() {
                                 Some('+') => false, // Explicit: stem up
                                 Some('-') => true,  // Explicit: stem down
-                                _ => {
-                                    // Position-based (SINGLE_DI case from GetCStemInfo)
-                                    // Reference: Utility.cp:174
-                                    half_ln < n_staff_lines
-                                }
+                                _ => match role {
+                                    VoiceRole::Upper => false, // Always stem up
+                                    VoiceRole::Lower => true,  // Always stem down
+                                    VoiceRole::Single => {
+                                        // Position-based (SINGLE_DI case from GetCStemInfo)
+                                        // Reference: Utility.cp:174
+                                        half_ln < n_staff_lines
+                                    }
+                                },
                             };
 
                             // Compute stem endpoint — port of CalcYStem (Utility.cp:49-89)
                             let num_flags = nflags(*dur);
-                            let qtr_sp = config.stem_len_normal as i16;
+                            // Use shorter stems for multi-voice notation
+                            // Port of QSTEMLEN macro (defs.h:417)
+                            let qtr_sp = match role {
+                                VoiceRole::Single => config.stem_len_normal as i16,
+                                _ => config.stem_len_2v as i16,
+                            };
 
                             let ystem = if *dur >= 3 {
                                 // Has stem (half note and shorter)
@@ -1452,8 +1544,21 @@ pub fn notelist_to_score_with_config(
                                 continue;
                             }
 
-                            // Rest Y position: centered on staff (half-line 4 for 5-line staff)
-                            let yd = half_ln_to_yd(4, config.staff_height);
+                            // Rest Y position — port of GetRestMultivoiceRole (Multivoice.cp:258-269)
+                            // SINGLE: centered on staff (half-line 4 for 5-line staff)
+                            // UPPER: raised above center by rest_mv_offset half-lines
+                            // LOWER: lowered below center by rest_mv_offset half-lines
+                            let rest_role = voice_roles
+                                .get(&(*staff, *voice))
+                                .copied()
+                                .unwrap_or(VoiceRole::Single);
+                            let base_half_ln: i16 = 4; // Center of 5-line staff
+                            let rest_half_ln = match rest_role {
+                                VoiceRole::Single => base_half_ln,
+                                VoiceRole::Upper => base_half_ln - config.rest_mv_offset,
+                                VoiceRole::Lower => base_half_ln + config.rest_mv_offset,
+                            };
+                            let yd = half_ln_to_yd(rest_half_ln, config.staff_height);
 
                             notes.push(ANote {
                                 header: SubObjHeader {
@@ -1540,7 +1645,7 @@ pub fn notelist_to_score_with_config(
                     }
                 }
 
-                for indices in chord_groups.values() {
+                for (&(staffn, voice), indices) in &chord_groups {
                     // Find extreme notes (highest = min yd, lowest = max yd)
                     // Y increases downward in Nightingale coordinates
                     let mut min_yd = i16::MAX;
@@ -1560,13 +1665,28 @@ pub fn notelist_to_score_with_config(
                         }
                     }
 
-                    // NormalStemUpDown (Objects.cp:1618-1619):
-                    //   midLine = staffHeight/2
-                    //   return (maxy-midLine <= midLine-miny ? -1 : 1)
-                    // stem_down when lowest note is closer to (or equidistant from) midline
-                    let mid_line = config.staff_height / 2;
-                    let stem_down =
-                        (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32);
+                    // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497):
+                    // VCROLE_UPPER: always stem up
+                    // VCROLE_LOWER: always stem down
+                    // VCROLE_SINGLE: compare extreme notes to midline
+                    let role = voice_roles
+                        .get(&(staffn, voice))
+                        .copied()
+                        .unwrap_or(VoiceRole::Single);
+                    let stem_down = match role {
+                        VoiceRole::Upper => false,
+                        VoiceRole::Lower => true,
+                        VoiceRole::Single => {
+                            let mid_line = config.staff_height / 2;
+                            (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32)
+                        }
+                    };
+
+                    // Use shorter stems for multi-voice
+                    let chord_qtr_sp = match role {
+                        VoiceRole::Single => config.stem_len_normal as i16,
+                        _ => config.stem_len_2v as i16,
+                    };
 
                     let is_chord = indices.len() >= 2;
 
@@ -1585,7 +1705,7 @@ pub fn notelist_to_score_with_config(
                                 stem_down,
                                 config.staff_height,
                                 n_staff_lines,
-                                config.stem_len_normal as i16,
+                                chord_qtr_sp,
                                 false,
                             )
                         } else {
@@ -1603,7 +1723,7 @@ pub fn notelist_to_score_with_config(
                             }
                         }
                     } else {
-                        // Single note: compute stem direction and ystem
+                        // Single note: recompute ystem with voice-aware stem length
                         // Port of CalcYStem (Objects.cp:1638-1670)
                         let idx = indices[0];
                         let note_yd = notes[idx].yd;
@@ -1618,7 +1738,7 @@ pub fn notelist_to_score_with_config(
                                 stem_down,
                                 config.staff_height,
                                 n_staff_lines,
-                                config.stem_len_normal as i16,
+                                chord_qtr_sp,
                                 false,
                             );
                         }
@@ -1891,52 +2011,66 @@ pub fn notelist_to_score_with_config(
     // ---- BEAM GROUP STEM DIRECTION UNIFICATION ----
     // Port of NormalStemUpDown (Objects.cp:1594-1633) applied to beam groups.
     //
-    // In OG Nightingale, all notes in a beamset share the same stem direction,
-    // determined by NormalStemUpDown for SINGLE_DI voices. The algorithm:
-    //   maxy = lowest note yd in group (max because Y increases downward)
-    //   miny = highest note yd in group
-    //   midLine = staffHeight / 2
-    //   stem_down = (maxy - midLine <= midLine - miny)
+    // In OG Nightingale, all notes in a beamset share the same stem direction.
+    // For multi-voice: UPPER = always up, LOWER = always down.
+    // For SINGLE_DI: compare extreme notes to midline.
     //
     // After determining group direction, recompute ystem for each note.
     {
         let n_staff_lines: i16 = 5;
-        let qtr_sp = config.stem_len_normal as i16;
 
         for (_beamset_link, group) in &beam_groups {
             let voice = group[0].voice;
             let staffn = group[0].staff;
 
-            // Collect all yd values for notes in this beam group
-            let mut max_yd: Ddist = i16::MIN; // lowest note (max yd, Y increases downward)
-            let mut min_yd: Ddist = i16::MAX; // highest note (min yd)
+            // Look up voice role for this beam group
+            let role = voice_roles
+                .get(&(staffn, voice))
+                .copied()
+                .unwrap_or(VoiceRole::Single);
 
-            for bnote in group {
-                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == bnote.sync_link) {
-                    if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
-                        for n in notes {
-                            if n.voice == voice && n.header.staffn == staffn && !n.rest {
-                                if n.yd > max_yd {
-                                    max_yd = n.yd;
-                                }
-                                if n.yd < min_yd {
-                                    min_yd = n.yd;
+            // Use shorter stems for multi-voice
+            let qtr_sp = match role {
+                VoiceRole::Single => config.stem_len_normal as i16,
+                _ => config.stem_len_2v as i16,
+            };
+
+            // Determine beam group stem direction based on voice role
+            let group_stem_down = match role {
+                VoiceRole::Upper => false,
+                VoiceRole::Lower => true,
+                VoiceRole::Single => {
+                    // Collect all yd values for notes in this beam group
+                    let mut max_yd: Ddist = i16::MIN;
+                    let mut min_yd: Ddist = i16::MAX;
+
+                    for bnote in group {
+                        if let Some(sync_obj) =
+                            score.objects.iter().find(|o| o.index == bnote.sync_link)
+                        {
+                            if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+                                for n in notes {
+                                    if n.voice == voice && n.header.staffn == staffn && !n.rest {
+                                        if n.yd > max_yd {
+                                            max_yd = n.yd;
+                                        }
+                                        if n.yd < min_yd {
+                                            min_yd = n.yd;
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
+                    if max_yd == i16::MIN || min_yd == i16::MAX {
+                        continue;
+                    }
+
+                    let mid_line = config.staff_height / 2;
+                    (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32)
                 }
-            }
-
-            if max_yd == i16::MIN || min_yd == i16::MAX {
-                continue;
-            }
-
-            // NormalStemUpDown for SINGLE_DI (Objects.cp:1618-1619):
-            //   stem_down when lowest note is closer to or equidistant from midline
-            let mid_line = config.staff_height / 2;
-            let group_stem_down =
-                (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32);
+            };
 
             // Recompute ystem for all notes in the group using the unified direction
             for bnote in group {
