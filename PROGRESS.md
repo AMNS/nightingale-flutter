@@ -68,6 +68,8 @@
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
 - [ ] **Final barline**: double barline at end of piece
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
+- [ ] **Mid-score time signature changes**: render TimeSig objects within measures (e.g. 3/4 -> 5/4 at m.9 in HBD_33)
+- [ ] **Score markings**: fermata, other articulations (DrawMODNR port)
 - [ ] **Textual elements**: dynamics, tempo markings, rehearsal marks
 
 ### Deferred

@@ -37,6 +37,7 @@
 
 use crate::basic_types::*;
 use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, TIMESIG_TYPE};
+use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
@@ -2051,7 +2052,25 @@ pub fn notelist_to_score_with_config(
     }
     barline_time_set.sort_unstable();
 
-    // Group consecutive beamable notes by voice, staff, and within the same measure
+    // Compute beat duration (in ticks) for beat-boundary beam breaking.
+    // Port of AutoBeam.cp CreateNBeamBeatList: beams break at beat boundaries.
+    // For simple meters (2/4, 3/4, 4/4), beat = one denominator unit.
+    // For compound meters (6/8, 9/8, 12/8), beat = dotted denominator (3 sub-beats).
+    let beat_dur_per_staff: Vec<i32> = (0..=num_staves)
+        .map(|s| {
+            let (num, denom) = time_sigs[s];
+            let is_compound = num >= 6 && num % 3 == 0;
+            if is_compound {
+                // Compound meter: group in dotted beats (3 sub-beats)
+                code_to_l_dur(beat_l_dur(denom), 1) as i32 // dotted = 1.5× base
+            } else {
+                code_to_l_dur(beat_l_dur(denom), 0) as i32
+            }
+        })
+        .collect();
+
+    // Group consecutive beamable notes by voice, staff, within same measure,
+    // AND within the same beat (port of AutoBeam beat-boundary breaking).
     let mut current_group: Vec<BeamableNote> = Vec::new();
 
     for note in &beamable_notes {
@@ -2061,13 +2080,40 @@ pub fn notelist_to_score_with_config(
             let last = current_group.last().unwrap();
             // Check if this note continues the current group:
             // - Same voice and staff
-            // - No barline between last note and this note
+            // - No barline/system-break between last note and this note
+            // - Same beat (no beat-boundary crossing)
             let same_voice_staff = last.voice == note.voice && last.staff == note.staff;
             let crosses_barline = barline_time_set
                 .iter()
                 .any(|&bt| bt > last.time && bt <= note.time);
 
-            if same_voice_staff && !crosses_barline {
+            // Beat-boundary check: find measure start, compute beat index
+            let crosses_beat = if same_voice_staff && !crosses_barline {
+                let staff_idx = note.staff as usize;
+                let beat_dur = if staff_idx < beat_dur_per_staff.len() {
+                    beat_dur_per_staff[staff_idx]
+                } else {
+                    480 // fallback: quarter note
+                };
+                if beat_dur > 0 {
+                    // Find which measure this note is in
+                    let meas_start = measure_spans
+                        .iter()
+                        .filter(|s| note.time >= s.start_time && note.time < s.end_time)
+                        .map(|s| s.start_time)
+                        .next()
+                        .unwrap_or(0);
+                    let last_beat = (last.time - meas_start) / beat_dur;
+                    let note_beat = (note.time - meas_start) / beat_dur;
+                    last_beat != note_beat
+                } else {
+                    false
+                }
+            } else {
+                false // already breaking for other reasons
+            };
+
+            if same_voice_staff && !crosses_barline && !crosses_beat {
                 current_group.push(note.clone());
             } else {
                 // Save old group and start new
