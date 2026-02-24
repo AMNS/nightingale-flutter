@@ -28,7 +28,7 @@
 //! - No slur/tie rendering
 //! - No dynamics, text, or tempo mark rendering
 //! - Grace notes not yet positioned
-//! - Single-system layout only (no line breaks / page breaks)
+//! - No page breaks (single-page layout, multi-system)
 //!
 //! ## Reference
 //!
@@ -365,7 +365,7 @@ impl Default for NotelistLayoutConfig {
             system_left: margin_left_pt * 16, // 1152 DDIST
             system_right: (page_width - margin_right_pt) * 16, // 8928 DDIST
             system_top: margin_top_pt * 16,   // 1152 DDIST
-            inter_system: 1600,               // ~100pt
+            inter_system: 2800,               // ~175pt (system height + gap)
             inter_staff: staff_height * 5 / 2, // 2.5× staff height (Score.cp:200 initStfTop2)
             stem_len_normal: 14,              // 3.5 interline spaces (Initialize.cp:757)
             stem_len_2v: 12,                  // 3 interline spaces (Initialize.cp:758)
@@ -588,7 +588,11 @@ pub fn notelist_to_score_with_config(
     let timesig_xd: Ddist = clef_xd + (7 * d_line_sp) / 2; // 3.5 * dLineSp
                                                            //   Measure xd   = TimeSig.xd + 3*dLineSp          (Score.cp:1547 MakeMeasure)
     let preamble_width: Ddist = timesig_xd + 3 * d_line_sp;
+    // Continuation systems (no time sig) get a narrower preamble:
+    // just clef + small gap. Port of CreateSystem variant for continuation.
+    let continuation_preamble: Ddist = clef_xd + (5 * d_line_sp) / 2; // clef + 2.5*dLineSp
     let available_width: Ddist = config.content_width() - preamble_width;
+    let continuation_available: Ddist = config.content_width() - continuation_preamble;
 
     // --- Step 1: Identify measure boundaries from barlines ---
 
@@ -652,15 +656,27 @@ pub fn notelist_to_score_with_config(
         }
     }
 
-    // Limit measures per system if configured
-    let max_meas = config.max_measures;
-    if max_meas > 0 && measure_spans.len() > max_meas {
-        // Keep only max_meas measure spans
-        let cutoff_time = measure_spans[max_meas].start_time;
-        measure_spans.truncate(max_meas);
-        // Also limit barline_times to only those before the cutoff
-        barline_times.retain(|&(t, _)| t <= cutoff_time);
+    // ---- SYSTEM BREAK: group measures into systems ----
+    // Port of NewSysNums (Reformat.cp): split measures across systems.
+    // max_measures > 0 means N measures per system; 0 = all on one system.
+    let measures_per_sys = if config.max_measures > 0 {
+        config.max_measures
+    } else {
+        measure_spans.len() // all on one system
+    };
+
+    // Build system_measure_ranges: Vec<(start_idx, end_idx)> into measure_spans
+    let mut system_measure_ranges: Vec<(usize, usize)> = Vec::new();
+    {
+        let total = measure_spans.len();
+        let mut start = 0;
+        while start < total {
+            let end = (start + measures_per_sys).min(total);
+            system_measure_ranges.push((start, end));
+            start = end;
+        }
     }
+    let num_systems = system_measure_ranges.len();
 
     // Populate event_times in each measure (voice-filtered)
     for record in &notelist.records {
@@ -736,28 +752,49 @@ pub fn notelist_to_score_with_config(
         measure_ideal_stdist.push(total);
     }
 
-    // --- Step 4: Scale measures to fit available width ---
-    let total_ideal: f32 = measure_ideal_stdist.iter().sum();
-    let total_ideal_ddist = stdist_to_ddist(total_ideal, config.staff_height);
+    // --- Step 4: Scale measures to fit available width (PER SYSTEM) ---
+    // Each system has its own preamble. Only system 0 gets timesig; subsequent
+    // systems still get clef at the preamble. For simplicity, use same preamble
+    // width for all systems (timesig is narrow enough not to matter much).
 
-    // Scale factor to fit all measures into available_width
-    let scale = if total_ideal_ddist > 0 {
-        available_width as f32 / total_ideal_ddist as f32
-    } else {
-        1.0
-    };
-
-    // Compute absolute measure start positions (xd from staff_left)
-    // and measure widths in DDIST
     let mut measure_abs_xd: Vec<Ddist> = Vec::new();
     let mut measure_width_ddist: Vec<Ddist> = Vec::new();
-    let mut x_cursor: Ddist = preamble_width;
-    for ideal_std in &measure_ideal_stdist {
-        measure_abs_xd.push(x_cursor);
-        let w = (stdist_to_ddist(*ideal_std, config.staff_height) as f32 * scale) as Ddist;
-        let w = w.max(200); // minimum 200 DDIST per measure
-        measure_width_ddist.push(w);
-        x_cursor += w;
+
+    for (sys_idx_sp, &(sys_start, sys_end)) in system_measure_ranges.iter().enumerate() {
+        // Use narrower preamble for continuation systems (no time sig)
+        let sys_preamble = if sys_idx_sp == 0 {
+            preamble_width
+        } else {
+            continuation_preamble
+        };
+        let sys_available = if sys_idx_sp == 0 {
+            available_width
+        } else {
+            continuation_available
+        };
+
+        // Ideal space for measures in this system
+        let sys_ideal: f32 = measure_ideal_stdist[sys_start..sys_end].iter().sum();
+        let sys_ideal_ddist = stdist_to_ddist(sys_ideal, config.staff_height);
+
+        // Scale factor for this system's measures
+        let sys_scale = if sys_ideal_ddist > 0 {
+            sys_available as f32 / sys_ideal_ddist as f32
+        } else {
+            1.0
+        };
+
+        // Absolute X positions within this system (relative to system_left)
+        let mut x_cursor: Ddist = sys_preamble;
+        #[allow(clippy::needless_range_loop)] // need index into measure_ideal_stdist
+        for mi in sys_start..sys_end {
+            measure_abs_xd.push(x_cursor);
+            let w = (stdist_to_ddist(measure_ideal_stdist[mi], config.staff_height) as f32
+                * sys_scale) as Ddist;
+            let w = w.max(200); // minimum 200 DDIST per measure
+            measure_width_ddist.push(w);
+            x_cursor += w;
+        }
     }
 
     // --- Step 5: Compute per-event xd (relative to measure) ---
@@ -819,8 +856,13 @@ pub fn notelist_to_score_with_config(
     }
 
     // ===========================================================================
-    // Build the object list
+    // Build the object list — multi-system layout
     // ===========================================================================
+    //
+    // Structure: HEADER → PAGE → [SYSTEM → STAFF → CONNECT → CLEF → (TIMESIG) →
+    //            initial-MEASURE → barline-MEASUREs + SYNCs] × N → TAIL
+    //
+    // Port of CreateSystem (Score.cp:1785) applied per system.
 
     let mut link_counter: Link = 0;
     let mut next_link = || -> Link {
@@ -828,14 +870,17 @@ pub fn notelist_to_score_with_config(
         link_counter
     };
 
-    // ---- HEADER (link 1) ----
+    // ---- HEADER and PAGE (shared across systems) ----
     let header_link = next_link();
     let page_link = next_link();
-    let system_link = next_link();
-    let staff_link = next_link();
-    let connect_link = next_link();
-    let clef_link = next_link();
-    let timesig_link = next_link();
+
+    // Pre-allocate system links so we can wire left/right pointers
+    let mut system_links: Vec<Link> = Vec::new();
+    for _ in 0..num_systems {
+        system_links.push(next_link());
+    }
+    // Reserve tail link
+    let tail_link = next_link();
 
     // Coordinate system: context computes note X as:
     //   note_x = measure_left + sync.xd + note.xd
@@ -860,111 +905,13 @@ pub fn notelist_to_score_with_config(
         },
     }
 
-    let mut music_objs: Vec<MusicObj> = Vec::new();
-
-    // Initial measure: xd = preamble_width so notes start after clef/timesig.
-    // OG Nightingale: CreateSystem (Score.cp:1785) places the first Measure
-    // after Clef, KeySig, TimeSig objects whose cumulative width = preamble.
-    let initial_meas_xd = if !measure_abs_xd.is_empty() {
-        measure_abs_xd[0]
-    } else {
-        preamble_width
-    };
-    let initial_meas_link = next_link();
-    music_objs.push(MusicObj {
-        link: initial_meas_link,
-        kind: MusicObjKind::Measure {
-            bar_type: 1,
-            xd: initial_meas_xd,
-            visible: false,
-        },
-    });
-    // Cutoff time: only include events within our measure spans
-    let cutoff_time = measure_spans.last().map(|s| s.end_time).unwrap_or(i32::MAX);
-
-    // Walk records, emitting Syncs and Measures in order.
-    let mut seen_times: Vec<i32> = Vec::new();
-    let mut barline_idx: usize = 0;
-    let num_barlines = barline_times.len();
-
-    for record in &notelist.records {
-        match record {
-            NotelistRecord::Barline { time, bar_type, .. } => {
-                // Skip barlines beyond our measure range
-                if barline_idx >= num_barlines {
-                    continue;
-                }
-                if *time > cutoff_time {
-                    continue;
-                }
-
-                // The barline at measure_spans[i].end_time starts measure i+1,
-                // whose abs_xd is measure_abs_xd[i+1] (if it exists) or measure_abs_xd[i]+width.
-                let bar_xd = if barline_idx + 1 < measure_abs_xd.len() {
-                    measure_abs_xd[barline_idx + 1]
-                } else {
-                    // Final barline — place at end of last measure
-                    let last = measure_abs_xd.len() - 1;
-                    measure_abs_xd[last] + measure_width_ddist[last]
-                };
-                barline_idx += 1;
-
-                let link = next_link();
-                music_objs.push(MusicObj {
-                    link,
-                    kind: MusicObjKind::Measure {
-                        bar_type: *bar_type,
-                        xd: bar_xd,
-                        visible: true,
-                    },
-                });
-            }
-            NotelistRecord::Note { time, .. } | NotelistRecord::Rest { time, .. } => {
-                // Skip events beyond our measure range
-                if *time >= cutoff_time {
-                    continue;
-                }
-
-                if !seen_times.contains(time) {
-                    seen_times.push(*time);
-                    let rel_xd = event_rel_xd.get(time).copied().unwrap_or(100);
-                    let link = next_link();
-                    music_objs.push(MusicObj {
-                        link,
-                        kind: MusicObjKind::Sync {
-                            time: *time,
-                            xd: rel_xd,
-                        },
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // TAIL
-    let tail_link = next_link();
-
-    // ---- Build objects ----
-
-    // DRect for system
-    let system_rect = DRect {
-        top: config.system_top,
-        left: config.system_left,
-        bottom: config.system_top
-            + (num_staves as Ddist - 1) * config.inter_staff
-            + config.staff_height,
-        right: config.system_right,
-    };
-
     // HEADER object
-    let header_right = page_link;
     score.objects.push(InterpretedObject {
         index: header_link,
         header: ObjectHeader {
-            right: header_right,
+            right: page_link,
             left: NILINK,
-            first_sub_obj: NILINK, // No PARTINFO subobjects for now
+            first_sub_obj: NILINK,
             xd: 0,
             yd: 0,
             obj_type: 0, // HEADERtype
@@ -989,7 +936,7 @@ pub fn notelist_to_score_with_config(
     score.objects.push(InterpretedObject {
         index: page_link,
         header: ObjectHeader {
-            right: system_link,
+            right: system_links[0],
             left: header_link,
             first_sub_obj: NILINK,
             xd: 0,
@@ -1017,767 +964,1014 @@ pub fn notelist_to_score_with_config(
         }),
     });
 
-    // SYSTEM object
-    score.objects.push(InterpretedObject {
-        index: system_link,
-        header: ObjectHeader {
-            right: staff_link,
-            left: page_link,
-            first_sub_obj: NILINK,
-            xd: 0,
-            yd: 0,
-            obj_type: 5, // SYSTEMtype
-            selected: false,
-            visible: true,
-            soft: false,
-            valid: true,
-            tweaked: false,
-            spare_flag: false,
-            ohdr_filler1: 0,
-            obj_rect: Rect::default(),
-            rel_size: 0,
-            ohdr_filler2: 0,
-            n_entries: 0,
-        },
-        data: ObjData::System(System {
-            header: ObjectHeader::default(),
-            l_system: NILINK,
-            r_system: NILINK,
-            page_l: page_link,
-            system_num: 1,
-            system_rect,
-            sys_desc_ptr: 0,
-        }),
-    });
+    // Subobject link namespace base — incremented as we create subobjects
+    let mut sub_link_counter: Link = 1;
+    let mut next_sub_link = || -> Link {
+        let l = sub_link_counter;
+        sub_link_counter += 1;
+        l
+    };
 
-    // STAFF object — one subobject per staff
-    let staff_sub_link: Link = 1; // Subobject links are separate namespace
-    let mut staff_subs: Vec<AStaff> = Vec::new();
-
-    #[allow(clippy::needless_range_loop)] // 1-based staff indexing matches OG
-    for s in 1..=num_staves {
-        let staff_top = (s as Ddist - 1) * config.inter_staff;
-        staff_subs.push(AStaff {
-            next: if s < num_staves {
-                staff_sub_link + s as Link
-            } else {
-                NILINK
-            },
-            staffn: s as i8,
-            selected: false,
-            visible: true,
-            filler_stf: false,
-            staff_top,
-            staff_left: 0,
-            staff_right: config.content_width(),
-            staff_height: config.staff_height,
-            staff_lines: 5,
-            font_size: 24,
-            flag_leading: 0,
-            min_stem_free: 0,
-            ledger_width: 96, // 6pt
-            note_head_width: 96,
-            frac_beam_width: 48,
-            space_below: config.inter_staff - config.staff_height,
-            clef_type: clef_types[s] as i8,
-            dynamic_type: 0,
-            ks_info: KsInfo::default(),
-            time_sig_type: 0,
-            numerator: 4,
-            denominator: 4,
-            filler: 0,
-            show_ledgers: 1,
-            show_lines: SHOW_ALL_LINES,
-        });
-    }
-
-    score.staffs.insert(staff_sub_link, staff_subs);
-
-    score.objects.push(InterpretedObject {
-        index: staff_link,
-        header: ObjectHeader {
-            right: connect_link,
-            left: system_link,
-            first_sub_obj: staff_sub_link,
-            xd: 0,
-            yd: 0,
-            obj_type: 6, // STAFFtype
-            selected: false,
-            visible: true,
-            soft: false,
-            valid: true,
-            tweaked: false,
-            spare_flag: false,
-            ohdr_filler1: 0,
-            obj_rect: Rect::default(),
-            rel_size: 0,
-            ohdr_filler2: 0,
-            n_entries: num_staves as u8,
-        },
-        data: ObjData::Staff(Staff {
-            header: ObjectHeader::default(),
-            l_staff: NILINK,
-            r_staff: NILINK,
-            system_l: system_link,
-        }),
-    });
-
-    // CONNECT object (brace for grand staff)
-    let connect_sub_link: Link = 100; // Offset into connect subobject space
-    if num_staves > 1 {
-        let connect_subs = vec![AConnect {
-            next: NILINK,
-            selected: false,
-            filler: 0,
-            conn_level: 1,   // Group level
-            connect_type: 3, // Curly brace
-            staff_above: 1,
-            staff_below: num_staves as i8,
-            xd: -48, // Offset left of staff
-            first_part: NILINK,
-            last_part: NILINK,
-        }];
-        score.connects.insert(connect_sub_link, connect_subs);
-    }
-
-    score.objects.push(InterpretedObject {
-        index: connect_link,
-        header: ObjectHeader {
-            right: clef_link,
-            left: staff_link,
-            first_sub_obj: if num_staves > 1 {
-                connect_sub_link
-            } else {
-                NILINK
-            },
-            xd: 0,
-            yd: 0,
-            obj_type: 12, // CONNECTtype
-            selected: false,
-            visible: true,
-            soft: false,
-            valid: true,
-            tweaked: false,
-            spare_flag: false,
-            ohdr_filler1: 0,
-            obj_rect: Rect::default(),
-            rel_size: 0,
-            ohdr_filler2: 0,
-            n_entries: if num_staves > 1 { 1 } else { 0 },
-        },
-        data: ObjData::Connect(Connect {
-            header: ObjectHeader::default(),
-            conn_filler: NILINK,
-        }),
-    });
-
-    // ---- CLEF object ----
-    let clef_sub_link: Link = 150; // Subobject link namespace for clefs
-    let mut clef_subs: Vec<AClef> = Vec::new();
-
-    #[allow(clippy::needless_range_loop)] // 1-based staff indexing matches OG
-    for s in 1..=num_staves {
-        clef_subs.push(AClef {
-            header: SubObjHeader {
-                next: NILINK,
-                staffn: s as i8,
-                sub_type: clef_types[s] as i8,
-                selected: false,
-                visible: true,
-                soft: false,
-            },
-            filler1: 0,
-            small: 0,
-            filler2: 0,
-            xd: 0, // Sub-object offset; obj-level xd handles preamble position
-            yd: 0, // Renderer will position based on clef type
-        });
-    }
-
-    score.clefs.insert(clef_sub_link, clef_subs);
-
-    score.objects.push(InterpretedObject {
-        index: clef_link,
-        header: ObjectHeader {
-            right: timesig_link,
-            left: connect_link,
-            first_sub_obj: clef_sub_link,
-            xd: clef_xd, // Score.cp:1406 MakeClef: xd = dLineSp
-            yd: 0,
-            obj_type: CLEF_TYPE as i8,
-            selected: false,
-            visible: true,
-            soft: false,
-            valid: true,
-            tweaked: false,
-            spare_flag: false,
-            ohdr_filler1: 0,
-            obj_rect: Rect::default(),
-            rel_size: 0,
-            ohdr_filler2: 0,
-            n_entries: num_staves as u8,
-        },
-        data: ObjData::Clef(Clef {
-            header: ObjectHeader::default(),
-            in_measure: false,
-        }),
-    });
-
-    // ---- TIMESIG object ----
-    let timesig_sub_link: Link = 160; // Subobject link namespace for time signatures
-    let mut timesig_subs: Vec<ATimeSig> = Vec::new();
-
-    #[allow(clippy::needless_range_loop)] // 1-based staff indexing matches OG
-    for s in 1..=num_staves {
-        let (numerator, denominator) = time_sigs[s];
-        timesig_subs.push(ATimeSig {
-            header: SubObjHeader {
-                next: NILINK,
-                staffn: s as i8,
-                sub_type: 1, // N_OVER_D type
-                selected: false,
-                visible: true,
-                soft: false,
-            },
-            filler: 0,
-            small: 0,
-            conn_staff: 0,
-            xd: 0, // Sub-object offset; obj-level xd handles preamble position
-            yd: 0,
-            numerator,
-            denominator,
-        });
-    }
-
-    score.timesigs.insert(timesig_sub_link, timesig_subs);
-
-    score.objects.push(InterpretedObject {
-        index: timesig_link,
-        header: ObjectHeader {
-            right: if music_objs.is_empty() {
-                tail_link
-            } else {
-                music_objs[0].link
-            },
-            left: clef_link,
-            first_sub_obj: timesig_sub_link,
-            xd: timesig_xd, // Score.cp:1501 MakeTimeSig: Clef.xd + 3.5*dLineSp
-            yd: 0,
-            obj_type: TIMESIG_TYPE as i8,
-            selected: false,
-            visible: true,
-            soft: false,
-            valid: true,
-            tweaked: false,
-            spare_flag: false,
-            ohdr_filler1: 0,
-            obj_rect: Rect::default(),
-            rel_size: 0,
-            ohdr_filler2: 0,
-            n_entries: num_staves as u8,
-        },
-        data: ObjData::TimeSig(TimeSig {
-            header: ObjectHeader::default(),
-            in_measure: false,
-        }),
-    });
-
-    // ---- MUSIC OBJECTS (Measures and Syncs) ----
     let mut note_sub_counter: Link = 200; // Subobject link namespace for notes
 
-    for (i, mobj) in music_objs.iter().enumerate() {
-        let right = if i + 1 < music_objs.len() {
-            music_objs[i + 1].link
-        } else {
-            tail_link
-        };
-        let left = if i > 0 {
-            music_objs[i - 1].link
-        } else {
-            timesig_link
+    // Track the last music object link per system for TAIL wiring
+    let mut last_obj_link_per_system: Vec<Link> = Vec::new();
+
+    // Collect all music_objs across all systems for beam processing later
+    let mut all_music_objs: Vec<MusicObj> = Vec::new();
+
+    // ---- BUILD EACH SYSTEM ----
+    // Port of CreateSystem loop from Score.cp
+    let system_height = (num_staves as Ddist - 1) * config.inter_staff + config.staff_height;
+
+    for (sys_idx, &(sys_meas_start, sys_meas_end)) in system_measure_ranges.iter().enumerate() {
+        let system_link = system_links[sys_idx];
+
+        // System vertical position — stacked with inter_system spacing
+        // Port of PageFixSysRects (SFormat.cp)
+        let sys_top = config.system_top + sys_idx as Ddist * config.inter_system;
+
+        let system_rect = DRect {
+            top: sys_top,
+            left: config.system_left,
+            bottom: sys_top + system_height,
+            right: config.system_right,
         };
 
-        match &mobj.kind {
-            MusicObjKind::Measure {
-                bar_type,
-                xd: measure_xd,
-                visible: meas_visible,
-            } => {
-                // Create AMeasure subobjects (one per staff)
-                let measure_sub_link = note_sub_counter;
-                note_sub_counter += 1;
+        // Allocate STAFF, CONNECT, CLEF links for this system
+        let staff_link = next_link();
+        let connect_link = next_link();
+        let clef_link = next_link();
 
-                let mut measure_subs: Vec<AMeasure> = Vec::new();
-                #[allow(clippy::needless_range_loop)] // 1-based staff indexing matches OG
-                for s in 1..=num_staves {
-                    measure_subs.push(AMeasure {
-                        header: SubObjHeader {
-                            next: NILINK,
-                            staffn: s as i8,
-                            sub_type: *bar_type as i8,
-                            selected: false,
-                            visible: *meas_visible,
-                            soft: false,
-                        },
-                        measure_visible: true,
-                        conn_above: s > 1,
-                        filler1: 0,
-                        filler2: 0,
-                        reserved_m: 0,
-                        measure_num: 0,
-                        meas_size_rect: DRect::default(),
-                        conn_staff: 0,
-                        clef_type: clef_types[s] as i8,
-                        dynamic_type: 0,
-                        ks_info: KsInfo::default(),
-                        time_sig_type: 0,
-                        numerator: 4,
-                        denominator: 4,
-                        x_mn_std_offset: 0,
-                        y_mn_std_offset: 0,
-                    });
+        // Only first system gets a time signature in the preamble
+        let has_timesig = sys_idx == 0;
+        let timesig_link = if has_timesig { next_link() } else { NILINK };
+
+        // --- SYSTEM object ---
+        // left = previous system or page; right = staff
+        let sys_left = if sys_idx == 0 {
+            page_link
+        } else {
+            // last object of previous system
+            *last_obj_link_per_system.last().unwrap_or(&page_link)
+        };
+        // right will point to staff_link of this system
+        score.objects.push(InterpretedObject {
+            index: system_link,
+            header: ObjectHeader {
+                right: staff_link,
+                left: sys_left,
+                first_sub_obj: NILINK,
+                xd: 0,
+                yd: 0,
+                obj_type: 5, // SYSTEMtype
+                selected: false,
+                visible: true,
+                soft: false,
+                valid: true,
+                tweaked: false,
+                spare_flag: false,
+                ohdr_filler1: 0,
+                obj_rect: Rect::default(),
+                rel_size: 0,
+                ohdr_filler2: 0,
+                n_entries: 0,
+            },
+            data: ObjData::System(System {
+                header: ObjectHeader::default(),
+                l_system: if sys_idx > 0 {
+                    system_links[sys_idx - 1]
+                } else {
+                    NILINK
+                },
+                r_system: if sys_idx + 1 < num_systems {
+                    system_links[sys_idx + 1]
+                } else {
+                    NILINK
+                },
+                page_l: page_link,
+                system_num: (sys_idx + 1) as i16,
+                system_rect,
+                sys_desc_ptr: 0,
+            }),
+        });
+
+        // Fix the right-link of the previous system's last object to point here
+        if sys_idx > 0 {
+            if let Some(prev_last_link) = last_obj_link_per_system.last() {
+                if let Some(prev_obj) = score
+                    .objects
+                    .iter_mut()
+                    .find(|o| o.index == *prev_last_link)
+                {
+                    prev_obj.header.right = system_link;
                 }
-                score.measures.insert(measure_sub_link, measure_subs);
+            }
+        }
 
-                score.objects.push(InterpretedObject {
-                    index: mobj.link,
-                    header: ObjectHeader {
-                        right,
-                        left,
-                        first_sub_obj: measure_sub_link,
-                        xd: *measure_xd,
-                        yd: 0,
-                        obj_type: 7, // MEASUREtype
+        // --- STAFF object — one subobject per staff ---
+        let staff_sub_link = next_sub_link();
+        let mut staff_subs: Vec<AStaff> = Vec::new();
+
+        #[allow(clippy::needless_range_loop)]
+        for s in 1..=num_staves {
+            let staff_top = (s as Ddist - 1) * config.inter_staff;
+            staff_subs.push(AStaff {
+                next: if s < num_staves {
+                    staff_sub_link + s as Link
+                } else {
+                    NILINK
+                },
+                staffn: s as i8,
+                selected: false,
+                visible: true,
+                filler_stf: false,
+                staff_top,
+                staff_left: 0,
+                staff_right: config.content_width(),
+                staff_height: config.staff_height,
+                staff_lines: 5,
+                font_size: 24,
+                flag_leading: 0,
+                min_stem_free: 0,
+                ledger_width: 96,
+                note_head_width: 96,
+                frac_beam_width: 48,
+                space_below: config.inter_staff - config.staff_height,
+                clef_type: clef_types[s] as i8,
+                dynamic_type: 0,
+                ks_info: KsInfo::default(),
+                time_sig_type: 0,
+                numerator: 4,
+                denominator: 4,
+                filler: 0,
+                show_ledgers: 1,
+                show_lines: SHOW_ALL_LINES,
+            });
+        }
+        score.staffs.insert(staff_sub_link, staff_subs);
+
+        score.objects.push(InterpretedObject {
+            index: staff_link,
+            header: ObjectHeader {
+                right: connect_link,
+                left: system_link,
+                first_sub_obj: staff_sub_link,
+                xd: 0,
+                yd: 0,
+                obj_type: 6, // STAFFtype
+                selected: false,
+                visible: true,
+                soft: false,
+                valid: true,
+                tweaked: false,
+                spare_flag: false,
+                ohdr_filler1: 0,
+                obj_rect: Rect::default(),
+                rel_size: 0,
+                ohdr_filler2: 0,
+                n_entries: num_staves as u8,
+            },
+            data: ObjData::Staff(Staff {
+                header: ObjectHeader::default(),
+                l_staff: NILINK,
+                r_staff: NILINK,
+                system_l: system_link,
+            }),
+        });
+
+        // --- CONNECT object (brace for grand staff) ---
+        let connect_sub_link = next_sub_link();
+        if num_staves > 1 {
+            let connect_subs = vec![AConnect {
+                next: NILINK,
+                selected: false,
+                filler: 0,
+                conn_level: 1,
+                connect_type: 3,
+                staff_above: 1,
+                staff_below: num_staves as i8,
+                xd: -48,
+                first_part: NILINK,
+                last_part: NILINK,
+            }];
+            score.connects.insert(connect_sub_link, connect_subs);
+        }
+
+        score.objects.push(InterpretedObject {
+            index: connect_link,
+            header: ObjectHeader {
+                right: clef_link,
+                left: staff_link,
+                first_sub_obj: if num_staves > 1 {
+                    connect_sub_link
+                } else {
+                    NILINK
+                },
+                xd: 0,
+                yd: 0,
+                obj_type: 12, // CONNECTtype
+                selected: false,
+                visible: true,
+                soft: false,
+                valid: true,
+                tweaked: false,
+                spare_flag: false,
+                ohdr_filler1: 0,
+                obj_rect: Rect::default(),
+                rel_size: 0,
+                ohdr_filler2: 0,
+                n_entries: if num_staves > 1 { 1 } else { 0 },
+            },
+            data: ObjData::Connect(Connect {
+                header: ObjectHeader::default(),
+                conn_filler: NILINK,
+            }),
+        });
+
+        // --- CLEF object ---
+        let clef_sub_link = next_sub_link();
+        let mut clef_subs: Vec<AClef> = Vec::new();
+
+        #[allow(clippy::needless_range_loop)]
+        for s in 1..=num_staves {
+            clef_subs.push(AClef {
+                header: SubObjHeader {
+                    next: NILINK,
+                    staffn: s as i8,
+                    sub_type: clef_types[s] as i8,
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                },
+                filler1: 0,
+                small: 0,
+                filler2: 0,
+                xd: 0,
+                yd: 0,
+            });
+        }
+        score.clefs.insert(clef_sub_link, clef_subs);
+
+        let clef_right = if has_timesig {
+            timesig_link
+        } else {
+            // clef links directly to first music object (will be updated below)
+            NILINK // placeholder — fixed after music_objs are built
+        };
+
+        score.objects.push(InterpretedObject {
+            index: clef_link,
+            header: ObjectHeader {
+                right: clef_right,
+                left: connect_link,
+                first_sub_obj: clef_sub_link,
+                xd: clef_xd,
+                yd: 0,
+                obj_type: CLEF_TYPE as i8,
+                selected: false,
+                visible: true,
+                soft: false,
+                valid: true,
+                tweaked: false,
+                spare_flag: false,
+                ohdr_filler1: 0,
+                obj_rect: Rect::default(),
+                rel_size: 0,
+                ohdr_filler2: 0,
+                n_entries: num_staves as u8,
+            },
+            data: ObjData::Clef(Clef {
+                header: ObjectHeader::default(),
+                in_measure: false,
+            }),
+        });
+
+        // --- TIMESIG object (first system only) ---
+        if has_timesig {
+            let timesig_sub_link = next_sub_link();
+            let mut timesig_subs: Vec<ATimeSig> = Vec::new();
+
+            #[allow(clippy::needless_range_loop)]
+            for s in 1..=num_staves {
+                let (numerator, denominator) = time_sigs[s];
+                timesig_subs.push(ATimeSig {
+                    header: SubObjHeader {
+                        next: NILINK,
+                        staffn: s as i8,
+                        sub_type: 1,
                         selected: false,
                         visible: true,
                         soft: false,
-                        valid: true,
-                        tweaked: false,
-                        spare_flag: false,
-                        ohdr_filler1: 0,
-                        obj_rect: Rect::default(),
-                        rel_size: 0,
-                        ohdr_filler2: 0,
-                        n_entries: num_staves as u8,
                     },
-                    data: ObjData::Measure(Measure {
-                        header: ObjectHeader::default(),
-                        filler_m: 0,
-                        l_measure: NILINK,
-                        r_measure: NILINK,
-                        system_l: system_link,
-                        staff_l: staff_link,
-                        fake_meas: 0,
-                        space_percent: 100,
-                        measure_b_box: Rect::default(),
-                        l_time_stamp: 0,
-                    }),
+                    filler: 0,
+                    small: 0,
+                    conn_staff: 0,
+                    xd: 0,
+                    yd: 0,
+                    numerator,
+                    denominator,
                 });
             }
+            score.timesigs.insert(timesig_sub_link, timesig_subs);
 
-            MusicObjKind::Sync { time, xd: sync_xd } => {
-                // Collect all notes/rests at this time
-                let note_sub_link = note_sub_counter;
-                note_sub_counter += 1;
+            // timesig right pointer → first music obj (placeholder, fixed below)
+            score.objects.push(InterpretedObject {
+                index: timesig_link,
+                header: ObjectHeader {
+                    right: NILINK, // placeholder
+                    left: clef_link,
+                    first_sub_obj: timesig_sub_link,
+                    xd: timesig_xd,
+                    yd: 0,
+                    obj_type: TIMESIG_TYPE as i8,
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                    valid: true,
+                    tweaked: false,
+                    spare_flag: false,
+                    ohdr_filler1: 0,
+                    obj_rect: Rect::default(),
+                    rel_size: 0,
+                    ohdr_filler2: 0,
+                    n_entries: num_staves as u8,
+                },
+                data: ObjData::TimeSig(TimeSig {
+                    header: ObjectHeader::default(),
+                    in_measure: false,
+                }),
+            });
+        }
 
-                let mut notes: Vec<ANote> = Vec::new();
+        // --- MUSIC OBJECTS for this system (Measures and Syncs) ---
+        let mut music_objs: Vec<MusicObj> = Vec::new();
 
-                for record in &notelist.records {
-                    match record {
-                        NotelistRecord::Note {
-                            time: t,
-                            voice,
-                            staff,
-                            dur,
-                            dots,
-                            note_num,
-                            acc,
-                            effective_acc,
-                            play_dur,
-                            velocity,
-                            stem_info,
-                            appear,
-                            ..
-                        } if *t == *time => {
-                            let s = *staff as usize;
-                            if s == 0 || s > num_staves {
-                                continue;
-                            }
-                            // Voice filter: skip notes not in allowed voices
-                            if !voice_allowed(*staff, *voice) {
-                                continue;
-                            }
+        // Initial (invisible) measure for this system
+        let sys_preamble = if sys_idx == 0 {
+            preamble_width
+        } else {
+            continuation_preamble
+        };
+        let initial_meas_xd = if sys_meas_start < measure_abs_xd.len() {
+            measure_abs_xd[sys_meas_start]
+        } else {
+            sys_preamble
+        };
+        let initial_meas_link = next_link();
+        music_objs.push(MusicObj {
+            link: initial_meas_link,
+            kind: MusicObjKind::Measure {
+                bar_type: 1,
+                xd: initial_meas_xd,
+                visible: false,
+            },
+        });
 
-                            let clef = clef_types[s];
-                            let mid_c_hl = clef_middle_c_half_ln(clef);
+        // Cutoff time for this system: end of last measure in this system
+        let sys_cutoff_time = measure_spans[sys_meas_end - 1].end_time;
+        // Start time for this system
+        let sys_start_time = measure_spans[sys_meas_start].start_time;
 
-                            // Compute Y position using NLMIDI2HalfLn
-                            let half_ln = nl_midi_to_half_ln(*note_num, *effective_acc, mid_c_hl)
-                                .unwrap_or(4); // Default to middle of staff
+        // Walk records, emitting Syncs and Measures within this system's range
+        let mut seen_times: Vec<i32> = Vec::new();
 
-                            let yd = half_ln_to_yd(half_ln, config.staff_height);
+        // Figure out which barlines belong to this system
+        // Barlines within [sys_start_time .. sys_cutoff_time]
+        let sys_barlines: Vec<(i32, u8)> = barline_times
+            .iter()
+            .filter(|&&(t, _)| t > sys_start_time && t <= sys_cutoff_time)
+            .copied()
+            .collect();
+        let mut sys_barline_idx: usize = 0;
 
-                            // Stem and accidental calculations — faithful port from OG Nightingale
-                            let n_staff_lines: i16 = 5; // Standard 5-line staff
+        for record in &notelist.records {
+            match record {
+                NotelistRecord::Barline { time, bar_type, .. } => {
+                    if sys_barline_idx >= sys_barlines.len() {
+                        continue;
+                    }
+                    if *time != sys_barlines[sys_barline_idx].0 {
+                        continue;
+                    }
 
-                            // Determine voice role for stem direction
-                            let role = voice_roles
-                                .get(&(*staff, *voice))
-                                .copied()
-                                .unwrap_or(VoiceRole::Single);
+                    // Find which measure index this barline corresponds to
+                    // The barline at time T starts the next measure after the one ending at T
+                    let global_meas_idx = measure_spans
+                        .iter()
+                        .position(|s| s.end_time == *time)
+                        .map(|i| i + 1);
 
-                            // Compute stem direction — port of NormalStemUpDown (Objects.cp:1457-1497)
-                            // VCROLE_SINGLE: position-based (halfLn <= staffLines-1)
-                            // VCROLE_UPPER: always stem up (return 1)
-                            // VCROLE_LOWER: always stem down (return -1)
-                            let stem_down = match stem_info.chars().next() {
-                                Some('+') => false, // Explicit: stem up
-                                Some('-') => true,  // Explicit: stem down
-                                _ => match role {
-                                    VoiceRole::Upper => false, // Always stem up
-                                    VoiceRole::Lower => true,  // Always stem down
-                                    VoiceRole::Single => {
-                                        // Position-based (SINGLE_DI case from GetCStemInfo)
-                                        // Reference: Utility.cp:174
-                                        half_ln < n_staff_lines
-                                    }
-                                },
-                            };
+                    // Place barline at the RIGHT edge of the current system's
+                    // last measure — not at the start of the next system's first
+                    // measure (which would be in a different coordinate space).
+                    let bar_xd = if let Some(gmi) = global_meas_idx {
+                        if gmi >= sys_meas_end {
+                            // System-boundary barline: next measure is on the next system.
+                            // Place at right edge of this system's last measure.
+                            let last = sys_meas_end - 1;
+                            measure_abs_xd[last] + measure_width_ddist[last]
+                        } else if gmi < measure_abs_xd.len() {
+                            measure_abs_xd[gmi]
+                        } else {
+                            let last = measure_abs_xd.len() - 1;
+                            measure_abs_xd[last] + measure_width_ddist[last]
+                        }
+                    } else {
+                        let last = sys_meas_end - 1;
+                        measure_abs_xd[last] + measure_width_ddist[last]
+                    };
+                    sys_barline_idx += 1;
 
-                            // Compute stem endpoint — port of CalcYStem (Utility.cp:49-89)
-                            let num_flags = nflags(*dur);
-                            // Use shorter stems for multi-voice notation
-                            // Port of QSTEMLEN macro (defs.h:417)
-                            let qtr_sp = match role {
-                                VoiceRole::Single => config.stem_len_normal as i16,
-                                _ => config.stem_len_2v as i16,
-                            };
+                    let link = next_link();
+                    music_objs.push(MusicObj {
+                        link,
+                        kind: MusicObjKind::Measure {
+                            bar_type: *bar_type,
+                            xd: bar_xd,
+                            visible: true,
+                        },
+                    });
+                }
+                NotelistRecord::Note { time, .. } | NotelistRecord::Rest { time, .. } => {
+                    // Only include events within this system's time range
+                    if *time < sys_start_time || *time >= sys_cutoff_time {
+                        continue;
+                    }
 
-                            let ystem = if *dur >= 3 {
-                                // Has stem (half note and shorter)
-                                calc_ystem(
+                    if !seen_times.contains(time) {
+                        seen_times.push(*time);
+                        let rel_xd = event_rel_xd.get(time).copied().unwrap_or(100);
+                        let link = next_link();
+                        music_objs.push(MusicObj {
+                            link,
+                            kind: MusicObjKind::Sync {
+                                time: *time,
+                                xd: rel_xd,
+                            },
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Wire the preamble's last object to first music object
+        let preamble_last_link = if has_timesig { timesig_link } else { clef_link };
+        let first_music_link = if music_objs.is_empty() {
+            tail_link
+        } else {
+            music_objs[0].link
+        };
+
+        // Fix preamble last → first music
+        if let Some(obj) = score
+            .objects
+            .iter_mut()
+            .find(|o| o.index == preamble_last_link)
+        {
+            obj.header.right = first_music_link;
+        }
+
+        // Track the last object link for this system (for TAIL/next-system wiring)
+        let last_music_link = music_objs
+            .last()
+            .map(|m| m.link)
+            .unwrap_or(preamble_last_link);
+        last_obj_link_per_system.push(last_music_link);
+
+        // Add music_objs to all_music_objs (for beam processing) and append to score
+        all_music_objs.extend(music_objs.iter().map(|m| MusicObj {
+            link: m.link,
+            kind: match &m.kind {
+                MusicObjKind::Measure {
+                    bar_type,
+                    xd,
+                    visible,
+                } => MusicObjKind::Measure {
+                    bar_type: *bar_type,
+                    xd: *xd,
+                    visible: *visible,
+                },
+                MusicObjKind::Sync { time, xd } => MusicObjKind::Sync {
+                    time: *time,
+                    xd: *xd,
+                },
+            },
+        }));
+
+        // Now emit the music objects into score.objects
+        // (This replaces the old single-system music object emission)
+        // Note: we reference music_objs here, not all_music_objs
+        let music_objs_ref = &all_music_objs[all_music_objs.len() - music_objs.len()..];
+
+        // Track system_link and staff_link for Measure.system_l / staff_l references
+        let _sys_staff_link = staff_link;
+
+        // ---- MUSIC OBJECTS (Measures and Syncs) for this system ----
+
+        for (i, mobj) in music_objs_ref.iter().enumerate() {
+            // Right link: next music obj, or next system, or tail
+            let right = if i + 1 < music_objs_ref.len() {
+                music_objs_ref[i + 1].link
+            } else if sys_idx + 1 < num_systems {
+                system_links[sys_idx + 1]
+            } else {
+                tail_link
+            };
+            let left = if i > 0 {
+                music_objs_ref[i - 1].link
+            } else {
+                preamble_last_link
+            };
+
+            match &mobj.kind {
+                MusicObjKind::Measure {
+                    bar_type,
+                    xd: measure_xd,
+                    visible: meas_visible,
+                } => {
+                    // Create AMeasure subobjects (one per staff)
+                    let measure_sub_link = note_sub_counter;
+                    note_sub_counter += 1;
+
+                    let mut measure_subs: Vec<AMeasure> = Vec::new();
+                    #[allow(clippy::needless_range_loop)]
+                    for s in 1..=num_staves {
+                        measure_subs.push(AMeasure {
+                            header: SubObjHeader {
+                                next: NILINK,
+                                staffn: s as i8,
+                                sub_type: *bar_type as i8,
+                                selected: false,
+                                visible: *meas_visible,
+                                soft: false,
+                            },
+                            measure_visible: true,
+                            conn_above: s > 1,
+                            filler1: 0,
+                            filler2: 0,
+                            reserved_m: 0,
+                            measure_num: 0,
+                            meas_size_rect: DRect::default(),
+                            conn_staff: 0,
+                            clef_type: clef_types[s] as i8,
+                            dynamic_type: 0,
+                            ks_info: KsInfo::default(),
+                            time_sig_type: 0,
+                            numerator: 4,
+                            denominator: 4,
+                            x_mn_std_offset: 0,
+                            y_mn_std_offset: 0,
+                        });
+                    }
+                    score.measures.insert(measure_sub_link, measure_subs);
+
+                    score.objects.push(InterpretedObject {
+                        index: mobj.link,
+                        header: ObjectHeader {
+                            right,
+                            left,
+                            first_sub_obj: measure_sub_link,
+                            xd: *measure_xd,
+                            yd: 0,
+                            obj_type: 7, // MEASUREtype
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                            valid: true,
+                            tweaked: false,
+                            spare_flag: false,
+                            ohdr_filler1: 0,
+                            obj_rect: Rect::default(),
+                            rel_size: 0,
+                            ohdr_filler2: 0,
+                            n_entries: num_staves as u8,
+                        },
+                        data: ObjData::Measure(Measure {
+                            header: ObjectHeader::default(),
+                            filler_m: 0,
+                            l_measure: NILINK,
+                            r_measure: NILINK,
+                            system_l: system_link,
+                            staff_l: staff_link,
+                            fake_meas: 0,
+                            space_percent: 100,
+                            measure_b_box: Rect::default(),
+                            l_time_stamp: 0,
+                        }),
+                    });
+                }
+
+                MusicObjKind::Sync { time, xd: sync_xd } => {
+                    // Collect all notes/rests at this time
+                    let note_sub_link = note_sub_counter;
+                    note_sub_counter += 1;
+
+                    let mut notes: Vec<ANote> = Vec::new();
+
+                    for record in &notelist.records {
+                        match record {
+                            NotelistRecord::Note {
+                                time: t,
+                                voice,
+                                staff,
+                                dur,
+                                dots,
+                                note_num,
+                                acc,
+                                effective_acc,
+                                play_dur,
+                                velocity,
+                                stem_info,
+                                appear,
+                                ..
+                            } if *t == *time => {
+                                let s = *staff as usize;
+                                if s == 0 || s > num_staves {
+                                    continue;
+                                }
+                                // Voice filter: skip notes not in allowed voices
+                                if !voice_allowed(*staff, *voice) {
+                                    continue;
+                                }
+
+                                let clef = clef_types[s];
+                                let mid_c_hl = clef_middle_c_half_ln(clef);
+
+                                // Compute Y position using NLMIDI2HalfLn
+                                let half_ln =
+                                    nl_midi_to_half_ln(*note_num, *effective_acc, mid_c_hl)
+                                        .unwrap_or(4); // Default to middle of staff
+
+                                let yd = half_ln_to_yd(half_ln, config.staff_height);
+
+                                // Stem and accidental calculations — faithful port from OG Nightingale
+                                let n_staff_lines: i16 = 5; // Standard 5-line staff
+
+                                // Determine voice role for stem direction
+                                let role = voice_roles
+                                    .get(&(*staff, *voice))
+                                    .copied()
+                                    .unwrap_or(VoiceRole::Single);
+
+                                // Compute stem direction — port of NormalStemUpDown (Objects.cp:1457-1497)
+                                // VCROLE_SINGLE: position-based (halfLn <= staffLines-1)
+                                // VCROLE_UPPER: always stem up (return 1)
+                                // VCROLE_LOWER: always stem down (return -1)
+                                let stem_down = match stem_info.chars().next() {
+                                    Some('+') => false, // Explicit: stem up
+                                    Some('-') => true,  // Explicit: stem down
+                                    _ => match role {
+                                        VoiceRole::Upper => false, // Always stem up
+                                        VoiceRole::Lower => true,  // Always stem down
+                                        VoiceRole::Single => {
+                                            // Position-based (SINGLE_DI case from GetCStemInfo)
+                                            // Reference: Utility.cp:174
+                                            half_ln < n_staff_lines
+                                        }
+                                    },
+                                };
+
+                                // Compute stem endpoint — port of CalcYStem (Utility.cp:49-89)
+                                let num_flags = nflags(*dur);
+                                // Use shorter stems for multi-voice notation
+                                // Port of QSTEMLEN macro (defs.h:417)
+                                let qtr_sp = match role {
+                                    VoiceRole::Single => config.stem_len_normal as i16,
+                                    _ => config.stem_len_2v as i16,
+                                };
+
+                                let ystem = if *dur >= 3 {
+                                    // Has stem (half note and shorter)
+                                    calc_ystem(
+                                        yd,
+                                        num_flags,
+                                        stem_down,
+                                        config.staff_height,
+                                        n_staff_lines,
+                                        qtr_sp,
+                                        false, // allow midline extension
+                                    )
+                                } else {
+                                    yd // Whole notes/breves: no stem
+                                };
+
+                                // Note: accidental X offset and stem X offset are computed at
+                                // render time by score_renderer.rs, matching OG Nightingale.
+                                // TODO: port AccXOffset from DrawNRGR.cp:396-406 properly
+                                // TODO: port stem X from DrawNRGR.cp:1094-1097 properly
+
+                                notes.push(ANote {
+                                    header: SubObjHeader {
+                                        next: NILINK,
+                                        staffn: *staff,
+                                        sub_type: *dur, // l_dur
+                                        selected: false,
+                                        visible: true,
+                                        soft: false,
+                                    },
+                                    in_chord: false,
+                                    rest: false,
+                                    unpitched: false,
+                                    beamed: false,
+                                    other_stem_side: false,
+                                    yqpit: 0,
+                                    xd: 0, // Relative to sync
                                     yd,
-                                    num_flags,
+                                    ystem,
+                                    play_time_delta: 0,
+                                    play_dur: *play_dur,
+                                    p_time: 0,
+                                    note_num: *note_num,
+                                    on_velocity: *velocity,
+                                    off_velocity: 64,
+                                    tied_l: false,
+                                    tied_r: false,
+                                    x_move_dots: 0,
+                                    y_move_dots: 0,
+                                    ndots: *dots,
+                                    voice: *voice,
+                                    rsp_ignore: 0,
+                                    accident: *acc,
+                                    acc_soft: false,
+                                    courtesy_acc: 0,
+                                    xmove_acc: 0,
+                                    play_as_cue: false,
+                                    micropitch: 0,
+                                    merged: 0,
+                                    double_dur: 0,
+                                    head_shape: *appear,
+                                    first_mod: NILINK,
+                                    slurred_l: false,
+                                    slurred_r: false,
+                                    in_tuplet: false,
+                                    in_ottava: false,
+                                    small: false,
+                                    temp_flag: 0,
+                                    art_harmonic: 0,
+                                    user_id: 0,
+                                    nh_segment: [0; 6],
+                                    reserved_n: 0,
+                                });
+                            }
+                            NotelistRecord::Rest {
+                                time: t,
+                                voice,
+                                staff,
+                                dur,
+                                dots,
+                                appear,
+                                ..
+                            } if *t == *time => {
+                                let s = *staff as usize;
+                                if s == 0 || s > num_staves {
+                                    continue;
+                                }
+                                // Voice filter: skip rests not in allowed voices
+                                if !voice_allowed(*staff, *voice) {
+                                    continue;
+                                }
+
+                                // Rest Y position — port of GetRestMultivoiceRole (Multivoice.cp:258-269)
+                                // SINGLE: centered on staff (half-line 4 for 5-line staff)
+                                // UPPER: raised above center by rest_mv_offset half-lines
+                                // LOWER: lowered below center by rest_mv_offset half-lines
+                                let rest_role = voice_roles
+                                    .get(&(*staff, *voice))
+                                    .copied()
+                                    .unwrap_or(VoiceRole::Single);
+                                let base_half_ln: i16 = 4; // Center of 5-line staff
+                                let rest_half_ln = match rest_role {
+                                    VoiceRole::Single => base_half_ln,
+                                    VoiceRole::Upper => base_half_ln - config.rest_mv_offset,
+                                    VoiceRole::Lower => base_half_ln + config.rest_mv_offset,
+                                };
+                                let yd = half_ln_to_yd(rest_half_ln, config.staff_height);
+
+                                notes.push(ANote {
+                                    header: SubObjHeader {
+                                        next: NILINK,
+                                        staffn: *staff,
+                                        sub_type: *dur,
+                                        selected: false,
+                                        visible: true,
+                                        soft: false,
+                                    },
+                                    in_chord: false,
+                                    rest: true,
+                                    unpitched: false,
+                                    beamed: false,
+                                    other_stem_side: false,
+                                    yqpit: 0,
+                                    xd: 0,
+                                    yd,
+                                    ystem: yd,
+                                    play_time_delta: 0,
+                                    play_dur: 0,
+                                    p_time: 0,
+                                    note_num: 0,
+                                    on_velocity: 0,
+                                    off_velocity: 0,
+                                    tied_l: false,
+                                    tied_r: false,
+                                    x_move_dots: 0,
+                                    y_move_dots: 0,
+                                    ndots: *dots,
+                                    voice: *voice,
+                                    rsp_ignore: 0,
+                                    accident: 0,
+                                    acc_soft: false,
+                                    courtesy_acc: 0,
+                                    xmove_acc: 0,
+                                    play_as_cue: false,
+                                    micropitch: 0,
+                                    merged: 0,
+                                    double_dur: 0,
+                                    head_shape: *appear,
+                                    first_mod: NILINK,
+                                    slurred_l: false,
+                                    slurred_r: false,
+                                    in_tuplet: false,
+                                    in_ottava: false,
+                                    small: false,
+                                    temp_flag: 0,
+                                    art_harmonic: 0,
+                                    user_id: 0,
+                                    nh_segment: [0; 6],
+                                    reserved_n: 0,
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if notes.is_empty() {
+                        continue; // Skip empty syncs
+                    }
+
+                    // ---- CHORD PROCESSING ----
+                    // Port of FixSyncForChord / NormalStemUpDown / GetNCYStem / FixChordForYStem
+                    // from Objects.cp (lines 1594-1744).
+                    //
+                    // Group notes by (staff, voice). If a group has 2+ notes, it's a chord.
+                    // For each chord:
+                    //   1. Determine stem direction (NormalStemUpDown: compare extreme notes to midline)
+                    //   2. Find the "far note" (furthest from middle in stem direction)
+                    //   3. Compute ystem from that note using CalcYStem
+                    //   4. Main note gets the computed ystem; others get ystem = yd (hiding stem)
+                    //   5. Mark all as in_chord = true
+
+                    // Build a map of (staff, voice) → indices into notes vec
+                    let mut chord_groups: std::collections::HashMap<(i8, i8), Vec<usize>> =
+                        std::collections::HashMap::new();
+                    for (idx, note) in notes.iter().enumerate() {
+                        if !note.rest {
+                            chord_groups
+                                .entry((note.header.staffn, note.voice))
+                                .or_default()
+                                .push(idx);
+                        }
+                    }
+
+                    for (&(staffn, voice), indices) in &chord_groups {
+                        // Find extreme notes (highest = min yd, lowest = max yd)
+                        // Y increases downward in Nightingale coordinates
+                        let mut min_yd = i16::MAX;
+                        let mut max_yd = i16::MIN;
+                        let mut hi_idx = indices[0]; // highest pitch (min yd)
+                        let mut lo_idx = indices[0]; // lowest pitch (max yd)
+
+                        for &idx in indices {
+                            let yd = notes[idx].yd;
+                            if yd < min_yd {
+                                min_yd = yd;
+                                hi_idx = idx;
+                            }
+                            if yd > max_yd {
+                                max_yd = yd;
+                                lo_idx = idx;
+                            }
+                        }
+
+                        // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497):
+                        // VCROLE_UPPER: always stem up
+                        // VCROLE_LOWER: always stem down
+                        // VCROLE_SINGLE: compare extreme notes to midline
+                        let role = voice_roles
+                            .get(&(staffn, voice))
+                            .copied()
+                            .unwrap_or(VoiceRole::Single);
+                        let stem_down = match role {
+                            VoiceRole::Upper => false,
+                            VoiceRole::Lower => true,
+                            VoiceRole::Single => {
+                                let mid_line = config.staff_height / 2;
+                                (max_yd as i32 - mid_line as i32)
+                                    <= (mid_line as i32 - min_yd as i32)
+                            }
+                        };
+
+                        // Use shorter stems for multi-voice
+                        let chord_qtr_sp = match role {
+                            VoiceRole::Single => config.stem_len_normal as i16,
+                            _ => config.stem_len_2v as i16,
+                        };
+
+                        let is_chord = indices.len() >= 2;
+
+                        if is_chord {
+                            // GetNCYStem (Objects.cp:1674-1680):
+                            // Far note = stem_down ? lowest : highest
+                            let far_idx = if stem_down { lo_idx } else { hi_idx };
+                            let far_note_yd = notes[far_idx].yd;
+                            let far_note_dur = notes[far_idx].header.sub_type;
+                            let n_staff_lines: i16 = 5;
+
+                            let chord_ystem = if far_note_dur >= 3 {
+                                calc_ystem(
+                                    far_note_yd,
+                                    nflags(far_note_dur),
                                     stem_down,
                                     config.staff_height,
                                     n_staff_lines,
-                                    qtr_sp,
-                                    false, // allow midline extension
+                                    chord_qtr_sp,
+                                    false,
                                 )
                             } else {
-                                yd // Whole notes/breves: no stem
+                                far_note_yd
                             };
 
-                            // Note: accidental X offset and stem X offset are computed at
-                            // render time by score_renderer.rs, matching OG Nightingale.
-                            // TODO: port AccXOffset from DrawNRGR.cp:396-406 properly
-                            // TODO: port stem X from DrawNRGR.cp:1094-1097 properly
-
-                            notes.push(ANote {
-                                header: SubObjHeader {
-                                    next: NILINK,
-                                    staffn: *staff,
-                                    sub_type: *dur, // l_dur
-                                    selected: false,
-                                    visible: true,
-                                    soft: false,
-                                },
-                                in_chord: false,
-                                rest: false,
-                                unpitched: false,
-                                beamed: false,
-                                other_stem_side: false,
-                                yqpit: 0,
-                                xd: 0, // Relative to sync
-                                yd,
-                                ystem,
-                                play_time_delta: 0,
-                                play_dur: *play_dur,
-                                p_time: 0,
-                                note_num: *note_num,
-                                on_velocity: *velocity,
-                                off_velocity: 64,
-                                tied_l: false,
-                                tied_r: false,
-                                x_move_dots: 0,
-                                y_move_dots: 0,
-                                ndots: *dots,
-                                voice: *voice,
-                                rsp_ignore: 0,
-                                accident: *acc,
-                                acc_soft: false,
-                                courtesy_acc: 0,
-                                xmove_acc: 0,
-                                play_as_cue: false,
-                                micropitch: 0,
-                                merged: 0,
-                                double_dur: 0,
-                                head_shape: *appear,
-                                first_mod: NILINK,
-                                slurred_l: false,
-                                slurred_r: false,
-                                in_tuplet: false,
-                                in_ottava: false,
-                                small: false,
-                                temp_flag: 0,
-                                art_harmonic: 0,
-                                user_id: 0,
-                                nh_segment: [0; 6],
-                                reserved_n: 0,
-                            });
-                        }
-                        NotelistRecord::Rest {
-                            time: t,
-                            voice,
-                            staff,
-                            dur,
-                            dots,
-                            appear,
-                            ..
-                        } if *t == *time => {
-                            let s = *staff as usize;
-                            if s == 0 || s > num_staves {
-                                continue;
+                            // FixChordForYStem (Objects.cp:1710-1743):
+                            // Far note gets the real ystem; others get ystem = yd (hiding stem)
+                            for &idx in indices {
+                                notes[idx].in_chord = true;
+                                if idx == far_idx {
+                                    notes[idx].ystem = chord_ystem;
+                                } else {
+                                    notes[idx].ystem = notes[idx].yd; // Hide stem
+                                }
                             }
-                            // Voice filter: skip rests not in allowed voices
-                            if !voice_allowed(*staff, *voice) {
-                                continue;
-                            }
-
-                            // Rest Y position — port of GetRestMultivoiceRole (Multivoice.cp:258-269)
-                            // SINGLE: centered on staff (half-line 4 for 5-line staff)
-                            // UPPER: raised above center by rest_mv_offset half-lines
-                            // LOWER: lowered below center by rest_mv_offset half-lines
-                            let rest_role = voice_roles
-                                .get(&(*staff, *voice))
-                                .copied()
-                                .unwrap_or(VoiceRole::Single);
-                            let base_half_ln: i16 = 4; // Center of 5-line staff
-                            let rest_half_ln = match rest_role {
-                                VoiceRole::Single => base_half_ln,
-                                VoiceRole::Upper => base_half_ln - config.rest_mv_offset,
-                                VoiceRole::Lower => base_half_ln + config.rest_mv_offset,
-                            };
-                            let yd = half_ln_to_yd(rest_half_ln, config.staff_height);
-
-                            notes.push(ANote {
-                                header: SubObjHeader {
-                                    next: NILINK,
-                                    staffn: *staff,
-                                    sub_type: *dur,
-                                    selected: false,
-                                    visible: true,
-                                    soft: false,
-                                },
-                                in_chord: false,
-                                rest: true,
-                                unpitched: false,
-                                beamed: false,
-                                other_stem_side: false,
-                                yqpit: 0,
-                                xd: 0,
-                                yd,
-                                ystem: yd,
-                                play_time_delta: 0,
-                                play_dur: 0,
-                                p_time: 0,
-                                note_num: 0,
-                                on_velocity: 0,
-                                off_velocity: 0,
-                                tied_l: false,
-                                tied_r: false,
-                                x_move_dots: 0,
-                                y_move_dots: 0,
-                                ndots: *dots,
-                                voice: *voice,
-                                rsp_ignore: 0,
-                                accident: 0,
-                                acc_soft: false,
-                                courtesy_acc: 0,
-                                xmove_acc: 0,
-                                play_as_cue: false,
-                                micropitch: 0,
-                                merged: 0,
-                                double_dur: 0,
-                                head_shape: *appear,
-                                first_mod: NILINK,
-                                slurred_l: false,
-                                slurred_r: false,
-                                in_tuplet: false,
-                                in_ottava: false,
-                                small: false,
-                                temp_flag: 0,
-                                art_harmonic: 0,
-                                user_id: 0,
-                                nh_segment: [0; 6],
-                                reserved_n: 0,
-                            });
-                        }
-                        _ => {}
-                    }
-                }
-
-                if notes.is_empty() {
-                    continue; // Skip empty syncs
-                }
-
-                // ---- CHORD PROCESSING ----
-                // Port of FixSyncForChord / NormalStemUpDown / GetNCYStem / FixChordForYStem
-                // from Objects.cp (lines 1594-1744).
-                //
-                // Group notes by (staff, voice). If a group has 2+ notes, it's a chord.
-                // For each chord:
-                //   1. Determine stem direction (NormalStemUpDown: compare extreme notes to midline)
-                //   2. Find the "far note" (furthest from middle in stem direction)
-                //   3. Compute ystem from that note using CalcYStem
-                //   4. Main note gets the computed ystem; others get ystem = yd (hiding stem)
-                //   5. Mark all as in_chord = true
-
-                // Build a map of (staff, voice) → indices into notes vec
-                let mut chord_groups: std::collections::HashMap<(i8, i8), Vec<usize>> =
-                    std::collections::HashMap::new();
-                for (idx, note) in notes.iter().enumerate() {
-                    if !note.rest {
-                        chord_groups
-                            .entry((note.header.staffn, note.voice))
-                            .or_default()
-                            .push(idx);
-                    }
-                }
-
-                for (&(staffn, voice), indices) in &chord_groups {
-                    // Find extreme notes (highest = min yd, lowest = max yd)
-                    // Y increases downward in Nightingale coordinates
-                    let mut min_yd = i16::MAX;
-                    let mut max_yd = i16::MIN;
-                    let mut hi_idx = indices[0]; // highest pitch (min yd)
-                    let mut lo_idx = indices[0]; // lowest pitch (max yd)
-
-                    for &idx in indices {
-                        let yd = notes[idx].yd;
-                        if yd < min_yd {
-                            min_yd = yd;
-                            hi_idx = idx;
-                        }
-                        if yd > max_yd {
-                            max_yd = yd;
-                            lo_idx = idx;
-                        }
-                    }
-
-                    // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497):
-                    // VCROLE_UPPER: always stem up
-                    // VCROLE_LOWER: always stem down
-                    // VCROLE_SINGLE: compare extreme notes to midline
-                    let role = voice_roles
-                        .get(&(staffn, voice))
-                        .copied()
-                        .unwrap_or(VoiceRole::Single);
-                    let stem_down = match role {
-                        VoiceRole::Upper => false,
-                        VoiceRole::Lower => true,
-                        VoiceRole::Single => {
-                            let mid_line = config.staff_height / 2;
-                            (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32)
-                        }
-                    };
-
-                    // Use shorter stems for multi-voice
-                    let chord_qtr_sp = match role {
-                        VoiceRole::Single => config.stem_len_normal as i16,
-                        _ => config.stem_len_2v as i16,
-                    };
-
-                    let is_chord = indices.len() >= 2;
-
-                    if is_chord {
-                        // GetNCYStem (Objects.cp:1674-1680):
-                        // Far note = stem_down ? lowest : highest
-                        let far_idx = if stem_down { lo_idx } else { hi_idx };
-                        let far_note_yd = notes[far_idx].yd;
-                        let far_note_dur = notes[far_idx].header.sub_type;
-                        let n_staff_lines: i16 = 5;
-
-                        let chord_ystem = if far_note_dur >= 3 {
-                            calc_ystem(
-                                far_note_yd,
-                                nflags(far_note_dur),
-                                stem_down,
-                                config.staff_height,
-                                n_staff_lines,
-                                chord_qtr_sp,
-                                false,
-                            )
                         } else {
-                            far_note_yd
-                        };
+                            // Single note: recompute ystem with voice-aware stem length
+                            // Port of CalcYStem (Objects.cp:1638-1670)
+                            let idx = indices[0];
+                            let note_yd = notes[idx].yd;
+                            let note_dur = notes[idx].header.sub_type;
+                            let n_staff_lines: i16 = 5;
 
-                        // FixChordForYStem (Objects.cp:1710-1743):
-                        // Far note gets the real ystem; others get ystem = yd (hiding stem)
-                        for &idx in indices {
-                            notes[idx].in_chord = true;
-                            if idx == far_idx {
-                                notes[idx].ystem = chord_ystem;
-                            } else {
-                                notes[idx].ystem = notes[idx].yd; // Hide stem
+                            if note_dur >= 3 {
+                                // quarter note or shorter gets a stem
+                                notes[idx].ystem = calc_ystem(
+                                    note_yd,
+                                    nflags(note_dur),
+                                    stem_down,
+                                    config.staff_height,
+                                    n_staff_lines,
+                                    chord_qtr_sp,
+                                    false,
+                                );
                             }
+                            // whole/breve (l_dur <= 2): ystem stays = yd (no stem)
                         }
-                    } else {
-                        // Single note: recompute ystem with voice-aware stem length
-                        // Port of CalcYStem (Objects.cp:1638-1670)
-                        let idx = indices[0];
-                        let note_yd = notes[idx].yd;
-                        let note_dur = notes[idx].header.sub_type;
-                        let n_staff_lines: i16 = 5;
-
-                        if note_dur >= 3 {
-                            // quarter note or shorter gets a stem
-                            notes[idx].ystem = calc_ystem(
-                                note_yd,
-                                nflags(note_dur),
-                                stem_down,
-                                config.staff_height,
-                                n_staff_lines,
-                                chord_qtr_sp,
-                                false,
-                            );
-                        }
-                        // whole/breve (l_dur <= 2): ystem stays = yd (no stem)
                     }
+
+                    let n_entries = notes.len() as u8;
+                    score.notes.insert(note_sub_link, notes);
+
+                    score.objects.push(InterpretedObject {
+                        index: mobj.link,
+                        header: ObjectHeader {
+                            right,
+                            left,
+                            first_sub_obj: note_sub_link,
+                            xd: *sync_xd,
+                            yd: 0,
+                            obj_type: 2, // SYNCtype
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                            valid: true,
+                            tweaked: false,
+                            spare_flag: false,
+                            ohdr_filler1: 0,
+                            obj_rect: Rect::default(),
+                            rel_size: 0,
+                            ohdr_filler2: 0,
+                            n_entries,
+                        },
+                        data: ObjData::Sync(Sync {
+                            header: ObjectHeader::default(),
+                            time_stamp: 0,
+                        }),
+                    });
                 }
-
-                let n_entries = notes.len() as u8;
-                score.notes.insert(note_sub_link, notes);
-
-                score.objects.push(InterpretedObject {
-                    index: mobj.link,
-                    header: ObjectHeader {
-                        right,
-                        left,
-                        first_sub_obj: note_sub_link,
-                        xd: *sync_xd,
-                        yd: 0,
-                        obj_type: 2, // SYNCtype
-                        selected: false,
-                        visible: true,
-                        soft: false,
-                        valid: true,
-                        tweaked: false,
-                        spare_flag: false,
-                        ohdr_filler1: 0,
-                        obj_rect: Rect::default(),
-                        rel_size: 0,
-                        ohdr_filler2: 0,
-                        n_entries,
-                    },
-                    data: ObjData::Sync(Sync {
-                        header: ObjectHeader::default(),
-                        time_stamp: 0,
-                    }),
-                });
             }
         }
-    }
+    } // end for sys_idx (system loop)
+
+    // Use all_music_objs for beam processing (replaces old music_objs)
+    let music_objs = all_music_objs;
 
     // ---- BEAM GROUPING (AutoBeam) ----
     // Create BeamSet objects for consecutive beamable notes (8th notes and shorter).
@@ -1844,8 +2038,18 @@ pub fn notelist_to_score_with_config(
     // Deduplicate: only keep one beamable note per (voice, staff, time)
     beamable_notes.dedup_by(|a, b| a.voice == b.voice && a.staff == b.staff && a.time == b.time);
 
-    // Collect barline times as a set for fast lookup
-    let barline_time_set: Vec<i32> = barline_times.iter().map(|&(t, _)| t).collect();
+    // Collect barline times as a set for fast lookup, plus system boundary times
+    // to ensure beams don't span across system breaks.
+    let mut barline_time_set: Vec<i32> = barline_times.iter().map(|&(t, _)| t).collect();
+    for &(_sys_start, sys_end) in &system_measure_ranges {
+        if sys_end > 0 && sys_end <= measure_spans.len() {
+            let boundary_time = measure_spans[sys_end - 1].end_time;
+            if !barline_time_set.contains(&boundary_time) {
+                barline_time_set.push(boundary_time);
+            }
+        }
+    }
+    barline_time_set.sort_unstable();
 
     // Group consecutive beamable notes by voice, staff, and within the same measure
     let mut current_group: Vec<BeamableNote> = Vec::new();
@@ -2236,17 +2440,15 @@ pub fn notelist_to_score_with_config(
     }
 
     // TAIL object
-    let tail_left = if music_objs.is_empty() {
-        timesig_link
-    } else {
+    let tail_left = {
         // Find the last object in the list (may be a beamset now)
         score
             .objects
             .iter()
             .rev()
-            .find(|obj| obj.header.obj_type != 1)
+            .find(|obj| obj.header.obj_type != 1) // Skip header-type objects
             .map(|obj| obj.index)
-            .unwrap_or(timesig_link)
+            .unwrap_or(page_link)
     };
 
     score.objects.push(InterpretedObject {
@@ -2453,7 +2655,11 @@ mod tests {
             }
         }
 
-        assert_eq!(staff_count, 1, "Should have 1 Staff object");
+        // With multi-system layout, we get one Staff object per system
+        assert!(
+            staff_count >= 1,
+            "Should have at least 1 Staff object (got {staff_count})"
+        );
         assert!(measure_count > 0, "Should have Measure objects (barlines)");
         assert!(sync_count > 0, "Should have Sync objects (notes/rests)");
 

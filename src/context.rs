@@ -133,6 +133,10 @@ impl ContextState {
                             ctx.show_ledgers = astaff.show_ledgers != 0;
                             ctx.font_size = astaff.font_size;
 
+                            // Reset measure_left so preamble objects (Clef, TimeSig)
+                            // use staff_left, not a stale value from the previous system.
+                            ctx.measure_left = 0;
+
                             // Update stored context from AStaff
                             ctx.clef_type = astaff.clef_type;
                             ctx.dynamic_type = astaff.dynamic_type;

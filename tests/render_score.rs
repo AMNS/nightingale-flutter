@@ -1,9 +1,10 @@
-//! Integration tests: render Notelist-derived scores through the drawing pipeline.
+//! Integration tests: render scores through the drawing pipeline.
 //!
 //! Tests validate:
 //! 1. HBD_33.nl end-to-end: Notelist → InterpretedScore → CommandRenderer → PDF
 //! 2. Geometry: positions on page, reasonable stem lengths, proper spacing
-//! 3. Punted items: #[ignore]d roadmap tests for future porting work
+//! 3. NGL files: direct .ngl → InterpretedScore → CommandRenderer rendering
+//! 4. Punted items: #[ignore]d roadmap tests for future porting work
 
 use nightingale_core::draw::render_score;
 use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};

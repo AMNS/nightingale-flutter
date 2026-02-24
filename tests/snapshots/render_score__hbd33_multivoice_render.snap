@@ -1,22 +1,26 @@
 ---
 source: tests/render_score.rs
-assertion_line: 469
+assertion_line: 472
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 8
-Beam: 9
-Brace: 1
-LedgerLine: 13
-MusicChar: 84
-NoteStem: 40
+BarLine: 22
+Beam: 24
+Brace: 3
+LedgerLine: 32
+MusicChar: 205
+NoteStem: 113
 SetWidths: 1
-Staff: 2
-TOTAL: 158
+Staff: 6
+TOTAL: 406
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=169.9 top=72.0 bottom=96.0
@@ -27,6 +31,20 @@ x=427.6 top=72.0 bottom=96.0
 x=427.6 top=132.0 bottom=156.0
 x=557.9 top=72.0 bottom=96.0
 x=557.9 top=132.0 bottom=156.0
+x=233.1 top=247.0 bottom=271.0
+x=233.1 top=307.0 bottom=331.0
+x=303.2 top=247.0 bottom=271.0
+x=303.2 top=307.0 bottom=331.0
+x=445.4 top=247.0 bottom=271.0
+x=445.4 top=307.0 bottom=331.0
+x=557.9 top=247.0 bottom=271.0
+x=557.9 top=307.0 bottom=331.0
+x=244.9 top=422.0 bottom=446.0
+x=244.9 top=482.0 bottom=506.0
+x=435.4 top=422.0 bottom=446.0
+x=435.4 top=482.0 bottom=506.0
+x=557.9 top=422.0 bottom=446.0
+x=557.9 top=482.0 bottom=506.0
 
 === BEAMS ===
 x=[130.0..161.4] y=[72.0..72.0] slope=0.000 thick=3.00
@@ -38,16 +56,33 @@ x=[369.0..426.2] y=[129.6..125.6] slope=-0.070 thick=3.00
 x=[496.8..542.6] y=[105.0..105.0] slope=0.000 thick=3.00
 x=[496.8..542.6] y=[177.0..168.1] slope=-0.195 thick=3.00
 x=[496.8..528.3] y=[172.5..166.4] slope=-0.194 thick=3.00
+x=[186.2..212.8] y=[296.0..297.0] slope=0.038 thick=3.00
+x=[193.0..219.6] y=[247.0..247.0] slope=0.000 thick=3.00
+x=[106.0..235.5] y=[289.3..282.4] slope=-0.054 thick=3.00
+x=[171.8..235.5] y=[290.3..286.9] slope=-0.054 thick=3.00
+x=[373.5..431.9] y=[295.0..295.0] slope=0.000 thick=3.00
+x=[373.5..405.3] y=[299.5..299.5] slope=0.000 thick=3.00
+x=[316.2..447.8] y=[225.5..221.6] slope=-0.030 thick=3.00
+x=[431.9..447.8] y=[226.6..226.1] slope=-0.031 thick=3.00
+x=[514.2..548.2] y=[280.0..280.0] slope=0.000 thick=3.00
+x=[451.7..548.2] y=[346.2..337.3] slope=-0.093 thick=3.00
+x=[514.2..537.6] y=[335.9..333.8] slope=-0.091 thick=3.00
+x=[99.2..161.8] y=[524.0..516.1] slope=-0.127 thick=3.00
+x=[217.9..237.9] y=[422.0..422.0] slope=0.000 thick=3.00
+x=[251.1..333.7] y=[521.0..512.1] slope=-0.108 thick=3.00
+x=[441.6..501.6] y=[518.0..510.1] slope=-0.132 thick=3.00
 
-=== STEMS: 40 total ===
+=== STEMS: 113 total ===
 
 === GLYPHS ===
-Smufl(57424): 1
-Smufl(57442): 1
+Smufl(57424): 3
+Smufl(57442): 3
 Smufl(57475): 2
 Smufl(57476): 2
-Smufl(57507): 7
-Smufl(57508): 51
-Smufl(57952): 16
-Smufl(57953): 2
-Smufl(57954): 2
+Smufl(57507): 15
+Smufl(57508): 137
+Smufl(57921): 1
+Smufl(57952): 35
+Smufl(57953): 3
+Smufl(57954): 3
+Smufl(58598): 1

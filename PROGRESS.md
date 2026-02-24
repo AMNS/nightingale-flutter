@@ -48,6 +48,10 @@
 - [x] 20 PDF primitive smoke tests + 2 HBD_33 pipeline tests + 4 punted roadmap tests
 
 ### Recently Completed
+- [x] **Barline fix**: barlines at end of system only, not start of next (system-boundary xd fix)
+- [x] **Continuation preamble**: narrower preamble for systems 2+ (no time sig space), clef_xd + 2.5*dLineSp
+- [x] **Beam system-boundary break**: beams no longer span across system breaks
+- [x] **Multi-system layout**: port of CreateSystem/NewSysNums — measures grouped into N systems (default 4/system), each with SYSTEM→STAFF→CONNECT→CLEF→[content], stacked vertically via inter_system spacing. Time sig only on system 1. Renderer required zero changes.
 - [x] **Multiple voices per staff**: VoiceRole enum (Single/Upper/Lower), auto voice role detection, UPPER stems-up, LOWER stems-down, shorter 2v stems (stemLen2v=12), multi-voice rest offset
 - [x] **Visual regression test framework**: insta snapshot-based, HBD_33 blessed snapshot with command counts, staff/barline/beam geometry, glyph distribution
 - [x] **Beam slope**: port GetBeamEndYStems (Beam.cp:181) + FixSyncInBeamset (Beam.cp:272), 33% slope reduction
@@ -56,13 +60,15 @@
 - [x] **OG source line endings**: converted all 276 .cp/.h files to Unix LF — no more `tr` preprocessing
 
 ### Next: Engraving & Layout (priority order)
-- [ ] **System breaks**: render multi-system scores (line-break logic, system-level layout)
 - [ ] **Rest rendering**: show rests at beat positions without notes (multi-voice rest offset)
+- [ ] **Tied notes**: visual ties between notes across beats/measures
+- [ ] **Grace notes**: small grace notes before principal notes
 - [ ] **Duration-proportional spacing**: port SymWidthRight/CalcSpaceNeeded (SpaceTime.cp)
 - [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
 - [ ] **Final barline**: double barline at end of piece
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
+- [ ] **Textual elements**: dynamics, tempo markings, rehearsal marks
 
 ### Deferred
 - [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
@@ -90,9 +96,9 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~20,200 |
-| Rust test lines | ~2,700 |
-| Test count | 161 (104 unit + 49 integration + 8 doctest) |
+| Rust source lines | ~20,500 |
+| Rust test lines | ~3,000 |
+| Test count | 157 (104 unit + 6 integration + 43 cross-validate/render + 8 doctest) |
 | Test fixture files | 16 .ngl + 15 .nl |
-| Commits | 6 |
+| Commits | 7 |
 | Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |
