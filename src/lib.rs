@@ -16,6 +16,7 @@ pub mod basic_types;
 pub mod context;
 pub mod defs;
 pub mod doc_types;
+pub mod draw;
 pub mod duration;
 pub mod limits;
 pub mod ngl;

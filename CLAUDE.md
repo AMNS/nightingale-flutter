@@ -150,6 +150,68 @@ Each session should:
 4. Do the work, commit, update PROGRESS.md
 5. Keep commits small and focused
 
+## Autonomous Work Cycle
+
+When working on rendering/engraving tasks, operate in autonomous micro-cycles:
+
+1. **Research** — Read the OG Nightingale C++ source for the relevant function
+   (use subagents with haiku/sonnet for grep/read tasks to conserve credits).
+2. **Port** — Faithfully translate the C++ logic to Rust with reference comments.
+3. **Render** — Run the test that produces PDF, convert to PNG, visually inspect.
+4. **Self-check** — Look for collisions, misalignments, incorrect positioning.
+   If issues found, iterate (go to step 1 for the next discrete issue).
+5. **Checkpoint** — After fixing a batch of discrete issues, present a visual
+   review to the user before committing. Ask for human feedback on bigger-picture
+   direction/decisions, not micro-level code choices.
+
+**Minimize prompts, maximize self-feedback.** The user prefers fewer back-and-forth
+exchanges with more work done per cycle.
+
+## Porting Drawing Code
+
+OG Nightingale has two separate rendering pipelines:
+- **Screen**: QuickDraw-based (DrawHighLevel.cp, DrawObject.cp, DrawNRGR.cp)
+- **Print/PostScript**: PS_Stdio.cp primitives (moveto, lineto, curveto, stroke, fill)
+
+Our Rust port targets the **PostScript/print pipeline** via the MusicRenderer trait,
+which maps to PDF output. When porting drawing functions, prefer the PS_Stdio.cp
+code path over QuickDraw code paths. Keep the two pipelines conceptually separate
+during porting; consolidation can happen later once porting is more complete.
+
+Each discrete drawing function should be ported as its own unit with tests:
+- Port one function at a time (e.g., AccXOffset, DrawLedgerLines, CalcYStem)
+- Include OG source file + line number in comments
+- Test with real Notelist data rendered to PDF
+- Create `#[ignore]` tests for known-punted items so they show up in test output
+
+## OG Nightingale Source Location
+
+The upstream C++ source is at `/Users/chirgwin/Nightingale/src/CFilesBothEd/`
+(and `CFilesBoth/`, `Utilities/`, `Precomps/`). Always reference this when porting.
+
+## Test Data Strategy
+
+Primary test data sources (in priority order):
+1. **Notelist files** (`tests/notelist_examples/`) — simplest, most portable
+2. **NGL fixture files** (`tests/fixtures/`) — real Nightingale documents
+3. **VexFlow examples** — consider translating simple ones to Notelist format
+4. **MusicXML** — future import path; see icebox code and seiso.com converters
+   (nl2xml: https://www.seiso.com/nl2xml/, xml2nl: https://www.seiso.com/xml2nl/)
+
+## Subagent Usage
+
+Use the right model for the job:
+- **haiku**: File search, grep, simple code reads, quick lookups
+- **sonnet**: Code analysis, moderate complexity research
+- **opus**: Complex porting decisions, architecture, nuanced code translation
+
+Launch multiple subagents in parallel when tasks are independent.
+
+**IMPORTANT:** Always instruct subagents to use only the Grep and Read tools for
+searching/reading files — never Bash with grep, tr, cat, awk, etc. Bash commands
+that aren't in the auto-approved list will produce blocking permission prompts that
+require manual user approval, which defeats the purpose of autonomous subagents.
+
 ## Conventions
 
 - Rust code: `snake_case`, modules mirror the original C++ file organization where sensible

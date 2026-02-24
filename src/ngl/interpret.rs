@@ -163,15 +163,25 @@ impl InterpretedScore {
         }
     }
 
-    /// Get an object by link (1-based index).
+    /// Get an object by link.
     ///
-    /// Returns `None` if link is NILINK or out of range.
+    /// First tries fast index-based lookup (link == index + 1, true for NGL-parsed scores).
+    /// Falls back to linear search for synthesized scores where links may not match indices.
+    ///
+    /// Returns `None` if link is NILINK or not found.
     pub fn get(&self, link: Link) -> Option<&InterpretedObject> {
         if link == NILINK || link == 0 {
             return None;
         }
+        // Fast path: check if link == index + 1 (true for NGL binary files)
         let idx = (link - 1) as usize;
-        self.objects.get(idx)
+        if let Some(obj) = self.objects.get(idx) {
+            if obj.index == link {
+                return Some(obj);
+            }
+        }
+        // Slow path: linear search (for synthesized scores with non-sequential links)
+        self.objects.iter().find(|obj| obj.index == link)
     }
 
     /// Walk objects in linked-list order (following `right` links).

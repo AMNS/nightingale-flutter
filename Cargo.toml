@@ -13,6 +13,8 @@ binrw = "0.14"
 thiserror = "2"
 # PDF generation — maps directly from PS_Stdio.cp PostScript primitives
 pdf-writer = "0.14"
+# OpenType/TrueType font parsing — for SMuFL glyph rendering in PDF
+ttf-parser = "0.25"
 
 [dev-dependencies]
 # Snapshot testing

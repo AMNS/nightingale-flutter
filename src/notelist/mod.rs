@@ -13,5 +13,10 @@
 //!   B (beam), % (comment)
 
 pub mod parser;
+pub mod to_score;
 
 pub use parser::{parse_notelist, Notelist, NotelistRecord, ParseError};
+pub use to_score::{
+    clef_middle_c_half_ln, nl_midi_to_half_ln, notelist_to_score, notelist_to_score_with_config,
+    NotelistLayoutConfig, AC_DBLFLAT, AC_DBLSHARP, AC_FLAT, AC_NATURAL, AC_SHARP,
+};

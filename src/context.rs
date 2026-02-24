@@ -121,11 +121,11 @@ impl ContextState {
                 if let Some(astaff_list) = score.staffs.get(&obj.header.first_sub_obj) {
                     for astaff in astaff_list {
                         if let Some(ctx) = self.get_mut(astaff.staffn) {
-                            // Update geometry
+                            // Update geometry (make absolute by adding system offsets)
                             ctx.staff_visible = astaff.visible;
-                            ctx.staff_top = astaff.staff_top;
-                            ctx.staff_left = astaff.staff_left;
-                            ctx.staff_right = astaff.staff_right;
+                            ctx.staff_top = astaff.staff_top + ctx.system_top;
+                            ctx.staff_left = astaff.staff_left + ctx.system_left;
+                            ctx.staff_right = astaff.staff_right + ctx.system_left;
                             ctx.staff_height = astaff.staff_height;
                             ctx.staff_half_height = astaff.staff_height / 2;
                             ctx.staff_lines = astaff.staff_lines;
@@ -155,8 +155,8 @@ impl ContextState {
                         if let Some(ctx) = self.get_mut(ameasure.header.staffn) {
                             ctx.in_measure = true;
                             ctx.measure_visible = ameasure.measure_visible;
-                            ctx.measure_top = ameasure.meas_size_rect.top;
-                            ctx.measure_left = obj.header.xd; // Measure xd is the left edge
+                            ctx.measure_top = ctx.staff_top; // Already absolute after Staff update
+                            ctx.measure_left = ctx.staff_left + obj.header.xd; // Measure xd relative to staff left
 
                             // Update stored context from AMeasure
                             ctx.clef_type = ameasure.clef_type;

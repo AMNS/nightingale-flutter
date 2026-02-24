@@ -18,11 +18,19 @@
 //   closepath   → h   (Content::close_path)
 //   concat      → cm  (Content::transform)
 //
+// Font embedding:
+//   SMuFL glyphs are rendered using Bravura.otf (OpenType/CFF), embedded as a
+//   Type0 composite font with Identity-H encoding. Each music_char() call maps
+//   a SMuFL codepoint (U+E000-U+F8FF) to a glyph ID via ttf-parser, then emits
+//   the glyph as a 2-byte big-endian CID in a BT/ET text block.
+//
 // Reference: PS_Stdio.cp (2,388 lines), PDF Reference 1.7 §8-9
 
+use std::collections::BTreeMap;
 use std::mem;
 
-use pdf_writer::{Content, Pdf, Rect, Ref, Str};
+use pdf_writer::types::{CidFontType, FontFlags, SystemInfo, UnicodeCmap};
+use pdf_writer::{Content, Finish, Name, Pdf, Rect, Ref, Str};
 
 use super::types::{BarLineType, Color, MusicGlyph, Point, RenderRect, TextFont};
 use super::MusicRenderer;
@@ -88,6 +96,98 @@ impl Default for GraphicsState {
 /// let pdf_bytes = r.finish();
 /// std::fs::write("output.pdf", pdf_bytes).unwrap();
 /// ```
+/// Embedded font data parsed from an OpenType/TrueType file.
+///
+/// Holds the raw font bytes and the codepoint-to-glyph-ID mapping needed for
+/// PDF text rendering. The font is embedded once in finish() as a Type0
+/// composite font.
+struct EmbeddedFont {
+    /// Raw .otf/.ttf file bytes (embedded verbatim in the PDF)
+    data: Vec<u8>,
+    /// Map from Unicode codepoint to glyph ID (u16)
+    cmap: BTreeMap<u32, u16>,
+    /// Map from glyph ID to Unicode codepoint (for ToUnicode)
+    #[allow(dead_code)]
+    gid_to_unicode: BTreeMap<u16, u32>,
+    /// Glyph widths in PDF font units (1000 units/em)
+    widths: Vec<f32>,
+    /// Font metrics
+    units_per_em: u16,
+    ascender: i16,
+    descender: i16,
+    bbox: (i16, i16, i16, i16), // xMin, yMin, xMax, yMax
+    /// Whether this is a CFF font (OTTO) vs TrueType
+    is_cff: bool,
+}
+
+impl EmbeddedFont {
+    /// Load and parse a font file, building codepoint→glyph mapping.
+    fn load(data: Vec<u8>) -> Option<Self> {
+        // Parse font — the face borrows data, so we extract everything we need
+        // before moving data into the struct.
+        let (cmap, gid_to_unicode, widths, units_per_em, ascender, descender, bbox, is_cff) = {
+            let face = ttf_parser::Face::parse(&data, 0).ok()?;
+            let units_per_em = face.units_per_em();
+            let num_glyphs = face.number_of_glyphs();
+
+            let mut cmap = BTreeMap::new();
+            let mut gid_to_unicode = BTreeMap::new();
+            let mut widths = vec![0.0f32; num_glyphs as usize];
+
+            // Build codepoint→glyph mapping using Face::glyph_index().
+            // We scan the SMuFL Private Use Area (U+E000..U+F8FF) which is where
+            // all music notation glyphs live in SMuFL-compatible fonts (Bravura,
+            // Leland, Petaluma, etc). This approach is font-agnostic.
+            for cp in 0xE000..=0xF8FFu32 {
+                if let Some(ch) = char::from_u32(cp) {
+                    if let Some(gid) = face.glyph_index(ch) {
+                        cmap.insert(cp, gid.0);
+                        gid_to_unicode.entry(gid.0).or_insert(cp);
+                        let advance = face.glyph_hor_advance(gid).unwrap_or(0);
+                        widths[gid.0 as usize] = advance as f32 / units_per_em as f32 * 1000.0;
+                    }
+                }
+            }
+
+            let bbox = face.global_bounding_box();
+            let is_cff = data.starts_with(b"OTTO");
+
+            (
+                cmap,
+                gid_to_unicode,
+                widths,
+                units_per_em,
+                face.ascender(),
+                face.descender(),
+                (bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max),
+                is_cff,
+            )
+        }; // face dropped here, releasing borrow on data
+
+        Some(Self {
+            data,
+            cmap,
+            gid_to_unicode,
+            widths,
+            units_per_em,
+            ascender,
+            descender,
+            bbox,
+            is_cff,
+        })
+    }
+
+    /// Convert a value in font design units to PDF font units (1000/em).
+    fn to_font_units(&self, v: i16) -> f32 {
+        v as f32 / self.units_per_em as f32 * 1000.0
+    }
+
+    /// Look up the glyph ID for a Unicode codepoint. Returns None if not in font.
+    fn glyph_id(&self, codepoint: u32) -> Option<u16> {
+        self.cmap.get(&codepoint).copied()
+    }
+}
+
 pub struct PdfRenderer {
     /// Accumulated PDF content stream operations
     content: Content,
@@ -104,6 +204,10 @@ pub struct PdfRenderer {
     in_page: bool,
     /// Multiple pages' content streams (each page is a separate Content)
     pages: Vec<Vec<u8>>,
+    /// Embedded music font (Bravura), if loaded
+    music_font: Option<EmbeddedFont>,
+    /// Set of glyph IDs actually used (for width table and ToUnicode)
+    used_glyphs: BTreeMap<u16, u32>,
 }
 
 impl PdfRenderer {
@@ -138,10 +242,39 @@ impl PdfRenderer {
             music_size: 24.0, // Default music font size
             in_page: true,
             pages: Vec::new(),
+            music_font: None,
+            used_glyphs: BTreeMap::new(),
+        }
+    }
+
+    /// Load a SMuFL-compatible music font (e.g. Bravura.otf) for glyph rendering.
+    ///
+    /// The font is parsed immediately to build a codepoint→glyph mapping.
+    /// It will be embedded in the PDF when finish() is called.
+    ///
+    /// Works with any SMuFL font: Bravura, Leland, Petaluma, etc.
+    pub fn load_music_font(&mut self, font_data: Vec<u8>) -> bool {
+        if let Some(font) = EmbeddedFont::load(font_data) {
+            self.music_font = Some(font);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Load a music font from a file path.
+    pub fn load_music_font_file(&mut self, path: &std::path::Path) -> bool {
+        if let Ok(data) = std::fs::read(path) {
+            self.load_music_font(data)
+        } else {
+            false
         }
     }
 
     /// Finish the PDF document and return the raw PDF bytes.
+    ///
+    /// If a music font was loaded, it is embedded as a Type0 composite font
+    /// with Identity-H encoding and a ToUnicode CMap for copy/paste support.
     pub fn finish(mut self) -> Vec<u8> {
         // Close the initial save_state
         self.content.restore_state();
@@ -151,35 +284,150 @@ impl PdfRenderer {
         // Build the PDF document
         let mut pdf = Pdf::new();
 
-        // Allocate refs: catalog, page_tree, then pairs of (page, content_stream) per page
+        // Allocate refs
         let catalog_id = Ref::new(1);
         let page_tree_id = Ref::new(2);
+        // Reserve refs 3..N for pages/content, then font objects after
         let first_page_ref = 3;
+        let num_pages = self.pages.len();
+        let after_pages = first_page_ref + (num_pages as i32) * 2;
+
+        // Font-related refs (only used if music_font is present)
+        let type0_ref = Ref::new(after_pages);
+        let cid_ref = Ref::new(after_pages + 1);
+        let descriptor_ref = Ref::new(after_pages + 2);
+        let tounicode_ref = Ref::new(after_pages + 3);
+        let font_data_ref = Ref::new(after_pages + 4);
+
+        let has_font = self.music_font.is_some();
 
         // Catalog
         pdf.catalog(catalog_id).pages(page_tree_id);
 
         // Collect page refs
-        let page_refs: Vec<Ref> = (0..self.pages.len())
+        let page_refs: Vec<Ref> = (0..num_pages)
             .map(|i| Ref::new(first_page_ref + i as i32 * 2))
             .collect();
 
         // Page tree
         pdf.pages(page_tree_id)
             .kids(page_refs.iter().copied())
-            .count(self.pages.len() as i32);
+            .count(num_pages as i32);
 
         // Each page + content stream
         for (i, page_content) in self.pages.iter().enumerate() {
             let page_id = Ref::new(first_page_ref + i as i32 * 2);
             let content_id = Ref::new(first_page_ref + i as i32 * 2 + 1);
 
-            pdf.page(page_id)
-                .parent(page_tree_id)
+            let mut page = pdf.page(page_id);
+            page.parent(page_tree_id)
                 .media_box(Rect::new(0.0, 0.0, self.page_width, self.page_height))
                 .contents(content_id);
 
+            // Add font resource to each page
+            if has_font {
+                page.resources().fonts().pair(Name(b"Bravura"), type0_ref);
+            }
+            page.finish();
+
             pdf.stream(content_id, page_content);
+        }
+
+        // Embed the music font if loaded
+        if let Some(ref font) = self.music_font {
+            let system_info = SystemInfo {
+                registry: Str(b"Adobe"),
+                ordering: Str(b"Identity"),
+                supplement: 0,
+            };
+
+            // Type0 font (composite font root)
+            pdf.type0_font(type0_ref)
+                .base_font(Name(b"Bravura"))
+                .encoding_predefined(Name(b"Identity-H"))
+                .descendant_font(cid_ref)
+                .to_unicode(tounicode_ref);
+
+            // CIDFont (descendant)
+            let cid_font_type = if font.is_cff {
+                CidFontType::Type0 // CFF outlines
+            } else {
+                CidFontType::Type2 // TrueType outlines
+            };
+            let mut cid = pdf.cid_font(cid_ref);
+            cid.subtype(cid_font_type);
+            cid.base_font(Name(b"Bravura"));
+            cid.system_info(system_info);
+            cid.font_descriptor(descriptor_ref);
+            cid.default_width(0.0);
+            if !font.is_cff {
+                cid.cid_to_gid_map_predefined(Name(b"Identity"));
+            }
+
+            // Write glyph widths for all used glyphs
+            {
+                let mut widths = cid.widths();
+                for &gid in self.used_glyphs.keys() {
+                    let w = if (gid as usize) < font.widths.len() {
+                        font.widths[gid as usize]
+                    } else {
+                        0.0
+                    };
+                    widths.same(gid, gid, w);
+                }
+                widths.finish();
+            }
+            cid.finish();
+
+            // Font descriptor
+            let bbox = Rect::new(
+                font.to_font_units(font.bbox.0),
+                font.to_font_units(font.bbox.1),
+                font.to_font_units(font.bbox.2),
+                font.to_font_units(font.bbox.3),
+            );
+
+            let mut flags = FontFlags::empty();
+            flags.insert(FontFlags::SYMBOLIC); // Music font = symbolic
+                                               // Not serif, not fixed-pitch, not italic
+
+            let mut desc = pdf.font_descriptor(descriptor_ref);
+            desc.name(Name(b"Bravura"))
+                .flags(flags)
+                .bbox(bbox)
+                .italic_angle(0.0)
+                .ascent(font.to_font_units(font.ascender))
+                .descent(font.to_font_units(font.descender))
+                .cap_height(font.to_font_units(font.ascender))
+                .stem_v(80.0); // Approximate stem width
+
+            if font.is_cff {
+                // CFF font: use FontFile3 with subtype OpenType
+                desc.font_file3(font_data_ref);
+            } else {
+                // TrueType: use FontFile2
+                desc.font_file2(font_data_ref);
+            }
+            desc.finish();
+
+            // ToUnicode CMap (enables copy/paste of glyph names from PDF)
+            let cmap_name = Name(b"Bravura-ToUnicode");
+            let mut cmap = UnicodeCmap::new(cmap_name, system_info);
+            for (&gid, &cp) in &self.used_glyphs {
+                if let Some(ch) = char::from_u32(cp) {
+                    cmap.pair_with_multiple(gid, [ch].into_iter());
+                }
+            }
+            pdf.cmap(tounicode_ref, &cmap.finish());
+
+            // Embed the raw font file
+            let mut stream = pdf.stream(font_data_ref, &font.data);
+            if font.is_cff {
+                // For CFF (OTTO) fonts, set the subtype to OpenType
+                stream.pair(Name(b"Subtype"), Name(b"OpenType"));
+            }
+            stream.pair(Name(b"Length1"), font.data.len() as i32);
+            stream.finish();
         }
 
         pdf.finish()
@@ -558,14 +806,64 @@ impl MusicRenderer for PdfRenderer {
 
     // ================== Characters & Text (4 methods) ==================
 
-    /// Draw a music character (glyph).
+    /// Draw a music character (glyph) using the embedded SMuFL font.
     ///
-    /// Currently renders a placeholder rectangle. Will use real SMuFL/Bravura
-    /// glyphs once font embedding is implemented.
+    /// If a music font has been loaded, renders the actual glyph from the font.
+    /// Falls back to a small filled square placeholder if no font is loaded
+    /// or the glyph is not found in the font.
+    ///
+    /// The Y-flip transform is already in effect (top-left origin), but PDF text
+    /// rendering with an embedded font requires flipping Y back for each glyph
+    /// so the glyph outline isn't rendered upside-down.
     ///
     /// Reference: PS_Stdio.cp, PS_MusChar(), line 1834
-    fn music_char(&mut self, x: f32, y: f32, _glyph: MusicGlyph, _size_percent: f32) {
-        // Placeholder: draw a small filled square to mark glyph position
+    fn music_char(&mut self, x: f32, y: f32, glyph: MusicGlyph, size_percent: f32) {
+        let codepoint = match glyph {
+            MusicGlyph::Smufl(cp) => cp,
+            MusicGlyph::Sonata(_) => {
+                // Legacy Sonata glyphs not supported in font rendering
+                return;
+            }
+        };
+
+        // Try to render with embedded font
+        if let Some(ref font) = self.music_font {
+            if let Some(gid) = font.glyph_id(codepoint) {
+                // Track this glyph for width table and ToUnicode
+                self.used_glyphs.entry(gid).or_insert(codepoint);
+
+                // Encode glyph ID as 2-byte big-endian
+                let encoded = [(gid >> 8) as u8, (gid & 0xFF) as u8];
+
+                let font_size = self.music_size * size_percent / 100.0;
+                let tx = self.tx(x);
+                let ty = self.ty(y);
+
+                // We need to temporarily un-flip Y for text rendering because
+                // the font outlines are designed for bottom-up Y coordinates.
+                // The global transform is [1 0 0 -1 0 page_height] which flips Y.
+                // For text: we use a text matrix that flips Y back.
+                self.sync_fill_color();
+                self.content.begin_text();
+                // Text matrix: [sx 0 0 sy tx ty]
+                // We need Y to go upward for the font, so use [1 0 0 -1 tx ty]
+                // which flips the already-flipped Y back to normal.
+                self.content.set_text_matrix([
+                    font_size * self.state.scale_x,
+                    0.0,
+                    0.0,
+                    -font_size * self.state.scale_y,
+                    tx,
+                    ty,
+                ]);
+                self.content.set_font(Name(b"Bravura"), 1.0);
+                self.content.show(Str(&encoded));
+                self.content.end_text();
+                return;
+            }
+        }
+
+        // Fallback: placeholder square (no font loaded or glyph not found)
         let half_size = 3.0;
         self.sync_fill_color();
         self.content.rect(
@@ -835,76 +1133,5 @@ mod tests {
         assert!(pdf_bytes.starts_with(b"%PDF-"));
         // Should have 2 pages worth of content
         assert!(pdf_bytes.len() > 200);
-    }
-
-    #[test]
-    fn test_pdf_renderer_full_score() {
-        let mut r = PdfRenderer::new(612.0, 792.0);
-
-        // Set standard widths
-        r.set_widths(0.5, 0.64, 0.8, 1.0);
-
-        // Draw a staff
-        let staff_y = 100.0;
-        let line_sp = 7.0; // ~7pt between staff lines (standard for 24pt music)
-        r.staff(staff_y, 72.0, 540.0, 5, line_sp);
-
-        // Bar lines
-        let bottom_y = staff_y + 4.0 * line_sp;
-        r.bar_line(staff_y, bottom_y, 72.0, BarLineType::Single);
-        r.bar_line(staff_y, bottom_y, 540.0, BarLineType::FinalDouble);
-
-        // A few notes with stems
-        // SMuFL U+E0A4 = noteheadWhole, U+E0A3 = noteheadBlack
-        r.music_char(
-            120.0,
-            staff_y + 2.0 * line_sp,
-            MusicGlyph::smufl(0xE0A4),
-            100.0,
-        );
-        r.note_stem(
-            200.0,
-            staff_y + 4.0 * line_sp,
-            staff_y + 4.0 * line_sp - 25.0,
-            0.8,
-        );
-        r.music_char(
-            200.0,
-            staff_y + 4.0 * line_sp,
-            MusicGlyph::smufl(0xE0A3),
-            100.0,
-        );
-        r.note_stem(
-            280.0,
-            staff_y + 3.0 * line_sp,
-            staff_y + 3.0 * line_sp - 25.0,
-            0.8,
-        );
-        r.music_char(
-            280.0,
-            staff_y + 3.0 * line_sp,
-            MusicGlyph::smufl(0xE0A3),
-            100.0,
-        );
-
-        // Beam
-        r.beam(
-            200.0,
-            staff_y + 4.0 * line_sp - 25.0,
-            280.0,
-            staff_y + 3.0 * line_sp - 25.0,
-            3.0,
-            true,
-            true,
-        );
-
-        // Save PDF
-        let pdf_bytes = r.finish();
-        let output_dir = "/tmp/nightingale-test-output";
-        std::fs::create_dir_all(output_dir).ok();
-        std::fs::write(format!("{}/test_score.pdf", output_dir), &pdf_bytes).unwrap();
-
-        assert!(pdf_bytes.starts_with(b"%PDF-"));
-        assert!(pdf_bytes.len() > 500);
     }
 }

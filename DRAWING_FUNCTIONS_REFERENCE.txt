@@ -1,0 +1,234 @@
+# Nightingale Drawing Pipeline - Quick Function Reference
+
+All file paths are absolute. All line numbers are from the original source files.
+
+## COORDINATE TRANSFORMATION
+
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/Magnify.cp
+Lines 49-91: D2PFunc(), D2PXFunc(), P2DFunc() implementations
+
+Key macro definitions in:
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/Precomps/defs.h
+Lines 572-579: d2p, d2px, p2d, d2pt, pt2d macros
+
+DDIST type definition:
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/Precomps/NBasicTypes.h
+Line 31: #define DDIST short
+
+CONTEXT structure:
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/Precomps/NObjTypes.h
+Lines 871-899: typedef struct { ... } CONTEXT, *PCONTEXT
+
+
+## HIGH-LEVEL DRAWING FUNCTIONS
+
+DrawRange() — Entry point for drawing a range
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawHighLevel.cp
+Line 709
+
+DrawScoreRange() — Main drawing dispatcher for normal score
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawHighLevel.cp
+Line 349
+
+DrawMasterRange() — Draw master page
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawHighLevel.cp
+Line 106
+
+DrawFormatRange() — Draw format page
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawHighLevel.cp
+Line 154
+
+HiliteScoreRange() — Draw selection hiliting
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawHighLevel.cp
+Line 508
+
+
+## OBJECT-LEVEL DRAWING FUNCTIONS
+
+DrawSTAFF() — Draw staff lines and iterate substaves
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawObject.cp
+Line 591
+
+DrawCONNECT() — Draw staff connectors (brackets, braces, lines)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawObject.cp
+Line 670
+
+DrawMEASURE() — Draw barlines and measure numbers
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawObject.cp
+Line 2772
+
+
+## NOTE-LEVEL DRAWING FUNCTIONS
+
+DrawSYNC() — Draw all notes/rests in a synchronization point
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 1509
+
+DrawNote() — Draw a single note (notehead, stem, flags, accidentals, ledgers, dots)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 662
+
+DrawAcc() — Draw accidental symbol (with optional courtesy parentheses)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 314
+
+DrawAugDots() — Draw augmentation dots
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 251
+
+DrawNCLedgers() — Draw ledger lines for notes
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 435
+
+DrawNotehead() — Draw the notehead glyph (QuickDraw only)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 471
+
+DrawGRAcc() — Draw accidental for grace note (static)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 1553
+
+DrawGRNCLedgers() — Draw ledger lines for grace notes (static)
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 1653
+
+DrawGRNote() — Draw a single grace note
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 1697
+
+DrawGRSYNC() — Draw all grace notes in a GRSYNC
+File: /Users/chirgwin/Nightingale-Phoenix/nightingale-modernize/Nightingale/src/CFilesBoth/DrawNRGR.cp
+Line 2225
+
+
+## KEY CODE PATTERNS
+
+### Coordinate Conversion Pattern (from DrawNote, line 769-773):
+    xhead = pContext->paper.left + d2p(xd);
+    xadjhead = pContext->paper.left + d2p(xd + yOffset);
+
+### Context Update Pattern (from DrawSTAFF, line 614-623):
+    pContext->staffTop = aStaff->staffTop + pContext->systemTop;
+    pContext->staffLeft = aStaff->staffLeft + pContext->systemLeft;
+    pContext->staffRight = aStaff->staffRight + pContext->systemLeft;
+    pContext->staffVisible = pContext->visible = aStaff->visible;
+    pContext->staffLines = aStaff->staffLines;
+    pContext->showLines = aStaff->showLines;
+    pContext->staffHeight = aStaff->staffHeight;
+    pContext->staffHalfHeight = pContext->staffHeight>>1;
+    pContext->fontSize = aStaff->fontSize;
+
+### Drawing Movement Pattern (from DrawNote, line 810-811):
+    MoveTo(xadjhead, yadjhead);
+    DrawNotehead(doc, glyph, appearance, dim, dhalfSp);
+
+### Stem Drawing (from DrawNote, line 849-851):
+    Move(0, -1);
+    Line(0, d2p(dStemLen)+(stemDown? 0 : 1));  // Draw stem in pixel space
+
+### Context Dispatch (from DrawSYNC, line 1527):
+    pContext = &context[NoteSTAFF(aNoteL)];
+
+
+## DATA STRUCTURES
+
+CONTEXT (full definition from NObjTypes.h:871-899):
+    Boolean     visible;           // (staffVisible && measureVisible)
+    Boolean     staffVisible;      // staff is visible
+    Boolean     measureVisible;    // measure is visible
+    Boolean     inMeasure;         // True if currently in measure
+    Rect        paper;             // Sheet rect in window coordinates
+    short       sheetNum;          // PAGE number
+    short       systemNum;         // SYSTEM number
+    DDIST       systemTop, systemLeft, systemBottom;
+    DDIST       staffTop, staffLeft, staffRight;
+    DDIST       staffHeight, staffHalfHeight;
+    SignedByte  staffLines, showLines;
+    Boolean     showLedgers;
+    short       fontSize;
+    DDIST       measureTop, measureLeft;
+    SignedByte  clefType, dynamicType;
+    WHOLE_KSINFO;
+    SignedByte  timeSigType, numerator, denominator;
+
+Helper macro LNSPACE(pCont):
+    #define LNSPACE(pCont) ((pCont)->staffHeight/((pCont)->staffLines-1))
+
+
+## OBJECT TYPE DISPATCH (from DrawScoreRange, lines 366-500)
+
+PAGE      → DrawPAGE()
+SYSTEM    → DrawSYSTEM()
+STAFF     → DrawSTAFF()
+CONNECT   → DrawCONNECT()
+MEASURE   → DrawMEASURE()
+PSYMEAS   → DrawPSMEAS()
+CLEF      → DrawCLEF()
+KEYSIG    → DrawKEYSIG()
+TIMESIG   → DrawTIMESIG()
+SYNC      → DrawSYNC()
+GRSYNC    → DrawGRSYNC()
+BEAMSET   → DrawBEAMSET() / DrawGRBEAMSET()
+TUPLET    → DrawTUPLET()
+OTTAVA    → DrawOTTAVA()
+DYNAM     → DrawDYNAMIC()
+RPTEND    → DrawRPTEND()
+ENDING    → DrawENDING()
+GRAPHIC   → DrawGRAPHIC()
+TEMPO     → DrawTEMPO()
+SPACER    → DrawSPACER()
+SLUR      → DrawSLUR()
+
+
+## DRAWING OUTPUT MODES (from DrawNote & others)
+
+toScreen       — QuickDraw to screen (uses d2p for pixels)
+toBitmapPrint  — QuickDraw to bitmap printer
+toPICT         — QuickDraw to PICT resource
+toPostScript   — PostScript output (uses DDIST directly)
+
+Each function checks (switch outputTo) to decide coordinate system and API calls.
+
+
+## VISIBILITY OPTIMIZATION
+
+Critical variable in DrawScoreRange/DrawFormatRange/DrawMasterRange:
+    Boolean drawAll
+    
+Purpose: Reduces redrawing of "spanning" objects that cross measure boundaries.
+
+Set by checking:
+    SectRect(&pMeasure->measureBBox, &paperUpdate, &result)
+    
+If no intersection (and outputTo == toScreen): drawAll = False
+Otherwise: drawAll = True
+
+Objects that check drawAll before drawing:
+    PSYMEAS, CLEF, KEYSIG, TIMESIG, SYNC, GRSYNC, BEAMSET, TUPLET, OTTAVA, DYNAM, RPTEND, ENDING, GRAPHIC, TEMPO, SPACER, SLUR
+
+
+## CONTEXT UPDATES
+
+At PAGE:    GetAllContexts(doc, context, measL); ContextPage(doc, pL, context);
+At SYSTEM:  Already set; may adjust via ContextSystem()
+At STAFF:   Updates context[staffn] with staff-specific values (lines 614-623)
+At MEASURE: Updates context[staff] with measure-specific values (lines 2810-2822)
+
+Each level accumulates absolute page-relative DDIST positions.
+
+
+## IMPORTANT MACROS
+
+From defs.h (line 452):
+    #define LNSPACE(pCont) ((pCont)->staffHeight/((pCont)->staffLines-1))
+    
+From defs.h (line 444):
+    #define VISIBLE(pL) (LinkVIS(pL) || doc->showInvis)
+
+From defs.h (line 420):
+    #define SizePercentSCALE(value) ((int)(((long)sizePercent*(value))/100L))
+
+From defs.h (line 378):
+    #define MainNote(link) (!NoteINCHORD(link) || NoteYD(link)!=NoteYSTEM(link))
+
+

@@ -39,7 +39,7 @@ pub const N105_SUBOBJ_SIZES: [u16; 25] = [
 /// Source: NObjTypes.h lines 26-41 (OBJECTHEADER macro)
 ///
 /// IMPORTANT: The first six fields MUST NOT be reordered - MemMacros.h depends on their positions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ObjectHeader {
     pub right: Link,         // Link to right object
     pub left: Link,          // Link to left object
