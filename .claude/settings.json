@@ -46,6 +46,14 @@
       "Bash(uniq:*)",
       "Bash(cut:*)",
       "Bash(tr:*)",
+      "Bash(LC_ALL=C tr:*)",
+      "Bash(LC_ALL=C grep:*)",
+      "Bash(sips:*)",
+      "Bash(dos2unix:*)",
+      "Bash(perl:*)",
+      "Bash(for f in:*)",
+      "Bash(do sips:*)",
+      "Bash(done:*)",
       "Bash(mkdir:*)",
       "Bash(pwd:*)",
       "Bash(echo:*)",
@@ -70,10 +78,17 @@
       "Bash(cat >:*)",
       "WebFetch(domain:code.claude.com)",
       "WebFetch(domain:github.com)",
-      "WebSearch"
+      "WebSearch",
+      "Read(/Users/chirgwin/Nightingale/**)",
+      "Read(/Users/chirgwin/Nightingale-Phoenix/**)",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.claude.com)"
     ],
     "additionalDirectories": [
       "/Users/chirgwin/Nightingale-Phoenix",
+      "/Users/chirgwin/Nightingale",
+      "/private/tmp",
       "/tmp",
       "/var/tmp"
     ]

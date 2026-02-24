@@ -759,6 +759,7 @@ fn draw_beamset(
     struct BeamPoint {
         x: f32,
         ystem_y: f32,
+        note_yd: f32, // Notehead Y — needed to determine stem direction (ystem > yd → stem down)
         l_dur: i8,
         startend: i8,
     }
@@ -805,12 +806,14 @@ fn draw_beamset(
                     note_x + head_width
                 };
 
-                // Y position at stem endpoint
+                // Y position at stem endpoint and notehead
                 let ystem_y = ddist_to_render(staff_ctx.staff_top + note.ystem);
+                let note_yd_y = ddist_to_render(staff_ctx.staff_top + note.yd);
 
                 points.push(BeamPoint {
                     x: stem_x,
                     ystem_y,
+                    note_yd: note_yd_y,
                     l_dur: note.header.sub_type,
                     startend: notebeam.startend,
                 });
@@ -835,9 +838,10 @@ fn draw_beamset(
     let beam_thickness = lnspace * 0.5;
     let beam_gap = lnspace * 0.25; // Gap between primary and secondary beams
 
-    // Determine stem direction from first note
-    let stem_up = points[0].ystem_y < points.last().map(|p| p.ystem_y).unwrap_or(0.0)
-        || points[0].ystem_y <= ddist_to_render(staff_ctx.staff_top + staff_ctx.staff_height / 2);
+    // Determine stem direction from first note's ystem vs yd.
+    // stem_down = (ystem > yd) in DDIST coords, which means (ystem_y > note_yd) in render coords
+    // (Y increases downward). This matches the OG Nightingale convention used in draw_sync.
+    let stem_up = points[0].ystem_y < points[0].note_yd;
 
     // Draw primary beam: connects first point to last point
     let first = &points[0];

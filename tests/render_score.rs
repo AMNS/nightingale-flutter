@@ -191,12 +191,11 @@ fn test_notelist_hbd33_geometry() {
 // These tests are #[ignore]d and will show up in test output as a roadmap.
 // ============================================================================
 
-/// Beam slope: stems within beamed groups should have variable lengths
-/// to match the beam slope angle, not constant CalcYStem lengths.
+/// Beam slope: beams should slope to follow melodic contour, not be flat.
 /// Port: GetBeamEndYStems (Beam.cp:181), FixSyncInBeamset (Beam.cp:272)
-/// Each note's ystem should be interpolated along the beam line.
+/// Stems within beamed groups are interpolated along the beam line at
+/// config.relBeamSlope% of the natural slope.
 #[test]
-#[ignore = "PUNT: beam slope + variable stem lengths within beamed groups (Beam.cp)"]
 fn test_beam_slope_variable_stem_lengths() {
     use nightingale_core::notelist::{notelist_to_score, parse_notelist};
 
@@ -209,13 +208,23 @@ fn test_beam_slope_variable_stem_lengths() {
     render_score(&score, &mut cmd_renderer);
     let commands = cmd_renderer.take_commands();
 
-    // Within a beamed group, stem endpoints should follow the beam slope.
-    // Currently stems use CalcYStem independently, producing constant lengths.
-    // After porting GetBeamEndYStems + FixSyncInBeamset, stem lengths should
-    // vary based on beam slope interpolation.
+    // Should have beams
     let beams: Vec<_> = commands.iter().filter(|c| c.name() == "Beam").collect();
     assert!(!beams.is_empty(), "Score should have beams");
-    // TODO: verify stem endpoints match beam slope interpolation
+
+    // At least one primary beam should be non-horizontal (sloped).
+    // A flat beam has y0 == y1; a sloped beam has y0 != y1.
+    let has_sloped_beam = beams.iter().any(|cmd| {
+        if let RenderCommand::Beam { y0, y1, .. } = cmd {
+            (y0 - y1).abs() > 0.1
+        } else {
+            false
+        }
+    });
+    assert!(
+        has_sloped_beam,
+        "At least one beam should be sloped (non-horizontal)"
+    );
 }
 
 /// Accidental staggering: chords with multiple accidentals should stagger

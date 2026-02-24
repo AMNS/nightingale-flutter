@@ -266,28 +266,13 @@ Phase 7: flutter_rust_bridge bindings (~300 lines)
 TOTAL EXPECTED OUTPUT: ~15,000 lines of Rust code + ~5,000 lines of tests
 
 
-CURRENT STATUS (as of 2026-02-23)
-==================================
+CURRENT STATUS
+==============
 
-Rust source lines:  ~7,600 (across 8 modules + 2 submodules)
-Test count:         57 (50 unit + 7 integration)
-Test fixture files: 16 .ngl + 15 .nl notelist examples
-Commits:            2 (foundation + infrastructure)
-Pre-commit hook:    cargo fmt + clippy -D warnings + cargo test
-
-COMPLETED:
-  - Phase 0A: Project setup
-  - Phase 1: All type definitions (except style.h)
-  - Phase 2 (partial): NGL reader, heap interpreter, string pool decode
-  - Phase 3 (partial): Context system, notelist parser
-
-NEXT STEPS:
-  1. Cross-validation: compare NGL binary interpretation against notelist text
-  2. Score accessors: headL/tailL, numStaves, string pool integration
-  3. Duration math / spacing foundations (SpaceTime.cp port begins)
+See PROGRESS.md for current status, stats, and next steps.
 
 ================================================================================
-Generated: 2026-02-23 | Last updated: 2026-02-23
+Generated: 2026-02-23 | Last updated: 2026-02-24
 Files in this directory:
   - PORTING_ROADMAP.txt (this file)
   - DEPENDENCY_CHAIN.csv (spreadsheet format)

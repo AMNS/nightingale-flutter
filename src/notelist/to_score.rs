@@ -317,6 +317,9 @@ pub struct NotelistLayoutConfig {
     pub max_voices_per_staff: usize,
     /// If true, skip events before the first barline (anacrusis/pickup).
     pub skip_anacrusis: bool,
+    /// Beam slope as percentage of natural slope (0=flat, 100=full slope).
+    /// OG default: 33 (config.relBeamSlope). Reference: Beam.cp:214.
+    pub rel_beam_slope: i16,
 }
 
 impl Default for NotelistLayoutConfig {
@@ -343,9 +346,10 @@ impl Default for NotelistLayoutConfig {
             stem_len_normal: 14,              // 3.5 interline spaces (Initialize.cp:757)
             stem_len_2v: 12,                  // 3 interline spaces (Initialize.cp:758)
             stem_len_outside: 10,             // 2.5 interline spaces (Initialize.cp:759)
-            max_measures: 3,                  // Anacrusis + 2 full measures
+            max_measures: 4,                  // Anacrusis + 3 full measures
             max_voices_per_staff: 1,          // Default to voice 1 only for clean output
             skip_anacrusis: false,            // Include pickup beats by default
+            rel_beam_slope: 33,               // 33% of natural slope (Beam.cp:214)
         }
     }
 }
@@ -1762,7 +1766,7 @@ pub fn notelist_to_score_with_config(
     // Create BeamSet objects and mark notes as beamed
     let mut notebeam_sub_counter: Link = 1000; // Separate namespace for notebeam subobjects
 
-    for (beamset_link, group) in beam_groups {
+    for (beamset_link, group) in &beam_groups {
         let voice = group[0].voice;
         let staffn = group[0].staff;
         let n_entries = group.len() as u8;
@@ -1797,7 +1801,7 @@ pub fn notelist_to_score_with_config(
         score.notebeams.insert(notebeam_sub_link, notebeams);
 
         // Mark notes as beamed - find them in score.notes
-        for note in &group {
+        for note in group {
             // Find the sync object
             if let Some(sync_obj) = score.objects.iter().find(|obj| obj.index == note.sync_link) {
                 let note_sub_link = sync_obj.header.first_sub_obj;
@@ -1816,7 +1820,7 @@ pub fn notelist_to_score_with_config(
 
         // Insert BeamSet object right after the last sync
         let beamset_obj = InterpretedObject {
-            index: beamset_link,
+            index: *beamset_link,
             header: ObjectHeader {
                 right: NILINK, // Will be updated below
                 left: NILINK,  // Will be updated below
@@ -1873,15 +1877,228 @@ pub fn notelist_to_score_with_config(
 
         // Update the object to the left (last sync)
         if let Some(left_obj) = score.objects.iter_mut().find(|obj| obj.index == left_link) {
-            left_obj.header.right = beamset_link;
+            left_obj.header.right = *beamset_link;
         }
 
         // Update the object to the right
         if let Some(right_obj) = score.objects.iter_mut().find(|obj| obj.index == right_link) {
-            right_obj.header.left = beamset_link;
+            right_obj.header.left = *beamset_link;
         }
 
         score.objects.insert(insert_pos, beamset_obj);
+    }
+
+    // ---- BEAM GROUP STEM DIRECTION UNIFICATION ----
+    // Port of NormalStemUpDown (Objects.cp:1594-1633) applied to beam groups.
+    //
+    // In OG Nightingale, all notes in a beamset share the same stem direction,
+    // determined by NormalStemUpDown for SINGLE_DI voices. The algorithm:
+    //   maxy = lowest note yd in group (max because Y increases downward)
+    //   miny = highest note yd in group
+    //   midLine = staffHeight / 2
+    //   stem_down = (maxy - midLine <= midLine - miny)
+    //
+    // After determining group direction, recompute ystem for each note.
+    {
+        let n_staff_lines: i16 = 5;
+        let qtr_sp = config.stem_len_normal as i16;
+
+        for (_beamset_link, group) in &beam_groups {
+            let voice = group[0].voice;
+            let staffn = group[0].staff;
+
+            // Collect all yd values for notes in this beam group
+            let mut max_yd: Ddist = i16::MIN; // lowest note (max yd, Y increases downward)
+            let mut min_yd: Ddist = i16::MAX; // highest note (min yd)
+
+            for bnote in group {
+                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == bnote.sync_link) {
+                    if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+                        for n in notes {
+                            if n.voice == voice && n.header.staffn == staffn && !n.rest {
+                                if n.yd > max_yd {
+                                    max_yd = n.yd;
+                                }
+                                if n.yd < min_yd {
+                                    min_yd = n.yd;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if max_yd == i16::MIN || min_yd == i16::MAX {
+                continue;
+            }
+
+            // NormalStemUpDown for SINGLE_DI (Objects.cp:1618-1619):
+            //   stem_down when lowest note is closer to or equidistant from midline
+            let mid_line = config.staff_height / 2;
+            let group_stem_down =
+                (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32);
+
+            // Recompute ystem for all notes in the group using the unified direction
+            for bnote in group {
+                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == bnote.sync_link) {
+                    let sub_link = sync_obj.header.first_sub_obj;
+                    if let Some(notes) = score.notes.get_mut(&sub_link) {
+                        for n in notes.iter_mut() {
+                            if n.voice == voice && n.header.staffn == staffn && n.beamed && !n.rest
+                            {
+                                let num_flags = nflags(bnote.dur);
+                                n.ystem = calc_ystem(
+                                    n.yd,
+                                    num_flags,
+                                    group_stem_down,
+                                    config.staff_height,
+                                    n_staff_lines,
+                                    qtr_sp,
+                                    false,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- BEAM SLOPE ADJUSTMENT ----
+    // Port of GetBeamEndYStems (Beam.cp:181-235) + FixSyncInBeamset (Beam.cp:272-299).
+    //
+    // For each beamset, compute a reduced slope from the natural CalcYStem endpoints
+    // of the first and last notes, then interpolate all intermediate stems along
+    // the beam line.
+    //
+    // Algorithm:
+    // 1. Get CalcYStem for first and last notes (their current ystem values)
+    // 2. Compute natural slope = lastYstem - firstYstem
+    // 3. Apply relBeamSlope percentage to reduce slope
+    // 4. Recompute first/last ystem based on the "base" note (the one whose
+    //    CalcYStem is the extreme — highest for stems up, lowest for stems down)
+    // 5. Linearly interpolate all intermediate stems
+    if config.rel_beam_slope > 0 {
+        for (_beamset_link, group) in &beam_groups {
+            if group.len() < 2 {
+                continue;
+            }
+
+            let voice = group[0].voice;
+            let staffn = group[0].staff;
+
+            // Collect (sync_xd, note_yd, note_ystem, sync_link) for each note in group
+            struct BeamNoteInfo {
+                sync_xd: Ddist,
+                note_yd: Ddist,
+                note_ystem: Ddist,
+                sync_link: Link,
+            }
+            let mut infos: Vec<BeamNoteInfo> = Vec::new();
+
+            for bnote in group {
+                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == bnote.sync_link) {
+                    let sync_xd = sync_obj.header.xd;
+                    if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+                        if let Some(note) = notes
+                            .iter()
+                            .find(|n| n.voice == voice && n.header.staffn == staffn && n.beamed)
+                        {
+                            infos.push(BeamNoteInfo {
+                                sync_xd,
+                                note_yd: note.yd,
+                                note_ystem: note.ystem,
+                                sync_link: bnote.sync_link,
+                            });
+                        }
+                    }
+                }
+            }
+
+            if infos.len() < 2 {
+                continue;
+            }
+
+            // Determine stem direction from first note
+            let stem_down = infos[0].note_ystem > infos[0].note_yd;
+
+            // Natural CalcYStem endpoints (already computed)
+            let first_ystem = infos[0].note_ystem;
+            let last_ystem = infos[infos.len() - 1].note_ystem;
+
+            // endDiff: vertical difference between endpoints
+            // (Beam.cp:208: fEndDiff = (double)(firstystem1 - lastystem1))
+            let end_diff = first_ystem - last_ystem;
+
+            // Apply reduced slope (Beam.cp:214: fSlope = fEndDiff * relBeamSlope / 100)
+            let slope = end_diff as f32 * config.rel_beam_slope as f32 / 100.0;
+
+            // Find the "base" note — the one whose CalcYStem is the extreme.
+            // For stems up: base = note with smallest (highest) ystem
+            // For stems down: base = note with largest (lowest) ystem
+            // (Beam.cp:191-196)
+            let base_idx = if stem_down {
+                infos
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, info)| info.note_ystem)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0)
+            } else {
+                infos
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, info)| info.note_ystem)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0)
+            };
+
+            let base_ystem = infos[base_idx].note_ystem;
+
+            // Compute horizontal positions
+            let first_xd = infos[0].sync_xd;
+            let last_xd = infos[infos.len() - 1].sync_xd;
+            let beam_length = (last_xd - first_xd) as f32;
+
+            if beam_length.abs() < 1.0 {
+                continue; // Degenerate beam
+            }
+
+            // Compute offset from base note to first note
+            // (Beam.cp:220-224)
+            let base_xd = infos[base_idx].sync_xd;
+            let base_to_first = (first_xd - base_xd) as f32;
+            let base_frac = base_to_first / beam_length;
+            let base_offset = slope * base_frac;
+
+            // First and last ystem based on base note position + slope
+            // (Beam.cp:226-227)
+            let new_first_ystem = base_ystem as f32 + base_offset;
+            let new_last_ystem = new_first_ystem - slope;
+
+            // Interpolate all intermediate stems linearly along the beam line
+            for (i, info) in infos.iter().enumerate() {
+                let t = if beam_length.abs() > 0.0 {
+                    (info.sync_xd - first_xd) as f32 / beam_length
+                } else {
+                    0.0
+                };
+                let interpolated_ystem = new_first_ystem + t * (new_last_ystem - new_first_ystem);
+                let new_ystem = interpolated_ystem.round() as Ddist;
+
+                // Update the note's ystem in score.notes
+                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == infos[i].sync_link)
+                {
+                    if let Some(notes) = score.notes.get_mut(&sync_obj.header.first_sub_obj) {
+                        for note in notes.iter_mut() {
+                            if note.voice == voice && note.header.staffn == staffn && note.beamed {
+                                note.ystem = new_ystem;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // TAIL object

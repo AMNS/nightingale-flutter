@@ -110,45 +110,20 @@ Previous reverse engineering produced a working NGL→MusicXML converter in Pyth
 (see conversation history). The `4B 40` note record marker pattern and 30-byte records
 were identified. String pool uses `02 <length> <string bytes>` format.
 
-## Phase Plan
+## Progress & Roadmap
 
-### Phase 0: Source Archaeology (DO THIS FIRST)
-Classify every .cp/.h file as: DATA_MODEL, ENGRAVING, UI, PLATFORM, or EXPERIMENTAL.
-Build a dependency graph. Output CSV + Mermaid diagram. This determines everything else.
-
-### Phase 1: Rust Data Model
-Port Precomps/ type definitions to Rust structs. Implement .ngl file reader that can
-round-trip files. Use the existing Python NGL→MusicXML converter as a reference
-implementation for validation.
-
-### Phase 2: Engraving Engine
-Port CFilesBoth/ engraving algorithms one subsystem at a time:
-- Beam calculation (Beam.cp, GRBeam.cp)
-- Spacing (SpaceTime.cp, SpaceHighLevel.cp)
-- Note/rest layout (DrawNRGR.cp minus QuickDraw calls)
-- Slurs (Slurs.cp)
-- Tuplets (Tuplet.cp)
-- Score formatting (SFormat.cp, SFormatHighLevel.cp)
-Each subsystem gets its own module with tests.
-
-### Phase 3: MusicXML
-Implement MusicXML 4.0 import/export using the Rust data model.
-
-### Phase 4: Rendering Abstraction
-Create a platform-agnostic rendering trait that outputs "draw glyph X at position Y,Z"
-instructions. This is what Flutter will consume.
-
-### Phase 5: Flutter Shell
-Build the UI. The Rust core provides layout-computed positions; Flutter draws them.
+See `PROGRESS.md` for phase plan, current status, and next steps.
+See `PORTING_ROADMAP.txt` for the detailed layer-by-layer porting roadmap.
 
 ## Task Execution Pattern
 
 Each session should:
 1. Read this CLAUDE.md
-2. Check PROGRESS.md for current state
+2. Check `PROGRESS.md` for current state
 3. Pick the next incomplete task
 4. Do the work, commit, update PROGRESS.md
 5. Keep commits small and focused
+6. Run `cargo fmt` and `cargo clippy` before committing
 
 ## Autonomous Work Cycle
 
@@ -186,8 +161,13 @@ Each discrete drawing function should be ported as its own unit with tests:
 
 ## OG Nightingale Source Location
 
-The upstream C++ source is at `/Users/chirgwin/Nightingale/src/CFilesBothEd/`
-(and `CFilesBoth/`, `Utilities/`, `Precomps/`). Always reference this when porting.
+The authoritative C++ source is the **local clone** at:
+`Nightingale/src/` (relative to this repo root)
+
+Key directories: `CFilesBoth/`, `CFilesBothEd/`, `Utilities/`, `Precomps/`
+
+Line endings have been converted to Unix LF. Use Read/Grep tools directly —
+no need for `tr` or other preprocessing. Always reference this when porting.
 
 ## Test Data Strategy
 
