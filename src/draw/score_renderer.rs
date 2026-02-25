@@ -14,8 +14,37 @@
 use crate::context::ContextState;
 use crate::defs::*;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
-use crate::render::types::{ddist_to_render, BarLineType, MusicGlyph};
+use crate::render::types::{ddist_to_render, BarLineType, MusicGlyph, Point};
 use crate::render::MusicRenderer;
+
+/// Information about a note's rendered position, used for tie matching.
+///
+/// Collected during the draw pass and matched after all objects are drawn.
+/// Each TieEndpoint records the rendered (x, y) of the notehead center,
+/// along with identifying info (staff, voice, note_num) and stem direction.
+#[derive(Debug, Clone)]
+struct TieEndpoint {
+    /// Rendered X of the notehead origin (left edge of glyph)
+    x: f32,
+    /// Rendered Y of the notehead center
+    y: f32,
+    /// Note width (for endpoint offset computation)
+    head_width: f32,
+    /// True if stem goes down (=> tie curves up above note)
+    stem_down: bool,
+    /// Staff number (for matching)
+    staff: i8,
+    /// Voice number (for matching)
+    voice: i8,
+    /// MIDI note number (for pitch matching)
+    note_num: u8,
+    /// Line spacing at this note's staff
+    lnspace: f32,
+    /// Right edge of this note's staff (for cross-system partial ties)
+    staff_right: f32,
+    /// Left edge of this note's staff (for cross-system partial ties)
+    staff_left: f32,
+}
 
 /// Count the number of staves in a score by examining the first Staff object.
 ///
@@ -225,6 +254,12 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
 
     let mut ctx = ContextState::new(num_staves);
 
+    // Collect tie endpoints during the walk for post-draw tie rendering.
+    // tie_starts: notes with tied_r (start of tie arc)
+    // tie_ends: notes with tied_l (end of tie arc)
+    let mut tie_starts: Vec<TieEndpoint> = Vec::new();
+    let mut tie_ends: Vec<TieEndpoint> = Vec::new();
+
     for obj in score.walk() {
         // Update context BEFORE drawing (matches C++ pipeline)
         ctx.update_from_object(obj, score);
@@ -232,7 +267,10 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
         match &obj.data {
             ObjData::Staff(_) => draw_staff(score, obj, &ctx, renderer),
             ObjData::Measure(_) => draw_measure(score, obj, &ctx, renderer),
-            ObjData::Sync(_) => draw_sync(score, obj, &ctx, renderer),
+            ObjData::Sync(_) => {
+                draw_sync(score, obj, &ctx, renderer);
+                collect_tie_endpoints(score, obj, &ctx, &mut tie_starts, &mut tie_ends);
+            }
             ObjData::Connect(_) => draw_connect(score, obj, &ctx, renderer),
             ObjData::Clef(_) => draw_clef(score, obj, &ctx, renderer),
             ObjData::TimeSig(_) => draw_timesig(score, obj, &ctx, renderer),
@@ -241,6 +279,9 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             _ => {}
         }
     }
+
+    // Draw ties after all objects (so ties layer on top)
+    draw_ties(&tie_starts, &tie_ends, renderer);
 }
 
 /// Draw a Staff object (all staves in the system).
@@ -604,6 +645,255 @@ fn draw_sync(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Collect tie endpoint information from a Sync object.
+///
+/// For each note with tied_r, record a TieEndpoint in `tie_starts`.
+/// For each note with tied_l, record a TieEndpoint in `tie_ends`.
+/// These are matched and drawn later by `draw_ties()`.
+fn collect_tie_endpoints(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    tie_starts: &mut Vec<TieEndpoint>,
+    tie_ends: &mut Vec<TieEndpoint>,
+) {
+    if let Some(anote_list) = score.notes.get(&obj.header.first_sub_obj) {
+        for anote in anote_list {
+            if anote.rest || (!anote.tied_l && !anote.tied_r) {
+                continue;
+            }
+            if let Some(note_ctx) = ctx.get(anote.header.staffn) {
+                if !note_ctx.visible || !anote.header.visible {
+                    continue;
+                }
+                let note_x = ddist_to_render(note_ctx.measure_left + obj.header.xd + anote.xd);
+                let note_y = ddist_to_render(note_ctx.staff_top + anote.yd);
+
+                let lnspace = if note_ctx.staff_lines > 1 {
+                    ddist_to_render(note_ctx.staff_height) / (note_ctx.staff_lines as f32 - 1.0)
+                } else {
+                    8.0
+                };
+                let head_width = 1.125 * lnspace; // HeadWidth (defs.h:355)
+
+                // Determine stem direction for tie curvature direction
+                let stem_down = anote.ystem > anote.yd;
+
+                let ep = TieEndpoint {
+                    x: note_x,
+                    y: note_y,
+                    head_width,
+                    stem_down,
+                    staff: anote.header.staffn,
+                    voice: anote.voice,
+                    note_num: anote.note_num,
+                    lnspace,
+                    staff_right: ddist_to_render(note_ctx.staff_right),
+                    staff_left: ddist_to_render(note_ctx.staff_left),
+                };
+
+                if anote.tied_r {
+                    tie_starts.push(ep.clone());
+                }
+                if anote.tied_l {
+                    tie_ends.push(ep);
+                }
+            }
+        }
+    }
+}
+
+/// Draw ties by matching tied_r notes (starts) to tied_l notes (ends).
+///
+/// Port of DrawSLUR (DrawObject.cp:3054) + SetSlurCtlPoints (Slurs.cp:1021).
+///
+/// Matching: For each tie_start, find the first tie_end with the same
+/// (staff, voice, note_num) that appears to the right (end.x > start.x).
+/// This handles same-system ties. Cross-system ties where the end is on
+/// a different system line are handled by checking Y proximity.
+///
+/// Tie curve shape (from Slurs.cp:1074-1121):
+/// - Direction: curves UP when stem is DOWN (and vice versa)
+/// - Endpoint horizontal offsets: start at 2/3 of notehead width, end at 1/6
+/// - Endpoint vertical offset: 1 staff line space above/below notehead
+/// - Control points: symmetric, with height based on span length
+///   Short spans (<3 lnSp): config.tieCurvature * lnSp / 100
+///   Long spans (>6 lnSp): span/16
+///   Medium: linear blend
+fn draw_ties(
+    tie_starts: &[TieEndpoint],
+    tie_ends: &[TieEndpoint],
+    renderer: &mut dyn MusicRenderer,
+) {
+    // Default tie curvature: 85 percent of lnSpace (config.tieCurvature from OG)
+    const TIE_CURVATURE: f32 = 85.0;
+
+    for start in tie_starts {
+        // Find matching end: same staff, voice, pitch, appearing to the right
+        let matching_end = tie_ends.iter().find(|end| {
+            end.staff == start.staff
+                && end.voice == start.voice
+                && end.note_num == start.note_num
+                && end.x > start.x
+        });
+
+        if let Some(end) = matching_end {
+            let lnsp = start.lnspace;
+
+            // Tie direction: curve UP when stem is DOWN (OG: NewSlur.cp:939-947)
+            let curve_up = start.stem_down;
+
+            // Endpoint horizontal offsets (Slurs.cp:1045-1058)
+            // Start: 2/3 of notehead width from left edge
+            let start_x = start.x + (2.0 * start.head_width) / 3.0;
+            // End: 1/6 of notehead width from left edge
+            let end_x = end.x + end.head_width / 6.0;
+
+            // Endpoint vertical offset: 1 lnSpace above/below note center (Slurs.cp:1063)
+            let vert_offset = if curve_up { -lnsp } else { lnsp };
+            let start_y = start.y + vert_offset;
+            let end_y = end.y + vert_offset;
+
+            // Control point computation (Slurs.cp:1074-1121)
+            let span = end_x - start_x;
+
+            // Short-slur control point distance
+            let x0_short = 2.0 * lnsp; // SCALECURVE(dLineSp) = 2*lnSp
+            let y0_short = TIE_CURVATURE * lnsp / 100.0;
+
+            // Long-slur control point distance
+            let x0_long = span / 4.0;
+            let y0_long = span / 16.0;
+
+            // Blend based on span (Slurs.cp:1088-1107)
+            let short_threshold = 3.0 * lnsp;
+            let long_threshold = 6.0 * lnsp;
+
+            let (cx_offset, cy_offset) = if span <= short_threshold {
+                (x0_short, y0_short)
+            } else if span >= long_threshold {
+                (x0_long, y0_long)
+            } else {
+                // Linear interpolation
+                let t = (span - short_threshold) / (long_threshold - short_threshold);
+                (
+                    x0_short + t * (x0_long - x0_short),
+                    y0_short + t * (y0_long - y0_short),
+                )
+            };
+
+            // Control points: offset from endpoints
+            // c1 is relative to start, c2 is relative to end
+            let cy = if curve_up { -cy_offset } else { cy_offset };
+
+            let c1 = Point {
+                x: start_x + cx_offset,
+                y: start_y + cy,
+            };
+            let c2 = Point {
+                x: end_x - cx_offset,
+                y: end_y + cy,
+            };
+
+            let p0 = Point {
+                x: start_x,
+                y: start_y,
+            };
+            let p3 = Point { x: end_x, y: end_y };
+
+            renderer.slur(p0, c1, c2, p3, false);
+        } else {
+            // Cross-system tie: draw partial arc from start note to right edge of staff
+            let lnsp = start.lnspace;
+            let curve_up = start.stem_down;
+            let start_x = start.x + (2.0 * start.head_width) / 3.0;
+            let end_x = start.staff_right; // Extend to right edge of system
+            let vert_offset = if curve_up { -lnsp } else { lnsp };
+            let start_y = start.y + vert_offset;
+            let end_y = start_y; // Same Y (horizontal partial arc)
+
+            let span = end_x - start_x;
+            if span > 0.0 {
+                let cx = span / 3.0;
+                let cy_offset = TIE_CURVATURE * lnsp / 100.0;
+                let cy = if curve_up { -cy_offset } else { cy_offset };
+
+                renderer.slur(
+                    Point {
+                        x: start_x,
+                        y: start_y,
+                    },
+                    Point {
+                        x: start_x + cx,
+                        y: start_y + cy,
+                    },
+                    Point {
+                        x: end_x - cx,
+                        y: end_y + cy,
+                    },
+                    Point { x: end_x, y: end_y },
+                    false,
+                );
+            }
+        }
+    }
+
+    // Draw partial ties for unmatched tie_ends (incoming cross-system ties).
+    // These start at the left edge of the staff and arc to the note.
+    let mut matched_ends: Vec<bool> = vec![false; tie_ends.len()];
+    for start in tie_starts {
+        for (i, end) in tie_ends.iter().enumerate() {
+            if !matched_ends[i]
+                && end.staff == start.staff
+                && end.voice == start.voice
+                && end.note_num == start.note_num
+                && end.x > start.x
+            {
+                matched_ends[i] = true;
+                break;
+            }
+        }
+    }
+
+    for (i, end) in tie_ends.iter().enumerate() {
+        if matched_ends[i] {
+            continue; // Already drawn as part of a matched tie
+        }
+        // Cross-system incoming tie: draw partial arc from left edge to note
+        let lnsp = end.lnspace;
+        let curve_up = end.stem_down;
+        let start_x = end.staff_left; // Start at left edge of system
+        let end_x = end.x + end.head_width / 6.0;
+        let vert_offset = if curve_up { -lnsp } else { lnsp };
+        let start_y = end.y + vert_offset;
+        let end_y = start_y;
+
+        let span = end_x - start_x;
+        if span > 0.0 {
+            let cx = span / 3.0;
+            let cy_offset = TIE_CURVATURE * lnsp / 100.0;
+            let cy = if curve_up { -cy_offset } else { cy_offset };
+
+            renderer.slur(
+                Point {
+                    x: start_x,
+                    y: start_y,
+                },
+                Point {
+                    x: start_x + cx,
+                    y: start_y + cy,
+                },
+                Point {
+                    x: end_x - cx,
+                    y: end_y + cy,
+                },
+                Point { x: end_x, y: end_y },
+                false,
+            );
         }
     }
 }

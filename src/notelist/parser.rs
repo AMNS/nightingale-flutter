@@ -662,14 +662,23 @@ fn parse_beam(line: &str, line_num: usize) -> Result<NotelistRecord, ParseError>
     })
 }
 
-/// Find stem info in a line (looks for a sequence of dots/+/- chars).
+/// Find stem info in a line — the 6-character note flag string.
+///
+/// Format (from NotelistSave.cp:130-136):
+///   pos 0: mCode — '.' (standalone), '+' (chord main), '-' (chord secondary)
+///   pos 1: tiedL — ')' if tied to left, else '.'
+///   pos 2: tiedR — '(' if tied to right, else '.'
+///   pos 3: slurredL — '>' if slurred to left, else '.'
+///   pos 4: slurredR — '<' if slurred to right, else '.'
+///   pos 5: inTuplet — 'T' if in tuplet, else '.'
 fn find_stem_info(line: &str, expected_len: usize) -> String {
-    // Stem info appears after vel=<n> and before appear=.
-    // It's a sequence of '.', '+', or '-' characters.
+    // Valid characters in the stem_info / note-flag string.
+    const VALID_CHARS: &[char] = &['.', '+', '-', ')', '(', '>', '<', 'T'];
+
     let tokens: Vec<&str> = line.split_whitespace().collect();
 
     for token in tokens {
-        if token.len() == expected_len && token.chars().all(|c| c == '.' || c == '+' || c == '-') {
+        if token.len() == expected_len && token.chars().all(|c| VALID_CHARS.contains(&c)) {
             return token.to_string();
         }
     }

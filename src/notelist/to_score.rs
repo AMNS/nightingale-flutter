@@ -1687,8 +1687,10 @@ pub fn notelist_to_score_with_config(
                                     note_num: *note_num,
                                     on_velocity: *velocity,
                                     off_velocity: 64,
-                                    tied_l: false,
-                                    tied_r: false,
+                                    // Tie flags from stem_info (NotelistSave.cp:130-136):
+                                    // pos 1 = ')' => tiedL, pos 2 = '(' => tiedR
+                                    tied_l: stem_info.as_bytes().get(1) == Some(&b')'),
+                                    tied_r: stem_info.as_bytes().get(2) == Some(&b'('),
                                     // OG: xMoveDots = 3 + WIDEHEAD(subType) (Objects.cp:857)
                                     // WIDEHEAD: breve=2, whole=1, else=0. 3 = "default" in
                                     // AugDotXDOffset formula: std2d(STD_LINEHT*(xMoveDots-3)/4)
