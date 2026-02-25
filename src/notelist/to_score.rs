@@ -36,7 +36,7 @@
 //! - PitchUtils.cp: ClefMiddleCHalfLn()
 
 use crate::basic_types::*;
-use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TIMESIG_TYPE};
+use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TIMESIG_TYPE, TUPLET_TYPE};
 use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
@@ -1878,7 +1878,8 @@ pub fn notelist_to_score_with_config(
                                     first_mod: NILINK,
                                     slurred_l: false,
                                     slurred_r: false,
-                                    in_tuplet: false,
+                                    // Tuplet membership from stem_info position 5 (NotelistSave.cp:130)
+                                    in_tuplet: stem_info.as_bytes().get(5) == Some(&b'T'),
                                     in_ottava: false,
                                     small: false,
                                     temp_flag: 0,
@@ -1894,6 +1895,7 @@ pub fn notelist_to_score_with_config(
                                 staff,
                                 dur,
                                 dots,
+                                stem_info: rest_stem_info,
                                 appear,
                                 ..
                             } if *t == *time => {
@@ -1965,7 +1967,8 @@ pub fn notelist_to_score_with_config(
                                     first_mod: NILINK,
                                     slurred_l: false,
                                     slurred_r: false,
-                                    in_tuplet: false,
+                                    // Tuplet membership from stem_info position 5 (NotelistSave.cp:130)
+                                    in_tuplet: rest_stem_info.as_bytes().get(5) == Some(&b'T'),
                                     in_ottava: false,
                                     small: false,
                                     temp_flag: 0,
@@ -2657,9 +2660,303 @@ pub fn notelist_to_score_with_config(
         }
     }
 
+    // ---- TUPLET OBJECTS ----
+    // Port of ConvertTuplet (NotelistOpen.cp) + InitTuplet/SetTupletYPos (Tuplet.cp).
+    //
+    // Strategy: walk Notelist records. Each P (Tuplet) record declares a tuplet for
+    // a given voice. The notes/rests immediately following with 'T' in stem_info
+    // position 5 belong to that tuplet.
+    //
+    // For each tuplet we:
+    // 1. Find the sync links for all participating notes/rests
+    // 2. Create ANoteTuple subobjects pointing to those syncs
+    // 3. Compute bracket Y from stem extremes (SetTupletYPos logic)
+    // 4. Create a Tuplet object and insert it after the last sync of the group
+    {
+        let mut tuplet_link_counter: Link = beam_counter + 100; // Fresh namespace
+        let mut tuplet_sub_counter: Link = notebeam_sub_counter + 100;
+
+        // STD_LINEHT constants for bracket margin (from style.h)
+        const STD_LINEHT_TUPLET: f32 = 8.0;
+
+        // Walk the notelist looking for P records
+        let mut rec_idx = 0;
+        while rec_idx < notelist.records.len() {
+            let (tup_voice, tup_num, tup_denom, tup_appear) = if let NotelistRecord::Tuplet {
+                voice,
+                num,
+                denom,
+                appear,
+                ..
+            } = &notelist.records[rec_idx]
+            {
+                (*voice, *num, *denom, appear.clone())
+            } else {
+                rec_idx += 1;
+                continue;
+            };
+
+            // Parse appear code: 3-digit string where digits are numVis, denomVis, brackVis
+            // e.g. "101" → numVis=1, denomVis=0, brackVis=1
+            let appear_bytes = tup_appear.as_bytes();
+            let num_vis = appear_bytes
+                .first()
+                .map_or(1, |b| if *b == b'1' { 1 } else { 0 });
+            let denom_vis = appear_bytes
+                .get(1)
+                .map_or(0, |b| if *b == b'1' { 1 } else { 0 });
+            let brack_vis = appear_bytes
+                .get(2)
+                .map_or(1, |b| if *b == b'1' { 1 } else { 0 });
+
+            // Find all notes/rests in this voice with 'T' flag after this P record.
+            // They must be consecutive (until the next non-T note in same voice, or
+            // next P record for same voice, or end of records).
+            let mut tuplet_sync_links: Vec<Link> = Vec::new();
+            let mut tuplet_sync_times: Vec<i32> = Vec::new();
+            let mut tuplet_staff: i8 = 1;
+
+            let mut scan_idx = rec_idx + 1;
+            while scan_idx < notelist.records.len() {
+                match &notelist.records[scan_idx] {
+                    NotelistRecord::Note {
+                        voice,
+                        staff,
+                        time,
+                        stem_info,
+                        ..
+                    } if *voice == tup_voice && stem_info.as_bytes().get(5) == Some(&b'T') => {
+                        tuplet_staff = *staff;
+                        // Find the sync link for this time
+                        if !tuplet_sync_times.contains(time) {
+                            if let Some(mobj) = music_objs.iter().find(|m| {
+                                matches!(m.kind, MusicObjKind::Sync { time: t, .. } if t == *time)
+                            }) {
+                                tuplet_sync_links.push(mobj.link);
+                                tuplet_sync_times.push(*time);
+                            }
+                        }
+                        scan_idx += 1;
+                    }
+                    NotelistRecord::Rest {
+                        voice,
+                        staff,
+                        time,
+                        stem_info: rest_si,
+                        ..
+                    } if *voice == tup_voice && rest_si.as_bytes().get(5) == Some(&b'T') => {
+                        tuplet_staff = *staff;
+                        if !tuplet_sync_times.contains(time) {
+                            if let Some(mobj) = music_objs.iter().find(|m| {
+                                matches!(m.kind, MusicObjKind::Sync { time: t, .. } if t == *time)
+                            }) {
+                                tuplet_sync_links.push(mobj.link);
+                                tuplet_sync_times.push(*time);
+                            }
+                        }
+                        scan_idx += 1;
+                    }
+                    // Non-T notes in same voice, or other records — scan past them
+                    // but stop if we hit another P record for the same voice
+                    NotelistRecord::Tuplet { voice, .. } if *voice == tup_voice => break,
+                    // Skip non-note/rest records (barlines, dynamics, annotations, etc.)
+                    NotelistRecord::Barline { .. }
+                    | NotelistRecord::Clef { .. }
+                    | NotelistRecord::KeySig { .. }
+                    | NotelistRecord::TimeSig { .. }
+                    | NotelistRecord::Dynamic { .. }
+                    | NotelistRecord::Text { .. }
+                    | NotelistRecord::GraceNote { .. }
+                    | NotelistRecord::Beam { .. }
+                    | NotelistRecord::Tempo { .. }
+                    | NotelistRecord::Comment(_) => {
+                        scan_idx += 1;
+                    }
+                    // Notes/rests in a DIFFERENT voice — skip
+                    NotelistRecord::Note { voice, .. } | NotelistRecord::Rest { voice, .. }
+                        if *voice != tup_voice =>
+                    {
+                        scan_idx += 1;
+                    }
+                    // Non-T note/rest in same voice — end of tuplet group
+                    _ => break,
+                }
+            }
+
+            if tuplet_sync_links.len() >= 2 {
+                let tuplet_link = tuplet_link_counter;
+                tuplet_link_counter += 1;
+                let tuplet_sub_link = tuplet_sub_counter;
+                tuplet_sub_counter += 1;
+
+                // Create ANoteTuple subobjects — one per participating sync
+                let mut anottuples: Vec<ANoteTuple> = Vec::new();
+                for &sync_link in &tuplet_sync_links {
+                    anottuples.push(ANoteTuple {
+                        next: NILINK,
+                        tp_sync: sync_link,
+                    });
+                }
+                score.tuplets.insert(tuplet_sub_link, anottuples);
+
+                // Compute bracket Y position — port of SetTupletYPos (Tuplet.cp:806-832).
+                // Find stem extremes of participating notes to position bracket.
+                let mut min_ystem: Ddist = i16::MAX; // highest stem end (stems up)
+                let mut max_ystem: Ddist = i16::MIN; // lowest stem end (stems down)
+                let mut any_stem_down = false;
+                let mut any_stem_up = false;
+
+                for &sync_link in &tuplet_sync_links {
+                    if let Some(sync_obj) = score.objects.iter().find(|o| o.index == sync_link) {
+                        if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+                            for n in notes {
+                                if n.voice == tup_voice
+                                    && n.header.staffn == tuplet_staff
+                                    && n.in_tuplet
+                                {
+                                    if n.rest {
+                                        // Rests: use yd for positioning
+                                        if n.yd < min_ystem {
+                                            min_ystem = n.yd;
+                                        }
+                                        if n.yd > max_ystem {
+                                            max_ystem = n.yd;
+                                        }
+                                    } else {
+                                        let stem_down = n.ystem > n.yd;
+                                        if stem_down {
+                                            any_stem_down = true;
+                                        } else {
+                                            any_stem_up = true;
+                                        }
+                                        // Use both yd and ystem to find extremes
+                                        let top = n.yd.min(n.ystem);
+                                        let bot = n.yd.max(n.ystem);
+                                        if top < min_ystem {
+                                            min_ystem = top;
+                                        }
+                                        if bot > max_ystem {
+                                            max_ystem = bot;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Decide bracket position: above or below.
+                // Port of SetTupletYPos: bracketBelow = (firstyd <= staffHeight/2)
+                // For simplicity, use stem direction: if stems are down, bracket below;
+                // if stems are up, bracket above.
+                let bracket_below = any_stem_down && !any_stem_up;
+
+                // Bracket margin (STDIST → DDIST)
+                // STD_TUPLET_MARGIN_ABOVE = -5*STD_LINEHT/4 = -10 STDIST
+                // STD_TUPLET_MARGIN_BELOW = 11*STD_LINEHT/4 = 22 STDIST
+                let margin_stdist: f32 = if bracket_below {
+                    11.0 * STD_LINEHT_TUPLET / 4.0
+                } else {
+                    -5.0 * STD_LINEHT_TUPLET / 4.0
+                };
+                let margin_ddist = (margin_stdist * config.staff_height as f32
+                    / (STD_LINEHT_TUPLET * 4.0)) as Ddist;
+
+                let bracket_yd: Ddist = if bracket_below {
+                    // Below: offset from max stem end
+                    max_ystem + margin_ddist
+                } else {
+                    // Above: offset from min stem end
+                    min_ystem + margin_ddist
+                };
+
+                // Create the Tuplet object
+                let tuplet_obj = InterpretedObject {
+                    index: tuplet_link,
+                    header: ObjectHeader {
+                        right: NILINK,
+                        left: NILINK,
+                        first_sub_obj: tuplet_sub_link,
+                        xd: 0,
+                        yd: 0,
+                        obj_type: TUPLET_TYPE as i8,
+                        selected: false,
+                        visible: true,
+                        soft: false,
+                        valid: true,
+                        tweaked: false,
+                        spare_flag: false,
+                        ohdr_filler1: 0,
+                        obj_rect: Rect::default(),
+                        rel_size: 0,
+                        ohdr_filler2: 0,
+                        n_entries: tuplet_sync_links.len() as u8,
+                    },
+                    data: ObjData::Tuplet(Tuplet {
+                        header: ObjectHeader::default(),
+                        ext_header: ExtObjHeader {
+                            staffn: tuplet_staff,
+                        },
+                        acc_num: tup_num,
+                        acc_denom: tup_denom,
+                        voice: tup_voice,
+                        num_vis,
+                        denom_vis,
+                        brack_vis,
+                        small: 0,
+                        filler: 0,
+                        acnxd: 0, // Number position: computed at render time
+                        acnyd: 0,
+                        xd_first: 0, // Horizontal offset from first sync (default 0)
+                        yd_first: bracket_yd,
+                        xd_last: 0, // Horizontal offset from last sync (default 0)
+                        yd_last: bracket_yd,
+                    }),
+                };
+
+                // Insert after the last sync of the tuplet group (like BeamSet insertion)
+                let last_sync_link = *tuplet_sync_links.last().unwrap();
+                let insert_pos = score
+                    .objects
+                    .iter()
+                    .position(|obj| obj.index == last_sync_link)
+                    .map(|p| p + 1)
+                    .unwrap_or(score.objects.len());
+
+                // Wire links
+                let mut tuplet_obj = tuplet_obj;
+                tuplet_obj.header.left = last_sync_link;
+                let right_link = if insert_pos < score.objects.len() {
+                    score.objects[insert_pos].index
+                } else {
+                    tail_link
+                };
+                tuplet_obj.header.right = right_link;
+
+                // Update neighbors
+                if let Some(left_obj) = score
+                    .objects
+                    .iter_mut()
+                    .find(|obj| obj.index == last_sync_link)
+                {
+                    left_obj.header.right = tuplet_link;
+                }
+                if let Some(right_obj) =
+                    score.objects.iter_mut().find(|obj| obj.index == right_link)
+                {
+                    right_obj.header.left = tuplet_link;
+                }
+
+                score.objects.insert(insert_pos, tuplet_obj);
+            }
+
+            rec_idx += 1;
+        }
+    }
+
     // TAIL object
     let tail_left = {
-        // Find the last object in the list (may be a beamset now)
+        // Find the last object in the list (may be a beamset or tuplet now)
         score
             .objects
             .iter()

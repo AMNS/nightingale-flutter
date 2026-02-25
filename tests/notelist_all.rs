@@ -37,6 +37,7 @@ const ALL_NOTELISTS: &[&str] = &[
     "tests/notelist_examples/SchenkerDiagram_Chopin_6.nl",
     "tests/notelist_examples/SchoenbergOp19N1-21.nl",
     "tests/notelist_examples/TestMIDIChannels_3.nl",
+    "tests/notelist_examples/tuplet_triplet.nl",
     "tests/notelist_examples/Webern.Op5N3_22.nl",
 ];
 

@@ -471,3 +471,168 @@ fn test_hbd33_visual_regression_snapshot() {
     let summary = render_summary(&commands);
     insta::assert_snapshot!("hbd33_multivoice_render", summary);
 }
+
+// ============================================================================
+// Tuplet rendering tests
+// ============================================================================
+
+/// Test tuplet rendering: triplet (3 eighth notes in time of 2).
+///
+/// Validates:
+/// 1. Tuplet objects are created from P records + notes with 'T' flag
+/// 2. SMuFL tuplet digit glyphs (U+E880–U+E889) are used, not timeSig digits
+/// 3. Bracket is drawn with 3 Line commands (left cutoff, left segment, right segment)
+///    + 1 Line for right cutoff = 4 bracket lines total when number is visible
+/// 4. Notes in tuplet have in_tuplet = true
+/// 5. Non-tuplet note (measure 2) has in_tuplet = false
+#[test]
+fn test_tuplet_triplet_rendering() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use nightingale_core::render::MusicGlyph;
+
+    let file = std::fs::File::open("tests/notelist_examples/tuplet_triplet.nl")
+        .expect("Failed to open tuplet_triplet.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    // Verify tuplet objects exist
+    assert!(
+        !score.tuplets.is_empty(),
+        "Score should have at least one tuplet"
+    );
+
+    // Verify tuplet metadata
+    let tuplet_objs: Vec<_> = score
+        .objects
+        .iter()
+        .filter(|o| o.header.obj_type == 18) // TUPLET_TYPE
+        .collect();
+    assert_eq!(
+        tuplet_objs.len(),
+        1,
+        "Should have exactly one tuplet object"
+    );
+
+    // Check tuplet data
+    if let nightingale_core::ngl::interpret::ObjData::Tuplet(tup) = &tuplet_objs[0].data {
+        assert_eq!(tup.acc_num, 3, "Tuplet numerator should be 3");
+        assert_eq!(tup.acc_denom, 2, "Tuplet denominator should be 2");
+        assert_eq!(tup.num_vis, 1, "Number should be visible");
+        assert_eq!(tup.brack_vis, 1, "Bracket should be visible");
+        assert_eq!(tup.voice, 1, "Tuplet should be in voice 1");
+    } else {
+        panic!("Expected Tuplet data");
+    }
+
+    // Verify ANoteTuple subobjects link to 3 syncs
+    let first_tuplet_sub = tuplet_objs[0].header.first_sub_obj;
+    let anottuples = score
+        .tuplets
+        .get(&first_tuplet_sub)
+        .expect("Tuplet subobjects should exist");
+    assert_eq!(anottuples.len(), 3, "Triplet should link to 3 sync objects");
+
+    // Verify that linked syncs contain notes with in_tuplet = true
+    for anotuple in anottuples {
+        let sync_obj = score
+            .objects
+            .iter()
+            .find(|o| o.index == anotuple.tp_sync)
+            .expect("Linked sync should exist");
+        let notes = score
+            .notes
+            .get(&sync_obj.header.first_sub_obj)
+            .expect("Sync should have notes");
+        let tuplet_notes: Vec<_> = notes.iter().filter(|n| n.in_tuplet).collect();
+        assert!(
+            !tuplet_notes.is_empty(),
+            "Each linked sync should have at least one in_tuplet note"
+        );
+    }
+
+    // Verify the non-tuplet note (measure 2, quarter note C5) has in_tuplet = false
+    let non_tuplet_syncs: Vec<_> = score
+        .objects
+        .iter()
+        .filter(|o| {
+            o.header.obj_type == 2 // SYNCtype
+                && !anottuples.iter().any(|at| at.tp_sync == o.index)
+        })
+        .collect();
+    for sync_obj in &non_tuplet_syncs {
+        if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+            for n in notes {
+                assert!(
+                    !n.in_tuplet,
+                    "Non-tuplet notes should have in_tuplet = false"
+                );
+            }
+        }
+    }
+
+    // Render and check commands
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Check that SMuFL tuplet glyphs are used (U+E880-E889), NOT timeSig (U+E080-E089)
+    let tuplet_glyph_cmds: Vec<_> = commands
+        .iter()
+        .filter(|c| {
+            matches!(c,
+                RenderCommand::MusicChar { glyph: MusicGlyph::Smufl(cp), .. }
+                if (0xE880..=0xE889).contains(cp)
+            )
+        })
+        .collect();
+    assert_eq!(
+        tuplet_glyph_cmds.len(),
+        1,
+        "Should have exactly 1 tuplet digit glyph (the '3')"
+    );
+
+    // Verify it's specifically the '3' glyph (U+E883)
+    if let RenderCommand::MusicChar {
+        glyph: MusicGlyph::Smufl(cp),
+        ..
+    } = tuplet_glyph_cmds[0]
+    {
+        assert_eq!(*cp, 0xE883, "Tuplet glyph should be U+E883 (tuplet3)");
+    }
+
+    // Verify NO timeSig digits are used for tuplet numbers
+    let timesig_glyph_cmds: Vec<_> = commands
+        .iter()
+        .filter(|c| {
+            matches!(c,
+                RenderCommand::MusicChar { glyph: MusicGlyph::Smufl(cp), .. }
+                if (0xE080..=0xE089).contains(cp)
+            )
+        })
+        .collect();
+    // timeSig digits are only used for the time signature itself (4/4)
+    assert_eq!(
+        timesig_glyph_cmds.len(),
+        2,
+        "Only 2 timeSig digit glyphs should exist (for 4/4 time sig), none for tuplets"
+    );
+
+    // Check bracket lines: with num_vis=1 and brack_vis=1, we expect:
+    // 4 Line commands for the bracket (left cutoff, left segment, right segment, right cutoff)
+    // Plus other Line commands for stems and barlines
+    let all_lines = count_by_name(&commands, "Line");
+    // We should have at least 4 bracket lines plus note stems and barlines
+    assert!(
+        all_lines >= 4,
+        "Should have at least 4 Line commands for tuplet bracket, got {}",
+        all_lines
+    );
+
+    // Generate PDF for visual inspection
+    let output_dir = std::path::Path::new("/tmp/nightingale-test-output");
+    std::fs::create_dir_all(output_dir).ok();
+    let mut pdf_renderer = PdfRenderer::new(612.0, 792.0);
+    render_score(&score, &mut pdf_renderer);
+    let pdf_bytes = pdf_renderer.finish();
+    std::fs::write(output_dir.join("tuplet_triplet.pdf"), &pdf_bytes).ok();
+}

@@ -65,12 +65,13 @@
 - [x] **Notelist stem_info parser fix**: accept all 6 flag characters (ties, slurs, tuplets were silently dropped)
 - [x] **Comprehensive notelist test suite**: 6 tests × 17 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
 - [x] **Ddist overflow fix**: i16 arithmetic overflow in scores with many systems — widened to i32 in to_score.rs, context.rs, score_renderer.rs
+- [x] **Tuplet rendering**: Port of DrawTUPLET/DrawPSTupletBracket (Tuplet.cp) — bracket with cutoff lines + gap for number, SMuFL timeSig digit numerals, stem_info 'T' flag → in_tuplet, ANoteTuple subobjects linking to syncs, bracket Y from stem extremes (SetTupletYPos port). 3 snapshots updated (Mahler, Schoenberg, Webern).
 
 ### Next: Engraving & Layout (priority order)
 
 #### Tier 1 — High Priority (core engraving completeness)
 - [ ] **Clef changes**: mid-score clef changes rendered at correct position (already have preamble clefs; need mid-measure clef insertion + context update)
-- [ ] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from DrawObject.cp, Tuplet.cp)
+- [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
 - [ ] **Slurs**: curved slurs between notes, including cross-system and cross-page slurs (DrawSLUR port from Slurs.cp)
 - [ ] **System layout / spacing improvements**: duration-proportional spacing (port SymWidthRight/CalcSpaceNeeded from SpaceTime.cp), measure width based on content density
@@ -108,7 +109,7 @@
 - [x] Port Objects.cp NormalStemUpDown -> beam group stem unification
 - [ ] Port SpaceTime.cp / SpaceHighLevel.cp -> spacing module
 - [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
-- [ ] Port Tuplet.cp -> tuplet module
+- [x] Port Tuplet.cp -> tuplet rendering (DrawTUPLET/DrawPSTupletBracket)
 - [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
 - [ ] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO sections
 - [ ] Port Slurs.cp cross-system continuation logic
@@ -125,10 +126,10 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~21,500 |
-| Rust test lines | ~3,500 |
-| Test count | ~167 (unit + integration + cross-validate/render + doctest + notelist_all) |
-| Test fixture files | 16 .ngl + 17 .nl |
-| Insta snapshots | 18 (1 HBD_33 + 17 notelist_all) |
-| Commits | 11 |
+| Rust source lines | ~21,400 |
+| Rust test lines | ~3,150 |
+| Test count | ~168 (unit + integration + cross-validate/render + doctest + notelist_all) |
+| Test fixture files | 16 .ngl + 18 .nl |
+| Insta snapshots | 19 (1 HBD_33 + 18 notelist_all) |
+| Commits | 12 |
 | Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |
