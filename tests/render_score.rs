@@ -942,3 +942,52 @@ fn test_ngl_capital_regiment_march() {
         page_h
     );
 }
+
+/// Verify ASTAFF_5 parsing with corrected mac68k alignment offsets.
+/// showLines=15 (SHOW_ALL_LINES), showLedgers=1 for all CRM staves.
+#[test]
+fn test_crm_staff_parsing() {
+    use nightingale_core::defs::STAFF_TYPE;
+    use nightingale_core::ngl::interpret::interpret_heap;
+    use nightingale_core::ngl::NglFile;
+
+    let ngl =
+        NglFile::read_from_file("tests/fixtures/17_capital_regiment_march.ngl").expect("read");
+    let score = interpret_heap(&ngl).expect("interpret");
+
+    // Walk to first Staff object and verify all 9 staves
+    let mut found_staff = false;
+    for obj in score.walk() {
+        if obj.header.obj_type as u8 == STAFF_TYPE {
+            if let Some(astaff_list) = score.staffs.get(&obj.header.first_sub_obj) {
+                // CRM has 9 staves (10 parts but Euphonium and Tuba share a staff)
+                assert!(
+                    astaff_list.len() >= 9,
+                    "Expected >= 9 staves, got {}",
+                    astaff_list.len()
+                );
+                for astaff in astaff_list {
+                    assert_eq!(
+                        astaff.staff_lines, 5,
+                        "Staff #{} should have 5 lines",
+                        astaff.staffn
+                    );
+                    assert_eq!(
+                        astaff.show_lines, 15,
+                        "Staff #{} show_lines should be SHOW_ALL_LINES (15), got {}",
+                        astaff.staffn, astaff.show_lines
+                    );
+                    assert_eq!(
+                        astaff.show_ledgers, 1,
+                        "Staff #{} show_ledgers should be 1",
+                        astaff.staffn
+                    );
+                    assert!(astaff.visible, "Staff #{} should be visible", astaff.staffn);
+                }
+                found_staff = true;
+                break; // Only need to check first system
+            }
+        }
+    }
+    assert!(found_staff, "Should find at least one Staff object");
+}

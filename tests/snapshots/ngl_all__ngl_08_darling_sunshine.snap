@@ -12,32 +12,44 @@ MusicChar: 946
 NoteStem: 401
 SetWidths: 1
 Slur: 61
-Staff: 24
-TOTAL: 2001
+Staff: 36
+TOTAL: 2013
 
 === STAVES ===
+y=95.8 x=[98.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[98.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[98.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
+y=95.8 x=[91.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[91.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[91.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
+y=95.8 x=[91.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[91.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[91.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
+y=95.8 x=[91.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[91.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[91.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
+y=95.8 x=[91.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[91.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[91.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
+y=95.8 x=[91.0..763.0] lines=5 spacing=4.50
 y=162.3 x=[91.0..763.0] lines=5 spacing=4.50
 y=228.1 x=[91.0..763.0] lines=5 spacing=4.50
+y=346.7 x=[91.0..763.0] lines=5 spacing=4.50
 y=413.2 x=[91.0..763.0] lines=5 spacing=4.50
 y=479.0 x=[91.0..763.0] lines=5 spacing=4.50
 

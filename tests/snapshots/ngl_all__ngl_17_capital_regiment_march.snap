@@ -8,42 +8,140 @@ Beam: 290
 BeginPage: 14
 EndPage: 14
 LedgerLine: 329
-MusicChar: 3159
+MusicChar: 3091
 NoteStem: 1806
 SetWidths: 1
 Slur: 36
-Staff: 28
-TOTAL: 6442
+Staff: 126
+TOTAL: 6472
 
 === STAVES ===
+y=78.4 x=[127.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[127.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[127.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[127.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[127.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[127.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[127.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[127.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[127.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=78.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=465.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=520.9 x=[94.0..746.0] lines=5 spacing=4.00
+y=133.4 x=[94.0..746.0] lines=5 spacing=4.00
+y=189.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=244.1 x=[94.0..746.0] lines=5 spacing=4.00
 y=300.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=355.1 x=[94.0..746.0] lines=5 spacing=4.00
+y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
 
 === BARLINES: 765 total ===
 
@@ -64,9 +162,9 @@ Smufl(57508): 1652
 Smufl(57831): 126
 Smufl(57920): 34
 Smufl(57921): 54
-Smufl(57952): 134
+Smufl(57952): 233
 Smufl(57953): 24
-Smufl(57954): 285
+Smufl(57954): 118
 Smufl(58595): 54
 Smufl(58596): 95
 Smufl(58597): 366

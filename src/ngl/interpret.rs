@@ -516,46 +516,42 @@ pub fn unpack_subobj_header_n105(data: &[u8]) -> Result<SubObjHeader, String> {
 /// The N105 binary format uses a compact representation.
 ///
 /// Source: NBasicTypes.h lines 64-67, NObjTypesN105.h WHOLE_KSINFO
+/// Unpack WHOLE_KSINFO_5 from raw bytes at `offset`.
+///
+/// On-disk layout (mac68k alignment, 15 bytes total):
+///   - 7 x KSITEM_5 (2 bytes each: 1 byte data + 1 byte padding) = 14 bytes
+///   - 1 x nKSItems (SignedByte) = 1 byte
+///
+/// Each KSITEM_5 byte packs: sharp:1 (bit 7) | letcode:7 (bits 6-0)
+/// Letcode values: A=5, B=4, C=3, D=2, E=1, F=0, G=6
+///
+/// Source: NBasicTypesN105.h lines 31-43, NObjTypesN105.h line 172
 fn unpack_ksinfo_n105(data: &[u8], offset: usize) -> KsInfo {
-    // Return empty key signature if not enough data
-    if data.len() <= offset {
-        return KsInfo {
-            ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
-            n_ks_items: 0,
+    let mut ks_info = KsInfo {
+        ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
+        n_ks_items: 0,
+    };
+
+    // Need at least 15 bytes: 7*2 (items) + 1 (count)
+    if data.len() < offset + 15 {
+        return ks_info;
+    }
+
+    // KSItem array comes FIRST (7 items x 2 bytes each = 14 bytes).
+    // Each KSITEM_5 is 2 bytes on disk (mac68k padding): data byte at even offset,
+    // pad byte at odd offset.
+    for i in 0..crate::basic_types::MAX_KSITEMS {
+        let item_offset = offset + i * 2;
+        let b = data[item_offset];
+        // Bit 7 = sharp flag, bits 6-0 = letcode
+        ks_info.ks_item[i] = KsItem {
+            letcode: (b & 0x7F) as i8,
+            sharp: (b >> 7) & 1,
         };
     }
 
-    let n_ks_items = data[offset] as i8;
-
-    // In N105, key signature items are stored compactly.
-    // For now, create a default KsInfo with the count.
-    // Full implementation would unpack the individual KsItem structs.
-    let mut ks_info = KsInfo {
-        ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
-        n_ks_items,
-    };
-
-    // Unpack individual key signature items (simplified for now)
-    // N105 stores them as a packed array, but we'll just read what we can
-    // Limit to available bytes and MAX_KSITEMS
-    // Ensure we never exceed the array bounds (0..MAX_KSITEMS-1)
-    let max_items = n_ks_items
-        .min((crate::basic_types::MAX_KSITEMS - 1) as i8)
-        .min(((data.len().saturating_sub(offset + 1)) / 2) as i8)
-        .max(0); // Ensure non-negative
-
-    for i in 0..=max_items as usize {
-        if i >= crate::basic_types::MAX_KSITEMS {
-            break; // Safety check
-        }
-        let item_offset = offset + 1 + i * 2;
-        if item_offset + 1 < data.len() {
-            ks_info.ks_item[i] = KsItem {
-                letcode: data[item_offset] as i8,
-                sharp: data[item_offset + 1],
-            };
-        }
-    }
+    // nKSItems follows the 14-byte array at offset+14
+    ks_info.n_ks_items = data[offset + 14] as i8;
 
     ks_info
 }
@@ -817,7 +813,38 @@ pub fn unpack_aslur_n105(data: &[u8]) -> Result<ASlur, String> {
 
 /// Unpack N105 ASTAFF_5 from raw bytes (50 bytes).
 ///
-/// Source: NObjTypesN105.h lines 180-220
+/// On-disk layout with mac68k alignment (50 bytes total):
+/// ```text
+/// Offset  Size  Field
+/// 0       2     next (LINK)
+/// 2       1     staffn
+/// 3       1     selected:1+visible:1+fillerStf:6
+/// 4       2     staffTop (DDIST)
+/// 6       2     staffLeft (DDIST)
+/// 8       2     staffRight (DDIST)
+/// 10      2     staffHeight (DDIST)
+/// 12      1     staffLines
+/// 13      1     [PADDING — align fontSize]
+/// 14      2     fontSize (short)
+/// 16      2     flagLeading (DDIST)
+/// 18      2     minStemFree (DDIST)
+/// 20      2     ledgerWidth (DDIST)
+/// 22      2     noteHeadWidth (DDIST)
+/// 24      2     fracBeamWidth (DDIST)
+/// 26      2     spaceBelow (DDIST)
+/// 28      1     clefType
+/// 29      1     dynamicType
+/// 30      14    KSItem[0..6] (7 x 2 bytes each, mac68k padded)
+/// 44      1     nKSItems
+/// 45      1     timeSigType
+/// 46      1     numerator
+/// 47      1     denominator
+/// 48      1     filler:3+showLedgers:1+showLines:4
+/// 49      1     [PADDING — struct aligned to 2-byte boundary]
+/// ```
+///
+/// Source: NObjTypesN105.h lines 152-180
+/// See CLAUDE.md "N105 Struct Alignment" for derivation.
 pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
     if data.len() < 50 {
         return Err(format!("ASTAFF too short: {} bytes", data.len()));
@@ -826,7 +853,7 @@ pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
     let next = u16::from_be_bytes([data[0], data[1]]);
     let staffn = data[2] as i8;
 
-    // Byte 3: selected:1 | visible:1 | filler:6
+    // Byte 3: selected:1 | visible:1 | fillerStf:6
     let b3 = data[3];
     let selected = (b3 & 0x80) != 0;
     let visible = (b3 & 0x40) != 0;
@@ -837,28 +864,33 @@ pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
     let staff_right = i16::from_be_bytes([data[8], data[9]]);
     let staff_height = i16::from_be_bytes([data[10], data[11]]);
     let staff_lines = data[12] as i8;
-    let font_size = i16::from_be_bytes([data[13], data[14]]);
-    let flag_leading = i16::from_be_bytes([data[15], data[16]]);
-    let min_stem_free = i16::from_be_bytes([data[17], data[18]]);
-    let ledger_width = i16::from_be_bytes([data[19], data[20]]);
-    let note_head_width = i16::from_be_bytes([data[21], data[22]]);
-    let frac_beam_width = i16::from_be_bytes([data[23], data[24]]);
-    let space_below = i16::from_be_bytes([data[25], data[26]]);
-    let clef_type = data[27] as i8;
-    let dynamic_type = data[28] as i8;
+    // Byte 13 is padding (align fontSize to 2-byte boundary)
+    let font_size = i16::from_be_bytes([data[14], data[15]]);
+    let flag_leading = i16::from_be_bytes([data[16], data[17]]);
+    let min_stem_free = i16::from_be_bytes([data[18], data[19]]);
+    let ledger_width = i16::from_be_bytes([data[20], data[21]]);
+    let note_head_width = i16::from_be_bytes([data[22], data[23]]);
+    let frac_beam_width = i16::from_be_bytes([data[24], data[25]]);
+    let space_below = i16::from_be_bytes([data[26], data[27]]);
+    let clef_type = data[28] as i8;
+    let dynamic_type = data[29] as i8;
 
-    // KsInfo: 7 bytes starting at offset 29
-    let ks_info = unpack_ksinfo_n105(data, 29);
+    // WHOLE_KSINFO_5: 15 bytes starting at offset 30
+    // (7 x KSITEM_5 @ 2 bytes each = 14 bytes, then nKSItems = 1 byte)
+    let ks_info = unpack_ksinfo_n105(data, 30);
 
-    let time_sig_type = data[36] as i8;
-    let numerator = data[37] as i8;
-    let denominator = data[38] as i8;
-    let filler = data[39];
+    // Offsets 45-47: timeSigType, numerator, denominator (no padding after nKSItems)
+    let time_sig_type = data[45] as i8;
+    let numerator = data[46] as i8;
+    let denominator = data[47] as i8;
 
-    // Byte 40: showLedgers:1 | showLines:7
-    let b40 = data[40];
-    let show_ledgers = (b40 & 0x80) != 0;
-    let show_lines = b40 & 0x7F;
+    // Byte 48: filler:3 (bits 7-5) | showLedgers:1 (bit 4) | showLines:4 (bits 3-0)
+    // Byte 49 is trailing struct padding (mac68k aligns to 2-byte boundary: 49→50)
+    // Reference: NObjTypesN105.h line 176, SHOW_ALL_LINES=15
+    let b48 = data[48];
+    let show_ledgers = (b48 >> 4) & 1;
+    let show_lines = b48 & 0x0F;
+    let filler = (b48 >> 5) & 0x07;
 
     Ok(AStaff {
         next,
@@ -885,7 +917,7 @@ pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
         numerator,
         denominator,
         filler,
-        show_ledgers: if show_ledgers { 1 } else { 0 },
+        show_ledgers,
         show_lines,
     })
 }

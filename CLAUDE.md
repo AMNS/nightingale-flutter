@@ -110,6 +110,63 @@ Previous reverse engineering produced a working NGL→MusicXML converter in Pyth
 (see conversation history). The `4B 40` note record marker pattern and 30-byte records
 were identified. String pool uses `02 <length> <string bytes>` format.
 
+## N105 Struct Alignment (mac68k pragma)
+
+**CRITICAL**: The N105 header (`NObjTypesN105.h` line 6) uses `#pragma options align=mac68k`.
+Under mac68k alignment, **every struct is padded to a 2-byte boundary**, including single-byte
+structs like `KSITEM_5` (which becomes 2 bytes on disk despite having only 1 byte of data).
+This means manual byte-offset calculations from the C struct definitions will be WRONG unless
+you account for this padding.
+
+### KSITEM_5 is 2 bytes, not 1
+
+```c
+typedef struct { char letcode:7; Boolean sharp:1; } KSITEM_5;
+// sizeof(KSITEM_5) = 2 (1 byte data + 1 byte mac68k padding)
+```
+
+Therefore `WHOLE_KSINFO_5` = 7 x 2 (KSItem array) + 1 (nKSItems) = **15 bytes**.
+(The NBasicTypesN105.h comment at line 37 confirms: "the macro takes 15 bytes".)
+
+### ASTAFF_5 on-disk layout (50 bytes)
+
+```
+Offset  Size  Field
+------  ----  -----------------
+0       2     next (LINK)
+2       1     staffn
+3       1     selected:1+visible:1+fillerStf:6
+4       2     staffTop (DDIST)
+6       2     staffLeft (DDIST)
+8       2     staffRight (DDIST)
+10      2     staffHeight (DDIST)
+12      1     staffLines
+13      1     [PADDING — align fontSize]
+14      2     fontSize (short)
+16      2     flagLeading (DDIST)
+18      2     minStemFree (DDIST)
+20      2     ledgerWidth (DDIST)
+22      2     noteHeadWidth (DDIST)
+24      2     fracBeamWidth (DDIST)
+26      2     spaceBelow (DDIST)
+28      1     clefType
+29      1     dynamicType
+30      14    KSItem[0..6] (7 x 2 bytes: data byte + mac68k pad byte)
+44      1     nKSItems
+45      1     timeSigType
+46      1     numerator
+47      1     denominator
+48      1     filler:3+showLedgers:1+showLines:4
+49      1     [PADDING — struct aligned to 2-byte boundary]
+              TOTAL: 50 bytes
+```
+
+### General rule for N105 subobject unpackers
+
+When computing byte offsets for any N105 struct, always verify against the file's
+`heap.obj_size` value. If manual offset calculation disagrees with obj_size, there is
+padding. Use raw hex dumps of known-good data to locate fields empirically.
+
 ## Progress & Roadmap
 
 See `PROGRESS.md` for phase plan, current status, and next steps.
@@ -193,6 +250,11 @@ Launch multiple subagents in parallel when tasks are independent.
 searching/reading files — never Bash with grep, tr, cat, awk, etc. Bash commands
 that aren't in the auto-approved list will produce blocking permission prompts that
 require manual user approval, which defeats the purpose of autonomous subagents.
+
+**NO PYTHON:** Do not use Python scripts for data analysis, hex dumps, or computation.
+Use Rust tests and approved Bash commands (cargo, xxd, etc.) instead. If a new Bash
+command is needed, ask the user to add it to the allowed list rather than using an
+unapproved command that will block on permissions.
 
 ## Conventions
 
