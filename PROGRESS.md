@@ -60,15 +60,15 @@
 - [x] **OG source line endings**: converted all 276 .cp/.h files to Unix LF — no more `tr` preprocessing
 
 ### Recently Completed (this session)
+- [x] **Key signatures**: DrawKEYSIG port — full position tables for all 7 clef types (treble/bass/alto/tenor/soprano/mzsoprano/baritone), preamble KEYSIG objects, SetupKeySig circle-of-fifths order, SMuFL sharp/flat glyphs, preamble width adjustment for accidental count. 2 new test fixtures (D major, Eb major), 10 snapshots updated.
 - [x] **Tied notes**: visual ties between notes across beats/measures + cross-system partial ties
 - [x] **Notelist stem_info parser fix**: accept all 6 flag characters (ties, slurs, tuplets were silently dropped)
-- [x] **Comprehensive notelist test suite**: 6 tests × 15 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
+- [x] **Comprehensive notelist test suite**: 6 tests × 17 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
 - [x] **Ddist overflow fix**: i16 arithmetic overflow in scores with many systems — widened to i32 in to_score.rs, context.rs, score_renderer.rs
 
 ### Next: Engraving & Layout (priority order)
 
 #### Tier 1 — High Priority (core engraving completeness)
-- [ ] **Key signatures**: render KS accidentals in preamble and mid-score changes (DrawKEYSIG port from DrawObject.cp)
 - [ ] **Clef changes**: mid-score clef changes rendered at correct position (already have preamble clefs; need mid-measure clef insertion + context update)
 - [ ] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from DrawObject.cp, Tuplet.cp)
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
@@ -125,10 +125,10 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~21,000 |
+| Rust source lines | ~21,500 |
 | Rust test lines | ~3,500 |
-| Test count | ~165 (unit + integration + cross-validate/render + doctest + notelist_all) |
-| Test fixture files | 16 .ngl + 15 .nl |
-| Insta snapshots | 16 (1 HBD_33 + 15 notelist_all) |
-| Commits | 10 |
+| Test count | ~167 (unit + integration + cross-validate/render + doctest + notelist_all) |
+| Test fixture files | 16 .ngl + 17 .nl |
+| Insta snapshots | 18 (1 HBD_33 + 17 notelist_all) |
+| Commits | 11 |
 | Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |
