@@ -122,10 +122,12 @@ impl ContextState {
                     for astaff in astaff_list {
                         if let Some(ctx) = self.get_mut(astaff.staffn) {
                             // Update geometry (make absolute by adding system offsets)
+                            // Use saturating arithmetic to handle scores with many
+                            // systems where positions exceed i16 range.
                             ctx.staff_visible = astaff.visible;
-                            ctx.staff_top = astaff.staff_top + ctx.system_top;
-                            ctx.staff_left = astaff.staff_left + ctx.system_left;
-                            ctx.staff_right = astaff.staff_right + ctx.system_left;
+                            ctx.staff_top = astaff.staff_top.saturating_add(ctx.system_top);
+                            ctx.staff_left = astaff.staff_left.saturating_add(ctx.system_left);
+                            ctx.staff_right = astaff.staff_right.saturating_add(ctx.system_left);
                             ctx.staff_height = astaff.staff_height;
                             ctx.staff_half_height = astaff.staff_height / 2;
                             ctx.staff_lines = astaff.staff_lines;
@@ -160,7 +162,7 @@ impl ContextState {
                             ctx.in_measure = true;
                             ctx.measure_visible = ameasure.measure_visible;
                             ctx.measure_top = ctx.staff_top; // Already absolute after Staff update
-                            ctx.measure_left = ctx.staff_left + obj.header.xd; // Measure xd relative to staff left
+                            ctx.measure_left = ctx.staff_left.saturating_add(obj.header.xd); // Measure xd relative to staff left
 
                             // Update stored context from AMeasure
                             ctx.clef_type = ameasure.clef_type;

@@ -206,6 +206,13 @@ pub fn ddist_to_render(d: Ddist) -> f32 {
     d as f32 / 16.0
 }
 
+/// Like `ddist_to_render` but takes i32 to handle intermediate sums that
+/// may exceed the i16 (Ddist) range. Used when adding staff_top + offset
+/// for scores with many systems.
+pub fn ddist_wide_to_render(d: i32) -> f32 {
+    d as f32 / 16.0
+}
+
 /// Convert rendering coordinates (points, f32) to DDIST.
 ///
 /// Inverse of `ddist_to_render`. Rounds to nearest DDIST value.

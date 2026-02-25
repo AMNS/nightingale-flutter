@@ -14,7 +14,20 @@
 use crate::context::ContextState;
 use crate::defs::*;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
-use crate::render::types::{ddist_to_render, BarLineType, MusicGlyph, Point};
+use crate::render::types::{ddist_to_render, ddist_wide_to_render, BarLineType, MusicGlyph, Point};
+
+/// Safe DDIST addition that widens to i32 then converts to render coords.
+/// Prevents overflow when staff_top + offset exceeds i16 range.
+#[inline]
+fn d2r_sum(a: i16, b: i16) -> f32 {
+    ddist_wide_to_render(a as i32 + b as i32)
+}
+
+/// Safe DDIST three-way addition.
+#[inline]
+fn d2r_sum3(a: i16, b: i16, c: i16) -> f32 {
+    ddist_wide_to_render(a as i32 + b as i32 + c as i32)
+}
 use crate::render::MusicRenderer;
 
 /// Information about a note's rendered position, used for tie matching.
@@ -372,8 +385,7 @@ fn draw_measure(
 
                     // Top and bottom from staff top + staff height
                     let top_y = ddist_to_render(measure_ctx.staff_top);
-                    let bottom_y =
-                        ddist_to_render(measure_ctx.staff_top + measure_ctx.staff_height);
+                    let bottom_y = d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height);
 
                     // Map subtype to BarLineType
                     let bar_type = map_barline_type(ameasure.header.sub_type);
@@ -414,10 +426,10 @@ fn draw_sync(
                 // Check if note is visible
                 if note_ctx.visible && anote.header.visible {
                     // Compute note X: measure_left + sync xd + note xd
-                    let note_x = ddist_to_render(note_ctx.measure_left + obj.header.xd + anote.xd);
+                    let note_x = d2r_sum3(note_ctx.measure_left, obj.header.xd, anote.xd);
 
                     // Compute note Y: staff_top + note yd (yd is relative to staff top)
-                    let note_y = ddist_to_render(note_ctx.staff_top + anote.yd);
+                    let note_y = d2r_sum(note_ctx.staff_top, anote.yd);
 
                     // l_dur is stored in header.sub_type
                     let l_dur = anote.header.sub_type;
@@ -486,8 +498,9 @@ fn draw_sync(
                             let ledger_half_width = ledger_len / 2.0;
 
                             for halfline in ledgers {
-                                let ledger_y = ddist_to_render(
-                                    note_ctx.staff_top + (halfline * note_ctx.staff_height / 8),
+                                let ledger_y = ddist_wide_to_render(
+                                    note_ctx.staff_top as i32
+                                        + (halfline as i32 * note_ctx.staff_height as i32 / 8),
                                 );
                                 renderer.ledger_line(ledger_y, ledger_center_x, ledger_half_width);
                             }
@@ -542,9 +555,9 @@ fn draw_sync(
 
                             // Stem endpoints: from near notehead to ystem
                             let stem_top =
-                                ddist_to_render(note_ctx.staff_top + anote.ystem.min(stem_near_yd));
+                                d2r_sum(note_ctx.staff_top, anote.ystem.min(stem_near_yd));
                             let stem_bottom =
-                                ddist_to_render(note_ctx.staff_top + anote.ystem.max(stem_near_yd));
+                                d2r_sum(note_ctx.staff_top, anote.ystem.max(stem_near_yd));
 
                             // Stem width (default from set_widths)
                             let stem_width = 0.8;
@@ -557,7 +570,7 @@ fn draw_sync(
                                 if let Some(flag) = flag_glyph(l_dur, !stem_down) {
                                     // Flag is positioned at stem endpoint (ystem)
                                     let flag_x = stem_x;
-                                    let flag_y = ddist_to_render(note_ctx.staff_top + anote.ystem);
+                                    let flag_y = d2r_sum(note_ctx.staff_top, anote.ystem);
                                     renderer.music_char(
                                         flag_x,
                                         flag_y,
@@ -670,8 +683,8 @@ fn collect_tie_endpoints(
                 if !note_ctx.visible || !anote.header.visible {
                     continue;
                 }
-                let note_x = ddist_to_render(note_ctx.measure_left + obj.header.xd + anote.xd);
-                let note_y = ddist_to_render(note_ctx.staff_top + anote.yd);
+                let note_x = d2r_sum3(note_ctx.measure_left, obj.header.xd, anote.xd);
+                let note_y = d2r_sum(note_ctx.staff_top, anote.yd);
 
                 let lnspace = if note_ctx.staff_lines > 1 {
                     ddist_to_render(note_ctx.staff_height) / (note_ctx.staff_lines as f32 - 1.0)
@@ -925,13 +938,13 @@ fn draw_connect(
                 // Reference: DrawObject.cp DrawCONNECT() line 686-692
                 if aconnect.conn_level != 0 && top_ctx.visible && bottom_ctx.visible {
                     // X position from aconnect.xd
-                    let x = ddist_to_render(top_ctx.staff_left + aconnect.xd);
+                    let x = d2r_sum(top_ctx.staff_left, aconnect.xd);
 
                     // Top Y from top staff top
                     let y_top = ddist_to_render(top_ctx.staff_top);
 
                     // Bottom Y from bottom staff top + height
-                    let y_bottom = ddist_to_render(bottom_ctx.staff_top + bottom_ctx.staff_height);
+                    let y_bottom = d2r_sum(bottom_ctx.staff_top, bottom_ctx.staff_height);
 
                     // Map connect type (1=line, 2=bracket, 3=brace)
                     match aconnect.connect_type {
@@ -983,7 +996,7 @@ fn draw_clef(
                     } else {
                         clef_ctx.staff_left
                     };
-                    let clef_x = ddist_to_render(base_x + obj.header.xd + aclef.xd);
+                    let clef_x = d2r_sum3(base_x, obj.header.xd, aclef.xd);
 
                     // Y position: staff_top + half-line offset
                     let halfline = clef_halfline_position(clef_type);
@@ -1032,7 +1045,7 @@ fn draw_timesig(
                     } else {
                         timesig_ctx.staff_left
                     };
-                    let base_x = ddist_to_render(origin_x + obj.header.xd + atimesig.xd);
+                    let base_x = d2r_sum3(origin_x, obj.header.xd, atimesig.xd);
 
                     // Line spacing
                     let lnspace = if timesig_ctx.staff_lines > 1 {
@@ -1161,7 +1174,7 @@ fn draw_beamset(
                 let head_width = 1.125 * lnspace;
 
                 // X position: same calculation as in draw_sync
-                let note_x = ddist_to_render(staff_ctx.measure_left + sync_obj.header.xd + note.xd);
+                let note_x = d2r_sum3(staff_ctx.measure_left, sync_obj.header.xd, note.xd);
                 let stem_x = if stem_down {
                     note_x
                 } else {
@@ -1169,8 +1182,8 @@ fn draw_beamset(
                 };
 
                 // Y position at stem endpoint and notehead
-                let ystem_y = ddist_to_render(staff_ctx.staff_top + note.ystem);
-                let note_yd_y = ddist_to_render(staff_ctx.staff_top + note.yd);
+                let ystem_y = d2r_sum(staff_ctx.staff_top, note.ystem);
+                let note_yd_y = d2r_sum(staff_ctx.staff_top, note.yd);
 
                 points.push(BeamPoint {
                     x: stem_x,

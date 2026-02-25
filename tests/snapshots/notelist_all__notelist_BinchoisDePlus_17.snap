@@ -1,0 +1,132 @@
+---
+source: tests/notelist_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 66
+Beam: 9
+Brace: 6
+LedgerLine: 13
+MusicChar: 351
+NoteStem: 225
+SetWidths: 1
+Slur: 5
+Staff: 18
+TOTAL: 694
+
+=== STAVES ===
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=597.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=657.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=717.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=772.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=832.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=892.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=947.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=1007.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=1067.0 x=[72.0..558.0] lines=5 spacing=6.00
+
+=== BARLINES ===
+x=135.1 top=72.0 bottom=96.0
+x=135.1 top=132.0 bottom=156.0
+x=135.1 top=192.0 bottom=216.0
+x=254.1 top=72.0 bottom=96.0
+x=254.1 top=132.0 bottom=156.0
+x=254.1 top=192.0 bottom=216.0
+x=406.8 top=72.0 bottom=96.0
+x=406.8 top=132.0 bottom=156.0
+x=406.8 top=192.0 bottom=216.0
+x=557.9 top=72.0 bottom=96.0
+x=557.9 top=132.0 bottom=156.0
+x=557.9 top=192.0 bottom=216.0
+x=184.7 top=247.0 bottom=271.0
+x=184.7 top=307.0 bottom=331.0
+x=184.7 top=367.0 bottom=391.0
+x=304.4 top=247.0 bottom=271.0
+x=304.4 top=307.0 bottom=331.0
+x=304.4 top=367.0 bottom=391.0
+x=422.2 top=247.0 bottom=271.0
+x=422.2 top=307.0 bottom=331.0
+x=422.2 top=367.0 bottom=391.0
+x=557.9 top=247.0 bottom=271.0
+x=557.9 top=307.0 bottom=331.0
+x=557.9 top=367.0 bottom=391.0
+x=186.8 top=422.0 bottom=446.0
+x=186.8 top=482.0 bottom=506.0
+x=186.8 top=542.0 bottom=566.0
+x=279.2 top=422.0 bottom=446.0
+x=279.2 top=482.0 bottom=506.0
+x=279.2 top=542.0 bottom=566.0
+x=410.7 top=422.0 bottom=446.0
+x=410.7 top=482.0 bottom=506.0
+x=410.7 top=542.0 bottom=566.0
+x=557.8 top=422.0 bottom=446.0
+x=557.8 top=482.0 bottom=506.0
+x=557.8 top=542.0 bottom=566.0
+x=129.6 top=597.0 bottom=621.0
+x=129.6 top=657.0 bottom=681.0
+x=129.6 top=717.0 bottom=741.0
+x=166.2 top=597.0 bottom=621.0
+x=166.2 top=657.0 bottom=681.0
+x=166.2 top=717.0 bottom=741.0
+x=343.8 top=597.0 bottom=621.0
+x=343.8 top=657.0 bottom=681.0
+x=343.8 top=717.0 bottom=741.0
+x=557.9 top=597.0 bottom=621.0
+x=557.9 top=657.0 bottom=681.0
+x=557.9 top=717.0 bottom=741.0
+x=204.4 top=772.0 bottom=796.0
+x=204.4 top=832.0 bottom=856.0
+x=204.4 top=892.0 bottom=916.0
+x=319.2 top=772.0 bottom=796.0
+x=319.2 top=832.0 bottom=856.0
+x=319.2 top=892.0 bottom=916.0
+x=422.3 top=772.0 bottom=796.0
+x=422.3 top=832.0 bottom=856.0
+x=422.3 top=892.0 bottom=916.0
+x=557.8 top=772.0 bottom=796.0
+x=557.8 top=832.0 bottom=856.0
+x=557.8 top=892.0 bottom=916.0
+x=443.1 top=947.0 bottom=971.0
+x=443.1 top=1007.0 bottom=1031.0
+x=443.1 top=1067.0 bottom=1091.0
+x=557.9 top=947.0 bottom=971.0
+x=557.9 top=1007.0 bottom=1031.0
+x=557.9 top=1067.0 bottom=1091.0
+
+=== BEAMS ===
+x=[317.4..337.8] y=[361.0..362.0] slope=0.049 thick=3.00
+x=[428.5..442.5] y=[401.0..402.0] slope=0.071 thick=3.00
+x=[479.1..498.2] y=[241.0..243.0] slope=0.105 thick=3.00
+x=[542.2..561.3] y=[253.0..254.0] slope=0.052 thick=3.00
+x=[416.9..439.6] y=[567.0..568.0] slope=0.044 thick=3.00
+x=[411.8..448.4] y=[750.0..749.0] slope=-0.027 thick=3.00
+x=[497.9..519.9] y=[762.0..761.0] slope=-0.045 thick=3.00
+x=[184.9..251.4] y=[941.0..943.0] slope=0.030 thick=3.00
+x=[375.2..429.1] y=[950.0..951.0] slope=0.019 thick=3.00
+
+=== STEMS: 225 total ===
+
+=== GLYPHS ===
+Smufl(57424): 6
+Smufl(57436): 12
+Smufl(57476): 3
+Smufl(57478): 3
+Smufl(57506): 6
+Smufl(57507): 71
+Smufl(57508): 154
+Smufl(57831): 46
+Smufl(57920): 10
+Smufl(57921): 12
+Smufl(57952): 1
+Smufl(57953): 7
+Smufl(58596): 4
+Smufl(58597): 16

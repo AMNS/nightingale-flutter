@@ -62,19 +62,40 @@
 ### Recently Completed (this session)
 - [x] **Tied notes**: visual ties between notes across beats/measures + cross-system partial ties
 - [x] **Notelist stem_info parser fix**: accept all 6 flag characters (ties, slurs, tuplets were silently dropped)
+- [x] **Comprehensive notelist test suite**: 6 tests × 15 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
+- [x] **Ddist overflow fix**: i16 arithmetic overflow in scores with many systems — widened to i32 in to_score.rs, context.rs, score_renderer.rs
 
 ### Next: Engraving & Layout (priority order)
+
+#### Tier 1 — High Priority (core engraving completeness)
+- [ ] **Key signatures**: render KS accidentals in preamble and mid-score changes (DrawKEYSIG port from DrawObject.cp)
+- [ ] **Clef changes**: mid-score clef changes rendered at correct position (already have preamble clefs; need mid-measure clef insertion + context update)
+- [ ] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from DrawObject.cp, Tuplet.cp)
+- [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
+- [ ] **Slurs**: curved slurs between notes, including cross-system and cross-page slurs (DrawSLUR port from Slurs.cp)
+- [ ] **System layout / spacing improvements**: duration-proportional spacing (port SymWidthRight/CalcSpaceNeeded from SpaceTime.cp), measure width based on content density
+- [ ] **Ottava (8va/8vb)**: dashed line + text above/below staff (DrawOTTAVA port from DrawObject.cp)
+
+#### Tier 2 — Text & Markings
+- [ ] **Dynamics**: hairpin crescendo/diminuendo lines + dynamic text (pp, ff, etc.) (DrawDYNAMIC port from DrawObject.cp)
+- [ ] **Text attached to notes**: lyrics, expression text, other note-attached annotations (DrawGRAPHIC port from DrawObject.cp)
+- [ ] **Part names**: staff labels at start of first system (and abbreviated on continuation systems)
+- [ ] **Tempo markings**: metronome marks, text tempos (DrawTEMPO port from DrawObject.cp)
+- [ ] **Score markings**: fermata, other articulations (DrawMODNR port from DrawObject.cp)
+- [ ] **Rehearsal marks**: boxed/circled text above system
+
+#### Tier 3 — Engraving Polish
 - [ ] **Grace notes**: small grace notes before principal notes (DrawGRSync port)
-- [ ] **Duration-proportional spacing**: port SymWidthRight/CalcSpaceNeeded (SpaceTime.cp)
 - [ ] **Notehead collision avoidance**: seconds in chords (otherStemSide placement), multi-voice X offsets
 - [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
-- [ ] **Rest rendering**: show rests at beat positions without notes (multi-voice rest offset)
-- [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
 - [ ] **Final barline**: double barline at end of piece
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
-- [ ] **Mid-score time signature changes**: render TimeSig objects within measures (e.g. 3/4 -> 5/4 at m.9 in HBD_33)
-- [ ] **Score markings**: fermata, other articulations (DrawMODNR port)
-- [ ] **Textual elements**: dynamics, tempo markings, rehearsal marks
+- [ ] **Mid-score time signature changes**: render TimeSig objects within measures
+- [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
+- [ ] **Rest rendering improvements**: show rests at beat positions without notes
+
+#### Tier 4 — Advanced Layout
+- [ ] **Cross-staff notation**: notes/beams drawn on a different staff than they belong to (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp)
 
 ### Deferred
 - [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
@@ -86,9 +107,11 @@
 - [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam slope in to_score.rs
 - [x] Port Objects.cp NormalStemUpDown -> beam group stem unification
 - [ ] Port SpaceTime.cp / SpaceHighLevel.cp -> spacing module
-- [ ] Port Slurs.cp -> slur module
+- [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
 - [ ] Port Tuplet.cp -> tuplet module
-- [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module
+- [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
+- [ ] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO sections
+- [ ] Port Slurs.cp cross-system continuation logic
 
 ## Phase 4: Flutter Shell — NOT STARTED
 - [ ] flutter_rust_bridge setup
@@ -102,9 +125,10 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~20,500 |
-| Rust test lines | ~3,000 |
-| Test count | 157 (104 unit + 6 integration + 43 cross-validate/render + 8 doctest) |
+| Rust source lines | ~21,000 |
+| Rust test lines | ~3,500 |
+| Test count | ~165 (unit + integration + cross-validate/render + doctest + notelist_all) |
 | Test fixture files | 16 .ngl + 15 .nl |
-| Commits | 7 |
+| Insta snapshots | 16 (1 HBD_33 + 15 notelist_all) |
+| Commits | 10 |
 | Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |

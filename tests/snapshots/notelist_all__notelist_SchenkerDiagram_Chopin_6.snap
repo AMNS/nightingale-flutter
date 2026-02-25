@@ -1,0 +1,37 @@
+---
+source: tests/notelist_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 2
+Beam: 1
+Brace: 1
+LedgerLine: 1
+MusicChar: 60
+NoteStem: 20
+SetWidths: 1
+Slur: 1
+Staff: 2
+TOTAL: 89
+
+=== STAVES ===
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+
+=== BARLINES ===
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+
+=== BEAMS ===
+x=[337.8..375.8] y=[60.0..61.0] slope=0.026 thick=3.00
+
+=== STEMS: 20 total ===
+
+=== GLYPHS ===
+Smufl(57424): 1
+Smufl(57442): 1
+Smufl(57476): 4
+Smufl(57508): 40
+Smufl(57920): 12
+Smufl(57921): 1
+Smufl(57954): 1

@@ -990,12 +990,18 @@ pub fn notelist_to_score_with_config(
 
         // System vertical position — stacked with inter_system spacing
         // Port of PageFixSysRects (SFormat.cp)
-        let sys_top = config.system_top + sys_idx as Ddist * config.inter_system;
+        // Use i32 arithmetic to avoid overflow for scores with many systems,
+        // then saturate back to Ddist range. Systems beyond the page are
+        // off-screen until multi-page layout is implemented.
+        let sys_top_i32 = config.system_top as i32 + sys_idx as i32 * config.inter_system as i32;
+        let sys_top = sys_top_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
+        let sys_bottom_i32 = sys_top_i32 + system_height as i32;
+        let sys_bottom = sys_bottom_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
 
         let system_rect = DRect {
             top: sys_top,
             left: config.system_left,
-            bottom: sys_top + system_height,
+            bottom: sys_bottom,
             right: config.system_right,
         };
 
