@@ -59,12 +59,16 @@
 - [x] **Renderer stem direction fix**: beam renderer now uses per-note ystem vs yd (matching OG) instead of heuristic
 - [x] **OG source line endings**: converted all 276 .cp/.h files to Unix LF — no more `tr` preprocessing
 
+### Recently Completed (this session)
+- [x] **Tied notes**: visual ties between notes across beats/measures + cross-system partial ties
+- [x] **Notelist stem_info parser fix**: accept all 6 flag characters (ties, slurs, tuplets were silently dropped)
+
 ### Next: Engraving & Layout (priority order)
-- [ ] **Rest rendering**: show rests at beat positions without notes (multi-voice rest offset)
-- [ ] **Tied notes**: visual ties between notes across beats/measures
-- [ ] **Grace notes**: small grace notes before principal notes
+- [ ] **Grace notes**: small grace notes before principal notes (DrawGRSync port)
 - [ ] **Duration-proportional spacing**: port SymWidthRight/CalcSpaceNeeded (SpaceTime.cp)
+- [ ] **Notehead collision avoidance**: seconds in chords (otherStemSide placement), multi-voice X offsets
 - [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
+- [ ] **Rest rendering**: show rests at beat positions without notes (multi-voice rest offset)
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
 - [ ] **Final barline**: double barline at end of piece
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
