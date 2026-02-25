@@ -388,6 +388,9 @@ fn draw_sync(
                         8.0
                     };
 
+                    // Half-space for dot positioning
+                    let half_sp = lnspace / 2.0;
+
                     if !anote.rest {
                         // === NOTES ===
 
@@ -523,12 +526,81 @@ fn draw_sync(
                                 }
                             }
                         }
+
+                        // Draw augmentation dots if any
+                        // Faithful port of DrawAugDots (DrawNRGR.cp:248-307)
+                        //                  + AugDotXDOffset (DrawUtils.cp:1532-1582)
+                        if anote.ndots > 0 && anote.y_move_dots != 0 {
+                            // --- AugDotXDOffset (from note origin xdNorm) ---
+                            // xdDots = dhalfSp (base gap)
+                            let mut xd_offset = half_sp;
+                            // For non-small notes: += dhalfSp/2
+                            xd_offset += half_sp / 2.0;
+                            // WIDEHEAD: whole += dhalfSp/2, breve += dhalfSp
+                            if l_dur <= WHOLE_L_DUR {
+                                xd_offset += half_sp / 2.0;
+                                if l_dur <= 1 {
+                                    // breve: WIDEHEAD=2, gets another dhalfSp/2
+                                    xd_offset += half_sp / 2.0;
+                                }
+                            }
+                            // xMoveDots fine-tune: std2d(STD_LINEHT*(xMoveDots-3)/4, ...)
+                            // STD_LINEHT=8, so 8*(x-3)/4 = 2*(x-3) STDIST
+                            // std2d converts STDIST→DDIST: val * staffHt / (4*(staffLines-1))
+                            // In render coords: 2*(x-3) * lnspace / (4 * 4) = (x-3) * lnspace / 8
+                            // (since STD_LINEHT=8 maps to 1 lnspace)
+                            xd_offset += (anote.x_move_dots as f32 - 3.0) * lnspace / 4.0;
+
+                            // --- DrawAugDots PS path: xdDots += 2*dhalfSp before each dot ---
+                            // Y offset: (yMoveDots-2)*dhalfSp from note yd
+                            let yd_dots = note_y + (anote.y_move_dots as f32 - 2.0) * half_sp;
+
+                            let dot_glyph = 0xE1E7_u32; // SMuFL augmentationDot
+
+                            let mut dot_x = note_x + xd_offset;
+                            for _ in 0..anote.ndots {
+                                dot_x += lnspace; // OG: xdDots += 2*dhalfSp before draw
+                                renderer.music_char(
+                                    dot_x,
+                                    yd_dots,
+                                    MusicGlyph::smufl(dot_glyph),
+                                    100.0,
+                                );
+                            }
+                        }
                     } else {
                         // === RESTS ===
 
                         // Draw rest glyph
                         let rest_glyph = rest_glyph_for_duration(l_dur);
                         renderer.music_char(note_x, note_y, MusicGlyph::smufl(rest_glyph), 100.0);
+
+                        // Draw augmentation dots on rests
+                        // Port of DrawAugDots (DrawNRGR.cp:1388/1458) for rests
+                        // AugDotXDOffset for rests: xdDots = dhalfSp, + dhalfSp if IS_WIDEREST
+                        if anote.ndots > 0 && anote.y_move_dots != 0 {
+                            let mut xd_offset = half_sp;
+                            // IS_WIDEREST: whole/half rests are wider
+                            if l_dur <= 3 {
+                                xd_offset += half_sp;
+                            }
+                            // xMoveDots fine-tune (same formula as notes)
+                            xd_offset += (anote.x_move_dots as f32 - 3.0) * lnspace / 4.0;
+
+                            let yd_dots = note_y + (anote.y_move_dots as f32 - 2.0) * half_sp;
+                            let dot_glyph = 0xE1E7_u32;
+
+                            let mut dot_x = note_x + xd_offset;
+                            for _ in 0..anote.ndots {
+                                dot_x += lnspace; // OG: += 2*dhalfSp before each draw
+                                renderer.music_char(
+                                    dot_x,
+                                    yd_dots,
+                                    MusicGlyph::smufl(dot_glyph),
+                                    100.0,
+                                );
+                            }
+                        }
                     }
                 }
             }

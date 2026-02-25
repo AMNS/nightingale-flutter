@@ -162,7 +162,9 @@ Each discrete drawing function should be ported as its own unit with tests:
 ## OG Nightingale Source Location
 
 The authoritative C++ source is the **local clone** at:
-`Nightingale/src/` (relative to this repo root)
+`./Nightingale/src/` (relative to this repo root, i.e. `nightingale-modernize/Nightingale/src/`)
+
+**Always use this local copy** — not any parent-directory or absolute path.
 
 Key directories: `CFilesBoth/`, `CFilesBothEd/`, `Utilities/`, `Precomps/`
 

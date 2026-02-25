@@ -8,11 +8,11 @@ BarLine: 22
 Beam: 31
 Brace: 3
 LedgerLine: 32
-MusicChar: 207
+MusicChar: 210
 NoteStem: 113
 SetWidths: 1
 Staff: 6
-TOTAL: 415
+TOTAL: 418
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -88,6 +88,7 @@ Smufl(57475): 2
 Smufl(57476): 2
 Smufl(57507): 15
 Smufl(57508): 137
+Smufl(57831): 3
 Smufl(57920): 1
 Smufl(57921): 2
 Smufl(57952): 35

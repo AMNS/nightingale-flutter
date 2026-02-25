@@ -1689,8 +1689,45 @@ pub fn notelist_to_score_with_config(
                                     off_velocity: 64,
                                     tied_l: false,
                                     tied_r: false,
-                                    x_move_dots: 0,
-                                    y_move_dots: 0,
+                                    // OG: xMoveDots = 3 + WIDEHEAD(subType) (Objects.cp:857)
+                                    // WIDEHEAD: breve=2, whole=1, else=0. 3 = "default" in
+                                    // AugDotXDOffset formula: std2d(STD_LINEHT*(xMoveDots-3)/4)
+                                    x_move_dots: {
+                                        let wide: u8 = if *dur <= 2 {
+                                            if *dur == 1 {
+                                                2
+                                            } else {
+                                                1
+                                            }
+                                        } else {
+                                            0
+                                        };
+                                        3 + wide
+                                    },
+                                    // OG: yMoveDots via GetLineAugDotPos (Utility.cp:262)
+                                    // Note on line: single/upper voice → 1 (above), lower → 3 (below)
+                                    // Note in space: 2 (same level). 0 = invisible.
+                                    // (Objects.cp:858-861)
+                                    y_move_dots: if *dots > 0 {
+                                        let half_ln_unit = config.staff_height / 8;
+                                        let half_ln = if half_ln_unit > 0 {
+                                            yd / half_ln_unit
+                                        } else {
+                                            0
+                                        };
+                                        if half_ln % 2 == 0 {
+                                            // On a line — GetLineAugDotPos
+                                            if role == VoiceRole::Lower && stem_down {
+                                                3
+                                            } else {
+                                                1
+                                            }
+                                        } else {
+                                            2 // in a space
+                                        }
+                                    } else {
+                                        0
+                                    },
                                     ndots: *dots,
                                     voice: *voice,
                                     rsp_ignore: 0,
@@ -1777,7 +1814,7 @@ pub fn notelist_to_score_with_config(
                                     tied_l: false,
                                     tied_r: false,
                                     x_move_dots: 0,
-                                    y_move_dots: 0,
+                                    y_move_dots: if *dots > 0 { 2 } else { 0 },
                                     ndots: *dots,
                                     voice: *voice,
                                     rsp_ignore: 0,
