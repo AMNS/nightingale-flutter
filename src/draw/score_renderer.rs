@@ -90,6 +90,27 @@ fn notehead_glyph_for_duration(l_dur: i8) -> u32 {
     }
 }
 
+/// Resolve the effective drawing l_dur for a rest, handling whole-measure rests.
+///
+/// In OG Nightingale, whole-measure rests (l_dur <= -1) are stored with negative
+/// subType values but drawn as whole rests (or breve rests in some time signatures).
+///
+/// Reference: DrawUtils.cp, GetRestDrawInfo(), line 1281
+/// - subType <= WHOLEMR_L_DUR (-1): draw as WHOLE_L_DUR (or BREVE if time sig warrants)
+/// - subType == UNKNOWN_L_DUR (0): draw as BREVE_L_DUR (shouldn't happen)
+/// - subType > 0: draw as-is (normal CMN duration)
+fn resolve_rest_l_dur(l_dur: i8) -> i8 {
+    if l_dur <= WHOLEMR_L_DUR {
+        // Whole-measure rest (or multi-measure rest): draw as whole rest.
+        // TODO: check WholeMeasRestIsBreve() for time sigs like 4/2, 2/1
+        WHOLE_L_DUR
+    } else if l_dur == UNKNOWN_L_DUR {
+        BREVE_L_DUR // Should never happen
+    } else {
+        l_dur
+    }
+}
+
 /// Map l_dur (logical duration) to rest glyph.
 ///
 /// Reference: DrawNRGR.cp, DrawRest() (line 1402)
@@ -111,6 +132,12 @@ fn rest_glyph_for_duration(l_dur: i8) -> u32 {
         _ => 0xE4E5, // Default to quarter rest
     }
 }
+
+/// Vertical Y offset for rest glyphs, in half-spaces.
+///
+/// Indexed by l_dur value (1=breve through 9=128th).
+/// Reference: vars.h line 342
+const REST_Y_OFFSET: [i16; 10] = [0, 0, 0, 0, 0, -1, 1, 1, 3, 3];
 
 /// Map accidental code to SMuFL glyph.
 ///
@@ -273,11 +300,32 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
     let mut tie_starts: Vec<TieEndpoint> = Vec::new();
     let mut tie_ends: Vec<TieEndpoint> = Vec::new();
 
+    // Page management for multi-page NGL scores.
+    // NGL files store system_rect coordinates relative to the page, so systems
+    // on different pages have overlapping Y ranges. We must emit page breaks
+    // when PAGE objects are encountered in the walk.
+    // Reference: PS_Stdio.cp, PS_NewPage() / PS_EndPage()
+    let mut current_page: i32 = -1; // -1 = no page started yet
+
     for obj in score.walk() {
         // Update context BEFORE drawing (matches C++ pipeline)
         ctx.update_from_object(obj, score);
 
         match &obj.data {
+            // PAGE objects trigger page breaks for multi-page NGL scores.
+            // Notelist-generated scores have no PAGE objects, so this is a no-op.
+            ObjData::Page(page) => {
+                let page_num = page.sheet_num as i32;
+                if current_page >= 0 {
+                    // Draw any accumulated ties before ending the page
+                    draw_ties(&tie_starts, &tie_ends, renderer);
+                    tie_starts.clear();
+                    tie_ends.clear();
+                    renderer.end_page();
+                }
+                renderer.begin_page((page_num + 1) as u32);
+                current_page = page_num;
+            }
             ObjData::Staff(_) => draw_staff(score, obj, &ctx, renderer),
             ObjData::Measure(_) => draw_measure(score, obj, &ctx, renderer),
             ObjData::Sync(_) => {
@@ -290,13 +338,18 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             ObjData::TimeSig(_) => draw_timesig(score, obj, &ctx, renderer),
             ObjData::BeamSet(_) => draw_beamset(score, obj, &ctx, renderer),
             ObjData::Tuplet(_) => draw_tuplet(score, obj, &ctx, renderer),
-            // TODO: Slur, Dynamic, Tempo, Graphic, Ottava, Ending, etc.
+            // TODO: Dynamic, Tempo, Graphic, Ottava, Ending, etc.
             _ => {}
         }
     }
 
-    // Draw ties after all objects (so ties layer on top)
+    // Draw ties after all objects (so ties layer on top of the last page)
     draw_ties(&tie_starts, &tie_ends, renderer);
+
+    // End the last page if we were in multi-page mode
+    if current_page >= 0 {
+        renderer.end_page();
+    }
 }
 
 /// Draw a Staff object (all staves in the system).
@@ -627,9 +680,23 @@ fn draw_sync(
                     } else {
                         // === RESTS ===
 
+                        // Resolve effective drawing l_dur for rests.
+                        // Whole-measure rests (l_dur <= -1) are drawn as whole rests.
+                        // Reference: DrawUtils.cp, GetRestDrawInfo(), line 1303
+                        let draw_l_dur = resolve_rest_l_dur(l_dur);
+
+                        // Apply restYOffset: vertical correction in half-spaces.
+                        // Reference: DrawUtils.cp, GetRestDrawInfo(), line 1319
+                        let rest_y_off = if (draw_l_dur as usize) < REST_Y_OFFSET.len() {
+                            REST_Y_OFFSET[draw_l_dur as usize] as f32 * half_sp
+                        } else {
+                            0.0
+                        };
+                        let rest_y = note_y + rest_y_off;
+
                         // Draw rest glyph
-                        let rest_glyph = rest_glyph_for_duration(l_dur);
-                        renderer.music_char(note_x, note_y, MusicGlyph::smufl(rest_glyph), 100.0);
+                        let rest_glyph = rest_glyph_for_duration(draw_l_dur);
+                        renderer.music_char(note_x, rest_y, MusicGlyph::smufl(rest_glyph), 100.0);
 
                         // Draw augmentation dots on rests
                         // Port of DrawAugDots (DrawNRGR.cp:1388/1458) for rests
@@ -637,7 +704,7 @@ fn draw_sync(
                         if anote.ndots > 0 && anote.y_move_dots != 0 {
                             let mut xd_offset = half_sp;
                             // IS_WIDEREST: whole/half rests are wider
-                            if l_dur <= 3 {
+                            if draw_l_dur <= 3 {
                                 xd_offset += half_sp;
                             }
                             // xMoveDots fine-tune (same formula as notes)

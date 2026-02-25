@@ -1,0 +1,42 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 440
+Beam: 569
+BeginPage: 14
+EndPage: 14
+LedgerLine: 945
+MusicChar: 2566
+NoteStem: 928
+SetWidths: 1
+Slur: 31
+TOTAL: 5508
+
+=== STAVES ===
+
+=== BARLINES: 440 total ===
+
+=== BEAMS: 569 total ===
+
+=== STEMS: 928 total ===
+
+=== SLURS: 31 total ===
+
+=== GLYPHS ===
+Smufl(57424): 84
+Smufl(57442): 56
+Smufl(57476): 10
+Smufl(57506): 10
+Smufl(57507): 56
+Smufl(57508): 2018
+Smufl(57831): 16
+Smufl(57920): 17
+Smufl(57921): 2
+Smufl(57953): 8
+Smufl(57954): 172
+Smufl(58595): 96
+Smufl(58596): 4
+Smufl(58597): 6
+Smufl(58598): 11

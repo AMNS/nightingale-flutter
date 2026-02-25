@@ -1,0 +1,99 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 462
+Beam: 406
+BeginPage: 26
+EndPage: 26
+LedgerLine: 657
+MusicChar: 2544
+NoteStem: 498
+SetWidths: 1
+Slur: 80
+Staff: 52
+TOTAL: 4752
+
+=== STAVES ===
+y=256.7 x=[185.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[185.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+y=256.7 x=[124.0..763.0] lines=5 spacing=4.50
+y=423.4 x=[124.0..763.0] lines=5 spacing=4.50
+
+=== BARLINES: 462 total ===
+
+=== BEAMS: 406 total ===
+
+=== STEMS: 498 total ===
+
+=== SLURS: 80 total ===
+
+=== GLYPHS ===
+Smufl(57424): 124
+Smufl(57442): 8
+Smufl(57449): 26
+Smufl(57476): 72
+Smufl(57506): 14
+Smufl(57507): 362
+Smufl(57508): 1026
+Smufl(57831): 126
+Smufl(57920): 1
+Smufl(57921): 3
+Smufl(57922): 7
+Smufl(57952): 485
+Smufl(57953): 12
+Smufl(57954): 73
+Smufl(58595): 152
+Smufl(58596): 16
+Smufl(58597): 26
+Smufl(58598): 9
+Smufl(58599): 2

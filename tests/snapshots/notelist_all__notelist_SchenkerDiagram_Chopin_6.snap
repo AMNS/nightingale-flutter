@@ -5,14 +5,16 @@ expression: summary
 === COMMAND COUNTS ===
 BarLine: 2
 Beam: 1
+BeginPage: 1
 Brace: 1
+EndPage: 1
 LedgerLine: 1
 MusicChar: 60
 NoteStem: 20
 SetWidths: 1
 Slur: 1
 Staff: 2
-TOTAL: 89
+TOTAL: 91
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00

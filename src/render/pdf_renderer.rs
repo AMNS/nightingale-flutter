@@ -202,6 +202,10 @@ pub struct PdfRenderer {
     music_size: f32,
     /// Whether we're inside a page
     in_page: bool,
+    /// Whether any drawing has occurred on the current page.
+    /// Used to avoid emitting blank pages when begin_page() is called
+    /// before any content is drawn (e.g. NGL files with PAGE objects).
+    page_has_content: bool,
     /// Multiple pages' content streams (each page is a separate Content)
     pages: Vec<Vec<u8>>,
     /// Embedded music font (Bravura), if loaded
@@ -241,6 +245,7 @@ impl PdfRenderer {
             state_stack: Vec::new(),
             music_size: 24.0, // Default music font size
             in_page: true,
+            page_has_content: false,
             pages: Vec::new(),
             music_font: None,
             used_glyphs: BTreeMap::new(),
@@ -477,6 +482,7 @@ impl MusicRenderer for PdfRenderer {
     /// Draw a line with perpendicular thickening.
     /// Reference: PS_Stdio.cp, PS_Line(), line 1351
     fn line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, width: f32) {
+        self.page_has_content = true;
         self.sync_stroke_color();
         self.content.set_line_width(width * self.state.scale_x);
         self.content
@@ -576,6 +582,7 @@ impl MusicRenderer for PdfRenderer {
     /// Draw a complete N-line staff.
     /// Reference: PS_Stdio.cp, PS_Staff(), line 1454
     fn staff(&mut self, height_y: f32, x0: f32, x1: f32, n_lines: u8, line_spacing: f32) {
+        self.page_has_content = true;
         for i in 0..n_lines {
             let y = height_y + (i as f32) * line_spacing;
             self.staff_line(y, x0, x1);
@@ -585,6 +592,7 @@ impl MusicRenderer for PdfRenderer {
     /// Draw a bar line.
     /// Reference: PS_Stdio.cp, PS_BarLine(), line 1473
     fn bar_line(&mut self, top_y: f32, bottom_y: f32, x: f32, bar_type: BarLineType) {
+        self.page_has_content = true;
         self.sync_stroke_color();
         match bar_type {
             BarLineType::Single => {
@@ -795,6 +803,7 @@ impl MusicRenderer for PdfRenderer {
     /// Draw a note stem.
     /// Reference: PS_Stdio.cp, PS_NoteStem(), line 1657
     fn note_stem(&mut self, x: f32, y_top: f32, y_bottom: f32, width: f32) {
+        self.page_has_content = true;
         self.sync_stroke_color();
         self.content.set_line_width(width * self.state.scale_x);
         self.content
@@ -818,6 +827,7 @@ impl MusicRenderer for PdfRenderer {
     ///
     /// Reference: PS_Stdio.cp, PS_MusChar(), line 1834
     fn music_char(&mut self, x: f32, y: f32, glyph: MusicGlyph, size_percent: f32) {
+        self.page_has_content = true;
         let codepoint = match glyph {
             MusicGlyph::Smufl(cp) => cp,
             MusicGlyph::Sonata(_) => {
@@ -944,12 +954,13 @@ impl MusicRenderer for PdfRenderer {
     /// Begin a new page.
     /// Reference: PS_Stdio.cp, PS_NewPage(), line 1016
     fn begin_page(&mut self, _page_num: u32) {
-        if self.in_page {
-            // End current page first
+        if self.in_page && self.page_has_content {
+            // End current page and keep it
             self.content.restore_state();
             let old_content = mem::replace(&mut self.content, Content::new());
             self.pages.push(old_content.finish().to_vec());
         }
+        // If in_page but no content was drawn, discard the empty page silently
         // Start new page with white background
         self.content = Content::new();
         self.content.save_state();
@@ -963,6 +974,7 @@ impl MusicRenderer for PdfRenderer {
         self.content
             .transform([1.0, 0.0, 0.0, -1.0, 0.0, self.page_height]);
         self.in_page = true;
+        self.page_has_content = false;
     }
 
     /// End the current page.
@@ -973,6 +985,7 @@ impl MusicRenderer for PdfRenderer {
             let old_content = mem::replace(&mut self.content, Content::new());
             self.pages.push(old_content.finish().to_vec());
             self.in_page = false;
+            self.page_has_content = false;
         }
     }
 

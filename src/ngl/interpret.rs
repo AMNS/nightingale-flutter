@@ -50,6 +50,12 @@ use std::collections::HashMap;
 /// This struct holds the fully interpreted score data, organized by type for efficient access.
 #[derive(Debug, Clone)]
 pub struct InterpretedScore {
+    /// Link to the score HEADER object (start of score linked list).
+    /// For NGL files, this comes from ScoreHeader.head_l (same as OG doc->headL).
+    /// For Notelist-generated scores, this is the first HEADER link.
+    /// The walk() method starts from this object's `right` pointer.
+    pub head_l: Link,
+
     /// All objects in heap order (1-based indexing: slot 0 unused)
     pub objects: Vec<InterpretedObject>,
 
@@ -141,6 +147,7 @@ impl InterpretedScore {
     /// Create a new empty InterpretedScore.
     pub fn new() -> Self {
         Self {
+            head_l: NILINK,
             objects: Vec::new(),
             part_infos: HashMap::new(),
             notes: HashMap::new(),
@@ -186,11 +193,25 @@ impl InterpretedScore {
 
     /// Walk objects in linked-list order (following `right` links).
     ///
-    /// Returns an iterator that traverses the object list from head to tail.
+    /// Starts from the HEADER object at `head_l` (equivalent to OG `doc->headL`)
+    /// and follows `right` pointers through to TAIL. This correctly skips
+    /// the master page object list which shares the same heap.
+    ///
+    /// Reference: HeapFileIO.cp, WriteHeap() — score list starts at headL,
+    /// master page list starts at masterHeadL.
     pub fn walk(&self) -> impl Iterator<Item = &InterpretedObject> {
+        // Start from the HEADER object identified by head_l.
+        // The first object yielded is the one HEADER.right points to
+        // (usually the first PAGE object).
+        let start = if self.head_l != NILINK {
+            self.get(self.head_l).map(|obj| obj.header.right)
+        } else {
+            // Fallback: if head_l not set, use first object (legacy behavior)
+            self.objects.first().map(|obj| obj.header.right)
+        };
         ObjectWalker {
             score: self,
-            current: self.objects.first().map(|obj| obj.header.right),
+            current: start,
         }
     }
 
@@ -1085,6 +1106,13 @@ use crate::ngl::reader::{decode_string as reader_decode_string, NglFile};
 /// Source: HeapFileIO.cp ReadObjHeap() (line 973), WriteObject() (line 659)
 pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
     let mut score = InterpretedScore::new();
+
+    // Parse head_l from score header — equivalent to OG doc->headL.
+    // This is the first field of ScoreHeader (2 bytes, big-endian u16).
+    // Reference: NObjTypesN105.h DOCUMENTHDR, ScoreHeader.head_l
+    if ngl.score_header_raw.len() >= 2 {
+        score.head_l = u16::from_be_bytes([ngl.score_header_raw[0], ngl.score_header_raw[1]]);
+    }
 
     // Get the object heap (type 24)
     let obj_heap = &ngl.heaps[OBJ_TYPE as usize];

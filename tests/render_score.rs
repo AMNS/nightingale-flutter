@@ -636,3 +636,309 @@ fn test_tuplet_triplet_rendering() {
     let pdf_bytes = pdf_renderer.finish();
     std::fs::write(output_dir.join("tuplet_triplet.pdf"), &pdf_bytes).ok();
 }
+
+// ============================================================================
+// NGL file → InterpretedScore → Render pipeline tests
+// ============================================================================
+
+/// Diagnostic: try interpreting + rendering all 17 NGL fixture files.
+/// Reports object counts, subobject counts, and render command counts.
+#[test]
+fn test_ngl_interpret_and_render_all_fixtures() {
+    use nightingale_core::ngl::{interpret_heap, NglFile};
+
+    let fixture_dir = Path::new("tests/fixtures");
+    let mut files: Vec<_> = std::fs::read_dir(fixture_dir)
+        .expect("Failed to read fixtures directory")
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("ngl") {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect();
+    files.sort();
+
+    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    fs::create_dir_all(output_dir).expect("Failed to create output directory");
+
+    println!(
+        "\n{:<45} {:>5} {:>5} {:>6} {:>6} {:>6} {:>6} {:>6} {:>8}",
+        "File", "Objs", "Notes", "Staffs", "Meas", "Clefs", "KSigs", "TSigs", "RndCmds"
+    );
+    println!("{}", "-".repeat(105));
+
+    let mut total_files = 0;
+    let mut render_ok = 0;
+    let mut render_fail = 0;
+
+    for path in &files {
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        total_files += 1;
+
+        // Read
+        let ngl = match NglFile::read_from_file(path) {
+            Ok(n) => n,
+            Err(e) => {
+                println!("{:<45} READ FAILED: {}", filename, e);
+                render_fail += 1;
+                continue;
+            }
+        };
+
+        // Interpret
+        let score = match interpret_heap(&ngl) {
+            Ok(s) => s,
+            Err(e) => {
+                println!("{:<45} INTERPRET FAILED: {}", filename, e);
+                render_fail += 1;
+                continue;
+            }
+        };
+
+        let obj_count = score.objects.len();
+        let note_count: usize = score.notes.values().map(|v| v.len()).sum();
+        let staff_count: usize = score.staffs.values().map(|v| v.len()).sum();
+        let meas_count: usize = score.measures.values().map(|v| v.len()).sum();
+        let clef_count: usize = score.clefs.values().map(|v| v.len()).sum();
+        let ksig_count: usize = score.keysigs.values().map(|v| v.len()).sum();
+        let tsig_count: usize = score.timesigs.values().map(|v| v.len()).sum();
+
+        // Render through CommandRenderer
+        let mut cmd_renderer = CommandRenderer::new();
+        render_score(&score, &mut cmd_renderer);
+        let commands = cmd_renderer.take_commands();
+
+        println!(
+            "{:<45} {:>5} {:>5} {:>6} {:>6} {:>6} {:>6} {:>6} {:>8}",
+            filename,
+            obj_count,
+            note_count,
+            staff_count,
+            meas_count,
+            clef_count,
+            ksig_count,
+            tsig_count,
+            commands.len()
+        );
+
+        // Also generate PDF for visual inspection
+        let mut pdf_renderer = PdfRenderer::new(612.0, 792.0);
+        let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+        if font_path.exists() {
+            pdf_renderer.load_music_font_file(font_path);
+        }
+        render_score(&score, &mut pdf_renderer);
+        let pdf_bytes = pdf_renderer.finish();
+        let pdf_name = filename.replace(".ngl", ".pdf");
+        fs::write(output_dir.join(&pdf_name), &pdf_bytes).ok();
+
+        if commands.is_empty() {
+            render_fail += 1;
+        } else {
+            render_ok += 1;
+        }
+    }
+
+    println!(
+        "\n{} files: {} rendered OK, {} failed/empty",
+        total_files, render_ok, render_fail
+    );
+
+    // At minimum, the N105 Capital Regiment March should render something
+    assert!(
+        render_ok > 0,
+        "At least one NGL file should produce render commands"
+    );
+}
+
+/// Focused test: Capital Regiment March (N105) — our primary NGL test file.
+/// Compare against reference PDF features.
+#[test]
+fn test_ngl_capital_regiment_march() {
+    use nightingale_core::ngl::{interpret_heap, NglFile};
+
+    let path = "tests/fixtures/17_capital_regiment_march.ngl";
+    let ngl = NglFile::read_from_file(path).expect("Failed to read Capital Regiment March");
+
+    assert_eq!(
+        ngl.version,
+        nightingale_core::ngl::NglVersion::N105,
+        "Should be N105 format"
+    );
+
+    // Parse document header for page dimensions
+    let doc_hdr = nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
+        .expect("Failed to parse document header");
+    let page_w = doc_hdr.orig_paper_rect.right - doc_hdr.orig_paper_rect.left;
+    let page_h = doc_hdr.orig_paper_rect.bottom - doc_hdr.orig_paper_rect.top;
+    println!("\nDocument header:");
+    println!("  orig_paper_rect: {:?}", doc_hdr.orig_paper_rect);
+    println!("  margin_rect: {:?}", doc_hdr.margin_rect);
+    println!(
+        "  page size: {}x{} points ({:.1}x{:.1} inches)",
+        page_w,
+        page_h,
+        page_w as f32 / 72.0,
+        page_h as f32 / 72.0
+    );
+    println!("  num_sheets: {}", doc_hdr.num_sheets);
+
+    let score = interpret_heap(&ngl).expect("Failed to interpret heap");
+
+    // Reference PDF shows: 10 parts, 85 measures, 14 pages
+    println!("\n=== Capital Regiment March NGL Analysis ===");
+    println!("Total objects: {}", score.objects.len());
+
+    // Count objects by type
+    let mut type_counts: BTreeMap<i8, usize> = BTreeMap::new();
+    for obj in &score.objects {
+        *type_counts.entry(obj.header.obj_type).or_insert(0) += 1;
+    }
+    println!("\nObject types:");
+    let type_names = [
+        (0, "HEADER"),
+        (1, "TAIL"),
+        (2, "SYNC"),
+        (3, "RPTEND"),
+        (4, "PAGE"),
+        (5, "SYSTEM"),
+        (6, "STAFF"),
+        (7, "MEASURE"),
+        (8, "CLEF"),
+        (9, "KEYSIG"),
+        (10, "TIMESIG"),
+        (11, "BEAMSET"),
+        (12, "CONNECT"),
+        (13, "DYNAMIC"),
+        (14, "MODNR"),
+        (15, "GRAPHIC"),
+        (16, "OTTAVA"),
+        (17, "SLUR"),
+        (18, "TUPLET"),
+        (19, "GRSYNC"),
+        (20, "TEMPO"),
+        (21, "SPACE"),
+        (22, "ENDING"),
+        (23, "PSMEAS"),
+    ];
+    for (t, name) in &type_names {
+        if let Some(&count) = type_counts.get(&(*t as i8)) {
+            println!("  {:2} {:<10}: {}", t, name, count);
+        }
+    }
+
+    // Dump system geometry
+    println!("\nSystem geometry (page-relative DDIST):");
+    for obj in &score.objects {
+        if let nightingale_core::ngl::interpret::ObjData::System(sys) = &obj.data {
+            println!(
+                "  System {}: rect=({},{},{},{}) → top={:.1}pt left={:.1}pt",
+                sys.system_num,
+                sys.system_rect.top,
+                sys.system_rect.left,
+                sys.system_rect.bottom,
+                sys.system_rect.right,
+                sys.system_rect.top as f32 / 16.0,
+                sys.system_rect.left as f32 / 16.0
+            );
+        }
+    }
+
+    // Count subobjects
+    let note_count: usize = score.notes.values().map(|v| v.len()).sum();
+    let staff_count: usize = score.staffs.values().map(|v| v.len()).sum();
+    let meas_count: usize = score.measures.values().map(|v| v.len()).sum();
+    let clef_count: usize = score.clefs.values().map(|v| v.len()).sum();
+    let ksig_count: usize = score.keysigs.values().map(|v| v.len()).sum();
+    let tsig_count: usize = score.timesigs.values().map(|v| v.len()).sum();
+    let beam_count: usize = score.notebeams.values().map(|v| v.len()).sum();
+    let slur_count: usize = score.slurs.values().map(|v| v.len()).sum();
+
+    println!("\nSubobject counts:");
+    println!("  Notes: {}", note_count);
+    println!("  Staffs: {}", staff_count);
+    println!("  Measures: {}", meas_count);
+    println!("  Clefs: {}", clef_count);
+    println!("  KeySigs: {}", ksig_count);
+    println!("  TimeSigs: {}", tsig_count);
+    println!("  NoteBeams: {}", beam_count);
+    println!("  Slurs: {}", slur_count);
+
+    // Expected from reference PDF:
+    // - 10 staves per system (Trp I/II/III, Mello I/II, Bari I/II, Euph, Tuba)
+    // - Key sig: 1 sharp (D major for Bb trumpets) / 1 flat (F for bari/euph/tuba)
+    // - Cut time
+    // - 85 measures
+    // - 14 pages
+    // - Dynamics, repeats, rehearsal marks, tuplets
+
+    // Verify basic structure
+    assert!(
+        *type_counts.get(&(5i8)).unwrap_or(&0) >= 5,
+        "Should have multiple systems (got {})",
+        type_counts.get(&(5i8)).unwrap_or(&0)
+    );
+    assert!(
+        note_count > 100,
+        "Should have many notes (got {})",
+        note_count
+    );
+    assert!(
+        meas_count > 50,
+        "Should have many measures (got {})",
+        meas_count
+    );
+
+    // Render through CommandRenderer
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    let rnd_staff = count_by_name(&commands, "Staff");
+    let rnd_barline = count_by_name(&commands, "BarLine");
+    let rnd_notehead = count_by_name(&commands, "MusicChar");
+    let rnd_stem = count_by_name(&commands, "NoteStem");
+    let rnd_beam = count_by_name(&commands, "Beam");
+    let rnd_line = count_by_name(&commands, "Line");
+
+    println!("\nRender command counts:");
+    println!("  Total: {}", commands.len());
+    println!("  Staff: {}", rnd_staff);
+    println!("  BarLine: {}", rnd_barline);
+    println!("  MusicChar: {}", rnd_notehead);
+    println!("  NoteStem: {}", rnd_stem);
+    println!("  Beam: {}", rnd_beam);
+    println!("  Line: {}", rnd_line);
+
+    // Should produce meaningful rendering output
+    assert!(
+        commands.len() > 100,
+        "Should produce substantial render commands for a 10-part, 85-measure score (got {})",
+        commands.len()
+    );
+    assert!(rnd_staff > 0, "Should render staff lines");
+
+    // Generate PDF for visual comparison using actual page dimensions from NGL header
+    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    fs::create_dir_all(output_dir).expect("Failed to create output directory");
+    let mut pdf_renderer = PdfRenderer::new(page_w as f32, page_h as f32);
+    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    if font_path.exists() {
+        pdf_renderer.load_music_font_file(font_path);
+    }
+    render_score(&score, &mut pdf_renderer);
+    let pdf_bytes = pdf_renderer.finish();
+    let output_path = output_dir.join("17_capital_regiment_march.pdf");
+    fs::write(&output_path, &pdf_bytes).expect("Failed to write PDF");
+    println!(
+        "\nPDF written: {} ({} bytes, {}x{} points)",
+        output_path.display(),
+        pdf_bytes.len(),
+        page_w,
+        page_h
+    );
+}

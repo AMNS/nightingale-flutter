@@ -926,6 +926,7 @@ pub fn notelist_to_score_with_config(
 
     // ---- HEADER and PAGE (shared across systems) ----
     let header_link = next_link();
+    score.head_l = header_link;
     let page_link = next_link();
 
     // Pre-allocate system links so we can wire left/right pointers

@@ -1,0 +1,162 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 657
+Beam: 519
+BeginPage: 24
+EndPage: 24
+LedgerLine: 186
+MusicChar: 2120
+NoteStem: 1021
+SetWidths: 1
+Slur: 113
+Staff: 120
+TOTAL: 4785
+
+=== STAVES ===
+y=71.9 x=[136.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[136.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[136.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[136.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[136.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+y=71.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=128.9 x=[111.0..763.0] lines=5 spacing=4.50
+y=186.1 x=[111.0..763.0] lines=5 spacing=4.50
+y=357.4 x=[111.0..763.0] lines=5 spacing=4.50
+y=529.6 x=[111.0..763.0] lines=5 spacing=4.50
+
+=== BARLINES: 657 total ===
+
+=== BEAMS: 519 total ===
+
+=== STEMS: 1021 total ===
+
+=== SLURS: 113 total ===
+
+=== GLYPHS ===
+Smufl(57424): 120
+Smufl(57442): 48
+Smufl(57449): 48
+Smufl(57476): 18
+Smufl(57506): 153
+Smufl(57507): 36
+Smufl(57508): 1077
+Smufl(57831): 42
+Smufl(57920): 15
+Smufl(57921): 72
+Smufl(57953): 3
+Smufl(57954): 220
+Smufl(58595): 244
+Smufl(58598): 24

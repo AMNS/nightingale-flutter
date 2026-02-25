@@ -5,14 +5,16 @@ expression: summary
 === COMMAND COUNTS ===
 BarLine: 87
 Beam: 66
+BeginPage: 1
 Brace: 8
+EndPage: 1
 LedgerLine: 179
 MusicChar: 609
 NoteStem: 337
 SetWidths: 1
 Slur: 83
 Staff: 24
-TOTAL: 1394
+TOTAL: 1396
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -212,5 +214,6 @@ Smufl(57921): 7
 Smufl(57952): 5
 Smufl(57953): 1
 Smufl(57954): 8
-Smufl(58597): 26
+Smufl(58595): 4
+Smufl(58597): 22
 Smufl(58598): 2
