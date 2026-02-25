@@ -286,9 +286,10 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             }
             ObjData::Connect(_) => draw_connect(score, obj, &ctx, renderer),
             ObjData::Clef(_) => draw_clef(score, obj, &ctx, renderer),
+            ObjData::KeySig(_) => draw_keysig(score, obj, &ctx, renderer),
             ObjData::TimeSig(_) => draw_timesig(score, obj, &ctx, renderer),
             ObjData::BeamSet(_) => draw_beamset(score, obj, &ctx, renderer),
-            // TODO: Slur, Tuplet, KeySig, Dynamic, Tempo, Graphic, Ottava, Ending, etc.
+            // TODO: Slur, Tuplet, Dynamic, Tempo, Graphic, Ottava, Ending, etc.
             _ => {}
         }
     }
@@ -972,6 +973,172 @@ fn draw_connect(
 ///   - Draw clef glyph
 ///
 /// Reference: DrawObject.cp, DrawCLEF(), line 1075
+/// Get the vertical half-line position for a key signature accidental.
+///
+/// Port of GetKSYOffset (DrawUtils.cp:737-806).
+/// Returns half-line position (0 = top staff line) based on clef type and letter code.
+///
+/// Letter codes: F=0, E=1, D=2, C=3, B=4, A=5, G=6
+fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
+    // Position tables from DrawUtils.cp:741-793
+    // Indexed by letcode: [F=0, E=1, D=2, C=3, B=4, A=5, G=6]
+    const TREBLE_SHARP: [i8; 7] = [0, 1, 2, 3, 4, 5, -1]; // F♯ top line, G♯ above staff
+    const TREBLE_FLAT: [i8; 7] = [7, 1, 2, 3, 4, 5, 6]; // B♭ 4th line, E♭ 1st space
+    const ALTO_SHARP: [i8; 7] = [1, 2, 3, 4, 5, 6, 0];
+    const ALTO_FLAT: [i8; 7] = [8, 2, 3, 4, 5, 6, 7];
+    const BASS_SHARP: [i8; 7] = [2, 3, 4, 5, 6, 7, 1];
+    const BASS_FLAT: [i8; 7] = [9, 3, 4, 5, 6, 7, 8];
+    const TENOR_SHARP: [i8; 7] = [6, 0, 1, 2, 3, 4, 5];
+    const TENOR_FLAT: [i8; 7] = [6, 0, 1, 2, 3, 4, 5];
+    const SOPRANO_SHARP: [i8; 7] = [5, 6, 7, 1, 2, 3, 4];
+    const SOPRANO_FLAT: [i8; 7] = [5, 6, 7, 1, 2, 3, 4];
+    const MZ_SOPR_SHARP: [i8; 7] = [3, 4, 5, 6, 7, 1, 2];
+    const MZ_SOPR_FLAT: [i8; 7] = [3, 4, 5, 6, 7, 1, 2];
+    const BARITONE_SHARP: [i8; 7] = [4, 5, 6, 7, 1, 2, 3];
+    const BARITONE_FLAT: [i8; 7] = [4, 5, 6, 7, 1, 2, 3];
+
+    let idx = (letcode as usize).min(6);
+
+    // Clef type constants from defs.h:
+    // TREBLE_CLEF=3, BASS_CLEF=5, ALTO_CLEF=4, TENOR_CLEF=6, SOPRANO_CLEF=7
+    // PERC_CLEF=1, TREBLE8_CLEF=2, BASS8B_CLEF=8, TRTENOR_CLEF=9
+    match clef_type {
+        1..=3 => {
+            // PERC_CLEF=1 | TREBLE8_CLEF=2 | TREBLE_CLEF=3
+            if is_sharp {
+                TREBLE_SHARP[idx]
+            } else {
+                TREBLE_FLAT[idx]
+            }
+        }
+        4 => {
+            // ALTO_CLEF
+            if is_sharp {
+                ALTO_SHARP[idx]
+            } else {
+                ALTO_FLAT[idx]
+            }
+        }
+        5 | 8 => {
+            // BASS_CLEF | BASS8B_CLEF
+            if is_sharp {
+                BASS_SHARP[idx]
+            } else {
+                BASS_FLAT[idx]
+            }
+        }
+        6 => {
+            // TENOR_CLEF
+            if is_sharp {
+                TENOR_SHARP[idx]
+            } else {
+                TENOR_FLAT[idx]
+            }
+        }
+        7 => {
+            // SOPRANO_CLEF
+            if is_sharp {
+                SOPRANO_SHARP[idx]
+            } else {
+                SOPRANO_FLAT[idx]
+            }
+        }
+        10 => {
+            // MZSOPRANO_CLEF
+            if is_sharp {
+                MZ_SOPR_SHARP[idx]
+            } else {
+                MZ_SOPR_FLAT[idx]
+            }
+        }
+        11 => {
+            // BARITONE_CLEF
+            if is_sharp {
+                BARITONE_SHARP[idx]
+            } else {
+                BARITONE_FLAT[idx]
+            }
+        }
+        _ => {
+            // Default to treble (includes TRTENOR_CLEF=9)
+            if is_sharp {
+                TREBLE_SHARP[idx]
+            } else {
+                TREBLE_FLAT[idx]
+            }
+        }
+    }
+}
+
+/// Draw a KeySig object (key signature accidentals).
+///
+/// Port of DrawObject.cp DrawKEYSIG() (line 963) + DrawUtils.cp DrawKSItems() (line 956).
+///
+/// For each AKeySig subobject:
+/// - Get context for that staff (clef type determines accidental positions)
+/// - Draw each sharp/flat glyph at the correct half-line position
+/// - Horizontal spacing: STD_KS_ACCSPACE = 9*STD_LINEHT/8 per accidental
+///
+/// Reference: DrawObject.cp:963, DrawUtils.cp:737-1010
+fn draw_keysig(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    // SMuFL accidental codes
+    const SMUFL_SHARP: u32 = 0xE262; // accidentalSharp
+    const SMUFL_FLAT: u32 = 0xE260; // accidentalFlat
+
+    if let Some(akeysig_list) = score.keysigs.get(&obj.header.first_sub_obj) {
+        for akeysig in akeysig_list {
+            if let Some(ks_ctx) = ctx.get(akeysig.header.staffn) {
+                if !ks_ctx.visible || !akeysig.header.visible {
+                    continue;
+                }
+                let n_items = akeysig.ks_info.n_ks_items;
+                if n_items <= 0 {
+                    continue;
+                }
+
+                // X origin: staff_left + object xd + subobj xd
+                let origin_x = if ks_ctx.measure_left > 0 {
+                    ks_ctx.measure_left
+                } else {
+                    ks_ctx.staff_left
+                };
+                let base_x = d2r_sum3(origin_x, obj.header.xd, akeysig.xd);
+
+                // Line spacing
+                let lnspace = if ks_ctx.staff_lines > 1 {
+                    ddist_to_render(ks_ctx.staff_height) / (ks_ctx.staff_lines as f32 - 1.0)
+                } else {
+                    8.0
+                };
+
+                // Horizontal spacing per accidental:
+                // STD_KS_ACCSPACE = 9*STD_LINEHT/8 STDIST = 9 STDIST
+                // In render coords: 9 * lnspace / 8
+                let acc_width = lnspace * 9.0 / 8.0;
+
+                let staff_top_y = ddist_to_render(ks_ctx.staff_top);
+
+                for k in 0..n_items.min(7) as usize {
+                    let ks_item = &akeysig.ks_info.ks_item[k];
+                    let is_sharp = ks_item.sharp != 0;
+                    let halfln = get_ks_y_offset(ks_ctx.clef_type, ks_item.letcode, is_sharp);
+
+                    let x = base_x + k as f32 * acc_width;
+                    let y = staff_top_y + (halfln as f32 * lnspace / 2.0);
+
+                    let glyph = if is_sharp { SMUFL_SHARP } else { SMUFL_FLAT };
+                    renderer.music_char(x, y, MusicGlyph::smufl(glyph), 100.0);
+                }
+            }
+        }
+    }
+}
+
 fn draw_clef(
     score: &InterpretedScore,
     obj: &InterpretedObject,

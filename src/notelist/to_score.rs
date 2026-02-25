@@ -36,7 +36,7 @@
 //! - PitchUtils.cp: ClefMiddleCHalfLn()
 
 use crate::basic_types::*;
-use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, TIMESIG_TYPE};
+use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TIMESIG_TYPE};
 use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
@@ -542,6 +542,27 @@ pub fn notelist_to_score_with_config(
         }
     }
 
+    // Collect key signature assignments (staff→(n_items, is_sharp))
+    // Use the FIRST key signature per staff (initial key sig).
+    // Port of SetupKeySig (Objects.cp:1083-1144): sharps=F C G D A E B, flats=B E A D G C F.
+    let mut key_sigs: Vec<(u8, bool)> = vec![(0, true); num_staves + 1]; // Default: C major (0 accidentals)
+    let mut key_sig_set: Vec<bool> = vec![false; num_staves + 1];
+    for record in &notelist.records {
+        if let NotelistRecord::KeySig {
+            staff,
+            n_items,
+            is_sharp,
+        } = record
+        {
+            let s = *staff as usize;
+            if s > 0 && s <= num_staves && !key_sig_set[s] {
+                key_sigs[s] = (*n_items, *is_sharp);
+                key_sig_set[s] = true;
+            }
+        }
+    }
+    let has_keysig = key_sigs.iter().skip(1).any(|(n, _)| *n > 0);
+
     // ===========================================================================
     // MEASURE-BASED PROPORTIONAL SPACING
     // Port of SpaceTime.cp IdealSpace / FillSpaceMap logic
@@ -578,20 +599,52 @@ pub fn notelist_to_score_with_config(
         (stdist * staff_height as f32 / (STD_LINEHT_F * 4.0)) as Ddist
     }
 
+    /// Build a KsInfo from (n_items, is_sharp).
+    /// Port of SetupKeySig (Objects.cp:1083-1144).
+    fn build_ks_info(n_items: u8, is_sharp: bool) -> KsInfo {
+        const SHARP_ORDER: [i8; 7] = [0, 3, 6, 2, 5, 1, 4]; // F C G D A E B
+        const FLAT_ORDER: [i8; 7] = [4, 1, 5, 2, 6, 3, 0]; // B E A D G C F
+        let mut ks = KsInfo {
+            n_ks_items: n_items as i8,
+            ..KsInfo::default()
+        };
+        let order = if is_sharp { &SHARP_ORDER } else { &FLAT_ORDER };
+        for (k, &letcode) in order.iter().enumerate().take(n_items.min(7) as usize) {
+            ks.ks_item[k] = KsItem {
+                letcode,
+                sharp: u8::from(is_sharp),
+            };
+        }
+        ks
+    }
+
     // Preamble layout: faithful port of CreateSystem (Score.cp:1785-1814).
     // OG positions each preamble object using dLineSp-based formulas from Ross.
     let d_line_sp = config.staff_height / 4; // STFLINES-1 = 4 for standard 5-line staff
-                                             //   Clef xd      = dLineSp                        (Score.cp:1406 MakeClef)
+                                             //   Clef xd      = dLineSp                           (Score.cp:1406 MakeClef)
     let clef_xd: Ddist = d_line_sp;
-    //   KeySig xd    = Clef.xd + 3.5*dLineSp          (Score.cp:1449 MakeKeySig, Ross p.145)
-    //   TimeSig xd   = KeySig.xd + spBefore            (Score.cp:1501 MakeTimeSig)
-    //     When no key sig accidentals, spBefore = 0, so TimeSig.xd = KeySig.xd
-    let timesig_xd: Ddist = clef_xd + (7 * d_line_sp) / 2; // 3.5 * dLineSp
-                                                           //   Measure xd   = TimeSig.xd + 3*dLineSp          (Score.cp:1547 MakeMeasure)
+    //   KeySig xd    = Clef.xd + 3.5*dLineSp             (Score.cp:1449 MakeKeySig, Ross p.145)
+    let keysig_xd: Ddist = clef_xd + (7 * d_line_sp) / 2; // 3.5 * dLineSp
+                                                          //   spBefore for TimeSig = nKSItems * STD_KS_ACCSPACE (Score.cp:1498-1501)
+                                                          //   STD_KS_ACCSPACE = 9*STD_LINEHT/8 = 9 STDIST      (style.h)
+                                                          //   In DDIST: stdist_to_ddist(9, staff_height)
+    let max_ks_items = key_sigs.iter().skip(1).map(|(n, _)| *n).max().unwrap_or(0);
+    let ks_acc_space_stdist: f32 = 9.0; // STD_KS_ACCSPACE = 9*STD_LINEHT/8 = 9 STDIST units
+    let ks_width: Ddist = if has_keysig {
+        stdist_to_ddist(
+            ks_acc_space_stdist * max_ks_items as f32,
+            config.staff_height,
+        ) + d_line_sp // small gap after key sig
+    } else {
+        0
+    };
+    //   TimeSig xd   = KeySig.xd + ks_width              (Score.cp:1501 MakeTimeSig)
+    let timesig_xd: Ddist = keysig_xd + ks_width;
+    //   Measure xd   = TimeSig.xd + 3*dLineSp            (Score.cp:1547 MakeMeasure)
     let preamble_width: Ddist = timesig_xd + 3 * d_line_sp;
     // Continuation systems (no time sig) get a narrower preamble:
-    // just clef + small gap. Port of CreateSystem variant for continuation.
-    let continuation_preamble: Ddist = clef_xd + (5 * d_line_sp) / 2; // clef + 2.5*dLineSp
+    // just clef + key sig + small gap. Port of CreateSystem variant for continuation.
+    let continuation_preamble: Ddist = clef_xd + (5 * d_line_sp) / 2 + ks_width;
     let available_width: Ddist = config.content_width() - preamble_width;
     let continuation_available: Ddist = config.content_width() - continuation_preamble;
 
@@ -1010,6 +1063,9 @@ pub fn notelist_to_score_with_config(
         let connect_link = next_link();
         let clef_link = next_link();
 
+        // Key signature appears in every system preamble (like clef)
+        let keysig_link = if has_keysig { next_link() } else { NILINK };
+
         // Only first system gets a time signature in the preamble
         let has_timesig = sys_idx == 0;
         let timesig_link = if has_timesig { next_link() } else { NILINK };
@@ -1107,7 +1163,7 @@ pub fn notelist_to_score_with_config(
                 space_below: config.inter_staff - config.staff_height,
                 clef_type: clef_types[s] as i8,
                 dynamic_type: 0,
-                ks_info: KsInfo::default(),
+                ks_info: build_ks_info(key_sigs[s].0, key_sigs[s].1),
                 time_sig_type: 0,
                 numerator: 4,
                 denominator: 4,
@@ -1220,7 +1276,9 @@ pub fn notelist_to_score_with_config(
         }
         score.clefs.insert(clef_sub_link, clef_subs);
 
-        let clef_right = if has_timesig {
+        let clef_right = if has_keysig {
+            keysig_link
+        } else if has_timesig {
             timesig_link
         } else {
             // clef links directly to first music object (will be updated below)
@@ -1254,6 +1312,68 @@ pub fn notelist_to_score_with_config(
             }),
         });
 
+        // --- KEYSIG object (every system, like clef) ---
+        // Port of Score.cp MakeKeySig (line 1449) + Objects.cp SetupKeySig (line 1083).
+        if has_keysig {
+            let keysig_sub_link = next_sub_link();
+            let mut keysig_subs: Vec<AKeySig> = Vec::new();
+
+            #[allow(clippy::needless_range_loop)]
+            for s in 1..=num_staves {
+                let (n_items, is_sharp) = key_sigs[s];
+                keysig_subs.push(AKeySig {
+                    header: SubObjHeader {
+                        next: NILINK,
+                        staffn: s as i8,
+                        sub_type: 0,
+                        selected: false,
+                        visible: true,
+                        soft: false,
+                    },
+                    nonstandard: 0,
+                    filler1: 0,
+                    small: 0,
+                    filler2: 0,
+                    xd: 0,
+                    ks_info: build_ks_info(n_items, is_sharp),
+                });
+            }
+            score.keysigs.insert(keysig_sub_link, keysig_subs);
+
+            let keysig_right = if has_timesig {
+                timesig_link
+            } else {
+                NILINK // placeholder — fixed after music_objs are built
+            };
+
+            score.objects.push(InterpretedObject {
+                index: keysig_link,
+                header: ObjectHeader {
+                    right: keysig_right,
+                    left: clef_link,
+                    first_sub_obj: keysig_sub_link,
+                    xd: keysig_xd,
+                    yd: 0,
+                    obj_type: KEYSIG_TYPE as i8,
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                    valid: true,
+                    tweaked: false,
+                    spare_flag: false,
+                    ohdr_filler1: 0,
+                    obj_rect: Rect::default(),
+                    rel_size: 0,
+                    ohdr_filler2: 0,
+                    n_entries: num_staves as u8,
+                },
+                data: ObjData::KeySig(KeySig {
+                    header: ObjectHeader::default(),
+                    in_measure: false,
+                }),
+            });
+        }
+
         // --- TIMESIG object (first system only) ---
         if has_timesig {
             let timesig_sub_link = next_sub_link();
@@ -1283,11 +1403,12 @@ pub fn notelist_to_score_with_config(
             score.timesigs.insert(timesig_sub_link, timesig_subs);
 
             // timesig right pointer → first music obj (placeholder, fixed below)
+            let timesig_left = if has_keysig { keysig_link } else { clef_link };
             score.objects.push(InterpretedObject {
                 index: timesig_link,
                 header: ObjectHeader {
                     right: NILINK, // placeholder
-                    left: clef_link,
+                    left: timesig_left,
                     first_sub_obj: timesig_sub_link,
                     xd: timesig_xd,
                     yd: 0,
@@ -1424,7 +1545,13 @@ pub fn notelist_to_score_with_config(
         }
 
         // Wire the preamble's last object to first music object
-        let preamble_last_link = if has_timesig { timesig_link } else { clef_link };
+        let preamble_last_link = if has_timesig {
+            timesig_link
+        } else if has_keysig {
+            keysig_link
+        } else {
+            clef_link
+        };
         let first_music_link = if music_objs.is_empty() {
             tail_link
         } else {
@@ -1524,7 +1651,7 @@ pub fn notelist_to_score_with_config(
                             conn_staff: 0,
                             clef_type: clef_types[s] as i8,
                             dynamic_type: 0,
-                            ks_info: KsInfo::default(),
+                            ks_info: build_ks_info(key_sigs[s].0, key_sigs[s].1),
                             time_sig_type: 0,
                             numerator: 4,
                             denominator: 4,

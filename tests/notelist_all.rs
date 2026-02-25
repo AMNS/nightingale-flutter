@@ -19,7 +19,7 @@ use std::path::Path;
 // Test infrastructure
 // ============================================================================
 
-/// All 15 notelist fixtures, in alphabetical order.
+/// All 17 notelist fixtures, in alphabetical order.
 const ALL_NOTELISTS: &[&str] = &[
     "tests/notelist_examples/BachEbSonata_20.2sizes.nl",
     "tests/notelist_examples/BachEbSonata_20.nl",
@@ -29,6 +29,8 @@ const ALL_NOTELISTS: &[&str] = &[
     "tests/notelist_examples/GoodbyePorkPieHat.nl",
     "tests/notelist_examples/HBD_33.nl",
     "tests/notelist_examples/KillingMe_36.nl",
+    "tests/notelist_examples/keysig_d_major.nl",
+    "tests/notelist_examples/keysig_eb_major.nl",
     "tests/notelist_examples/MahlerLiedVonDE_25.nl",
     "tests/notelist_examples/MendelssohnOp7N1_2.nl",
     "tests/notelist_examples/RavelScarbo_15.nl",

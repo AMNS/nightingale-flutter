@@ -958,6 +958,6 @@ mod tests {
             }
         }
 
-        assert_eq!(count, 15, "Should have parsed 15 .nl files");
+        assert_eq!(count, 17, "Should have parsed 17 .nl files");
     }
 }
