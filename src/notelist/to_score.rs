@@ -43,11 +43,11 @@ use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
 use crate::objects::{
-    arrange_chord_notes, arrange_nc_accs, normal_stem_up_down_chord, normal_stem_up_down_single,
-    setup_ks_info,
+    arrange_chord_notes, arrange_nc_accs, get_nc_ystem, normal_stem_up_down_chord,
+    normal_stem_up_down_single, setup_ks_info,
 };
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
-use crate::space_time::{ideal_space_stdist, stdist_to_ddist};
+use crate::space_time::{ideal_space_pdur, ideal_space_stdist, stdist_to_ddist};
 use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
 use std::collections::BTreeSet;
 
@@ -471,47 +471,113 @@ pub fn notelist_to_score_with_config(
         span.event_times.sort();
     }
 
-    // --- Step 3: Compute ideal width per measure ---
-    // For each event time, find the shortest l_dur (highest rhythmic value =
-    // needs the MOST space, because shorter durations like 8ths at the same time
-    // slot are part of faster motion). Actually — Nightingale uses SyncMaxDur:
-    // the LONGEST play duration at each Sync determines its spacing.
-    // For l_dur: *smaller* l_dur = longer note. So we want min(l_dur) per time.
+    // --- Step 3: Compute ideal width per measure (Gourlay fractional spacing) ---
+    //
+    // Port of GetSpaceInfo + Respace1Bar from SpaceTime.cp:1257-1338 and
+    // SpaceHighLevel.cp:846-967.
+    //
+    // For each event, compute:
+    //   controlling_dur = PDUR ticks of the note that controls spacing
+    //   frac = time_to_next_event / controlling_dur
+    //   space = frac * ideal_space_pdur(controlling_dur)
+    //
+    // The controlling duration is the shortest note at this time slot that
+    // continues until the next event. This prevents held whole notes from
+    // getting excessive space when faster motion exists in another voice.
+
+    /// Collect all (l_dur, dots) pairs at a given event time.
+    fn event_durations(
+        records: &[NotelistRecord],
+        et: i32,
+        voice_filter: &dyn Fn(i8, i8) -> bool,
+    ) -> Vec<(i8, u8)> {
+        let mut durs = Vec::new();
+        for record in records {
+            match record {
+                NotelistRecord::Note {
+                    time,
+                    dur,
+                    dots,
+                    staff,
+                    voice,
+                    ..
+                } if *time == et && voice_filter(*staff, *voice) => {
+                    durs.push((*dur, *dots));
+                }
+                NotelistRecord::Rest {
+                    time,
+                    dur,
+                    dots,
+                    staff,
+                    voice,
+                    ..
+                } if *time == et && voice_filter(*staff, *voice) => {
+                    durs.push((*dur, *dots));
+                }
+                _ => {}
+            }
+        }
+        durs
+    }
 
     let mut measure_ideal_stdist: Vec<f32> = Vec::new();
-    for span in &measure_spans {
+    // Also store per-event ideal space for Step 5
+    let mut event_ideal_space: std::collections::HashMap<(usize, i32), f32> =
+        std::collections::HashMap::new();
+
+    for (mi, span) in measure_spans.iter().enumerate() {
         let mut total: f32 = 0.0;
-        for &et in &span.event_times {
-            let mut min_ldur: i8 = 6; // default 16th
-            for record in &notelist.records {
-                match record {
-                    NotelistRecord::Note {
-                        time,
-                        dur,
-                        staff,
-                        voice,
-                        ..
-                    } if *time == et && voice_allowed(*staff, *voice) => {
-                        if *dur < min_ldur {
-                            min_ldur = *dur;
-                        }
+        let n_events = span.event_times.len();
+
+        for (ei, &et) in span.event_times.iter().enumerate() {
+            let durs = event_durations(&notelist.records, et, &voice_allowed);
+
+            // Find controlling duration: shortest note at this time
+            // (smallest l_dur code = longest note — we want the one that
+            // ends earliest, which is the LARGEST l_dur code = shortest note)
+            let controlling_pdur = if !durs.is_empty() {
+                // The controlling note is the one that ends earliest.
+                // For single-time-slot analysis: shortest duration = largest l_dur code.
+                // In OG Nightingale, this is more sophisticated (considers notes
+                // continuing from previous syncs), but for Notelist this suffices.
+                let mut min_pdur = i32::MAX;
+                for &(dur_code, dots) in &durs {
+                    if dur_code <= 0 {
+                        continue; // Skip whole-measure rests (l_dur = -1 or 0)
                     }
-                    NotelistRecord::Rest {
-                        time,
-                        dur,
-                        staff,
-                        voice,
-                        ..
-                    } if *time == et && voice_allowed(*staff, *voice) => {
-                        if *dur < min_ldur {
-                            min_ldur = *dur;
-                        }
+                    let pdur = code_to_l_dur(dur_code, dots);
+                    if pdur > 0 && pdur < min_pdur {
+                        min_pdur = pdur;
                     }
-                    _ => {}
                 }
-            }
-            total += ideal_space_stdist(min_ldur);
+                if min_pdur == i32::MAX {
+                    code_to_l_dur(4, 0) // fallback to quarter
+                } else {
+                    min_pdur
+                }
+            } else {
+                code_to_l_dur(4, 0) // default quarter note
+            };
+
+            // Compute fraction: time until next event / controlling duration
+            let time_to_next = if ei + 1 < n_events {
+                (span.event_times[ei + 1] - et) as f32
+            } else {
+                // Last event in measure: use time until measure end
+                (span.end_time - et) as f32
+            };
+
+            let frac = if controlling_pdur > 0 {
+                (time_to_next / controlling_pdur as f32).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+
+            let space = frac * ideal_space_pdur(controlling_pdur);
+            total += space;
+            event_ideal_space.insert((mi, et), space);
         }
+
         // Ensure non-empty measures get at least a quarter-note's space
         if total < ideal_space_stdist(4) && !span.event_times.is_empty() {
             total = ideal_space_stdist(4);
@@ -565,8 +631,9 @@ pub fn notelist_to_score_with_config(
     }
 
     // --- Step 5: Compute per-event xd (relative to measure) ---
-    // Within each measure, distribute events proportionally using their
-    // accumulated ideal spacing, scaled to the measure's actual width.
+    // Within each measure, distribute events proportionally using the
+    // Gourlay fractional spacing computed in Step 3, scaled to the measure's
+    // actual width.
 
     let mut event_rel_xd: std::collections::HashMap<i32, Ddist> = std::collections::HashMap::new();
 
@@ -589,36 +656,12 @@ pub fn notelist_to_score_with_config(
             let rel = indent + (raw_ddist as f32 * inner_scale) as Ddist;
             event_rel_xd.insert(et, rel);
 
-            // Advance by ideal space for this event's dominant duration
-            let mut min_ldur: i8 = 6;
-            for record in &notelist.records {
-                match record {
-                    NotelistRecord::Note {
-                        time,
-                        dur,
-                        staff,
-                        voice,
-                        ..
-                    } if *time == et && voice_allowed(*staff, *voice) => {
-                        if *dur < min_ldur {
-                            min_ldur = *dur;
-                        }
-                    }
-                    NotelistRecord::Rest {
-                        time,
-                        dur,
-                        staff,
-                        voice,
-                        ..
-                    } if *time == et && voice_allowed(*staff, *voice) => {
-                        if *dur < min_ldur {
-                            min_ldur = *dur;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            acc_stdist += ideal_space_stdist(min_ldur);
+            // Advance by the Gourlay fractional space computed in Step 3
+            let space = event_ideal_space
+                .get(&(mi, et))
+                .copied()
+                .unwrap_or(ideal_space_stdist(4));
+            acc_stdist += space;
         }
     }
 
@@ -2213,24 +2256,47 @@ pub fn notelist_to_score_with_config(
                 normal_stem_up_down_chord(min_yd, max_yd, config.staff_height, role)
             };
 
-            // Recompute ystem for all notes in the group using the unified direction
+            // Recompute ystem for all notes in the group using the unified direction.
+            // For chords, use get_nc_ystem to compute stem from the FAR note
+            // (Objects.cp:1505-1544: GetNCYStem).
             for bnote in group {
                 if let Some(sync_obj) = score.objects.iter().find(|o| o.index == bnote.sync_link) {
                     let sub_link = sync_obj.header.first_sub_obj;
                     if let Some(notes) = score.notes.get_mut(&sub_link) {
-                        for n in notes.iter_mut() {
-                            if n.voice == voice && n.header.staffn == staffn && n.beamed && !n.rest
-                            {
-                                let num_flags = nflags(bnote.dur);
-                                n.ystem = calc_ystem(
-                                    n.yd,
-                                    num_flags,
-                                    group_stem_down,
-                                    config.staff_height,
-                                    n_staff_lines,
-                                    qtr_sp,
-                                    false,
-                                );
+                        // Collect yd values and l_durs for all notes in this sync/voice
+                        let chord_yds: Vec<Ddist> = notes
+                            .iter()
+                            .filter(|n| {
+                                n.voice == voice && n.header.staffn == staffn && n.beamed && !n.rest
+                            })
+                            .map(|n| n.yd)
+                            .collect();
+                        let chord_durs: Vec<i8> = notes
+                            .iter()
+                            .filter(|n| {
+                                n.voice == voice && n.header.staffn == staffn && n.beamed && !n.rest
+                            })
+                            .map(|n| n.header.sub_type)
+                            .collect();
+
+                        if !chord_yds.is_empty() {
+                            let (_, chord_ystem) = get_nc_ystem(
+                                &chord_yds,
+                                &chord_durs,
+                                group_stem_down,
+                                config.staff_height,
+                                n_staff_lines,
+                                qtr_sp,
+                            );
+
+                            for n in notes.iter_mut() {
+                                if n.voice == voice
+                                    && n.header.staffn == staffn
+                                    && n.beamed
+                                    && !n.rest
+                                {
+                                    n.ystem = chord_ystem;
+                                }
                             }
                         }
                     }

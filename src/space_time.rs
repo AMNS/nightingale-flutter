@@ -36,6 +36,63 @@ pub fn ideal_space_stdist(l_dur: i8) -> f32 {
     IDEAL_SPACE_MAP[idx] * STD_LINEHT_F
 }
 
+/// Fine ideal space from physical duration in PDUR ticks.
+///
+/// Port of FIdealSpace from SpaceTime.cp:739-774.
+/// Takes duration in PDUR ticks (e.g., 480 for quarter note) and returns
+/// fine STDIST (10x resolution) for proportional spacing.
+///
+/// The function interpolates between table entries for non-power-of-2 durations
+/// (e.g., dotted notes, tuplets). Uses the same Fibonacci/sqrt(2) progression
+/// as `ideal_space_stdist` but works from actual tick counts rather than l_dur codes.
+pub fn f_ideal_space(pdur_ticks: i32) -> f32 {
+    if pdur_ticks <= 0 {
+        return 0.0;
+    }
+
+    // Convert to "128th-note units" (divide by PDURUNIT=15)
+    let dur = pdur_ticks / crate::duration::PDURUNIT;
+    if dur <= 0 {
+        return 0.0;
+    }
+
+    // Walk powers of 2 to find which table bracket the duration falls in.
+    // Table index 0 = shortest (128th), index 8 = longest (breve).
+    // two2i tracks 1, 2, 4, 8, ... = 128th counts for each table entry.
+    let mut last_two2i: i32 = 0;
+    let mut two2i: i32 = 1;
+    for i in 0..9 {
+        if dur < two2i {
+            // Interpolate between table[i-1] and table[i]
+            if i > 0 && last_two2i < two2i {
+                let y0 = IDEAL_SPACE_MAP[i - 1] * STD_LINEHT_F;
+                let y1 = IDEAL_SPACE_MAP[i] * STD_LINEHT_F;
+                let t = (dur - last_two2i) as f32 / (two2i - last_two2i) as f32;
+                return FIDEAL_RESOLVE * (y0 + t * (y1 - y0));
+            }
+            return FIDEAL_RESOLVE * IDEAL_SPACE_MAP[i] * STD_LINEHT_F;
+        } else if dur == two2i {
+            return FIDEAL_RESOLVE * IDEAL_SPACE_MAP[i] * STD_LINEHT_F;
+        }
+        last_two2i = two2i;
+        two2i *= 2;
+    }
+
+    // Duration longer than breve — use breve space
+    FIDEAL_RESOLVE * IDEAL_SPACE_MAP[8] * STD_LINEHT_F
+}
+
+/// Fine STDIST resolution factor (10 parts per STDIST).
+/// Source: defs.h:255
+const FIDEAL_RESOLVE: f32 = 10.0;
+
+/// Convert fine STDIST (10x resolution) to normal STDIST.
+///
+/// Port of IdealSpace from SpaceTime.cp:778-785.
+pub fn ideal_space_pdur(pdur_ticks: i32) -> f32 {
+    f_ideal_space(pdur_ticks) / FIDEAL_RESOLVE
+}
+
 /// Convert STDIST (as float) to DDIST for standard 5-line staff.
 ///
 /// Port of std2d for spacing context:

@@ -1,5 +1,6 @@
 ---
 source: tests/notelist_all.rs
+assertion_line: 397
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -33,9 +34,9 @@ x=325.5 top=422.0 bottom=446.0
 x=558.0 top=422.0 bottom=446.0
 
 === BEAMS ===
-x=[220.0..246.7] y=[256.0..256.0] slope=0.000 thick=3.00
-x=[273.4..300.1] y=[256.0..256.0] slope=0.000 thick=3.00
-x=[326.9..353.6] y=[256.0..256.0] slope=0.000 thick=3.00
+x=[220.0..246.7] y=[249.0..248.0] slope=-0.037 thick=3.00
+x=[273.4..300.1] y=[243.0..242.0] slope=-0.037 thick=3.00
+x=[326.9..353.6] y=[237.0..236.0] slope=-0.037 thick=3.00
 
 === STEMS: 43 total ===
 
