@@ -25,7 +25,7 @@
 //!
 //! - No proportional spacing (uniform X advance per time position)
 //! - No beaming (would need AutoBeam port)
-//! - No slur/tie rendering
+//! - No cross-system slur rendering
 //! - No dynamics, text, or tempo mark rendering
 //! - Grace notes not yet positioned
 //! - No page breaks (single-page layout, multi-system)
@@ -1790,8 +1790,9 @@ pub fn notelist_to_score_with_config(
                                     double_dur: 0,
                                     head_shape: *appear,
                                     first_mod: NILINK,
-                                    slurred_l: false,
-                                    slurred_r: false,
+                                    // Slur flags from stem_info positions 3-4 (NotelistSave.cp:130)
+                                    slurred_l: stem_info.as_bytes().get(3) == Some(&b'>'),
+                                    slurred_r: stem_info.as_bytes().get(4) == Some(&b'<'),
                                     // Tuplet membership from stem_info position 5 (NotelistSave.cp:130)
                                     in_tuplet: stem_info.as_bytes().get(5) == Some(&b'T'),
                                     in_ottava: false,
@@ -1879,8 +1880,9 @@ pub fn notelist_to_score_with_config(
                                     double_dur: 0,
                                     head_shape: *appear,
                                     first_mod: NILINK,
-                                    slurred_l: false,
-                                    slurred_r: false,
+                                    // Slur flags from stem_info positions 3-4 (NotelistSave.cp:130)
+                                    slurred_l: rest_stem_info.as_bytes().get(3) == Some(&b'>'),
+                                    slurred_r: rest_stem_info.as_bytes().get(4) == Some(&b'<'),
                                     // Tuplet membership from stem_info position 5 (NotelistSave.cp:130)
                                     in_tuplet: rest_stem_info.as_bytes().get(5) == Some(&b'T'),
                                     in_ottava: false,

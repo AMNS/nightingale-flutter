@@ -10,10 +10,10 @@ use crate::ngl::interpret::{InterpretedScore, ObjData};
 use crate::render::MusicRenderer;
 
 use super::draw_beam::draw_beamset;
-use super::draw_nrgr::{collect_tie_endpoints, draw_sync};
+use super::draw_nrgr::{collect_slur_endpoints, collect_tie_endpoints, draw_sync};
 use super::draw_object::{
-    draw_clef, draw_connect, draw_keysig, draw_measure, draw_slur, draw_staff, draw_ties,
-    draw_timesig,
+    draw_clef, draw_connect, draw_keysig, draw_measure, draw_slur, draw_slurs_from_endpoints,
+    draw_staff, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
 use super::helpers::{count_staves, TieEndpoint};
@@ -49,6 +49,12 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
     let mut tie_starts: Vec<TieEndpoint> = Vec::new();
     let mut tie_ends: Vec<TieEndpoint> = Vec::new();
 
+    // Collect slur endpoints for Notelist scores (NGL slurs render via draw_slur).
+    // slur_starts: notes with slurred_r (start of slur arc)
+    // slur_ends: notes with slurred_l (end of slur arc)
+    let mut slur_starts: Vec<TieEndpoint> = Vec::new();
+    let mut slur_ends: Vec<TieEndpoint> = Vec::new();
+
     // Page management for multi-page NGL scores.
     // NGL files store system_rect coordinates relative to the page, so systems
     // on different pages have overlapping Y ranges. We must emit page breaks
@@ -66,17 +72,20 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             ObjData::Page(page) => {
                 let page_num = page.sheet_num as i32;
                 if current_page >= 0 {
-                    // Draw any accumulated ties before ending the page
+                    // Draw any accumulated ties/slurs before ending the page
                     draw_ties(&tie_starts, &tie_ends, renderer);
+                    draw_slurs_from_endpoints(&slur_starts, &slur_ends, renderer);
                     tie_starts.clear();
                     tie_ends.clear();
+                    slur_starts.clear();
+                    slur_ends.clear();
                     renderer.end_page();
                 }
                 renderer.begin_page((page_num + 1) as u32);
                 current_page = page_num;
             }
-            // SYSTEM boundaries: draw ties for the current system, then clear.
-            // This prevents ties from matching across distant systems and
+            // SYSTEM boundaries: draw ties/slurs for the current system, then clear.
+            // This prevents ties/slurs from matching across distant systems and
             // producing wild diagonal lines.
             ObjData::System(_) => {
                 if !tie_starts.is_empty() || !tie_ends.is_empty() {
@@ -84,12 +93,18 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
                     tie_starts.clear();
                     tie_ends.clear();
                 }
+                if !slur_starts.is_empty() || !slur_ends.is_empty() {
+                    draw_slurs_from_endpoints(&slur_starts, &slur_ends, renderer);
+                    slur_starts.clear();
+                    slur_ends.clear();
+                }
             }
             ObjData::Staff(_) => draw_staff(score, obj, &ctx, renderer),
             ObjData::Measure(_) => draw_measure(score, obj, &ctx, renderer),
             ObjData::Sync(_) => {
                 draw_sync(score, obj, &ctx, renderer);
                 collect_tie_endpoints(score, obj, &ctx, &mut tie_starts, &mut tie_ends);
+                collect_slur_endpoints(score, obj, &ctx, &mut slur_starts, &mut slur_ends);
             }
             ObjData::Connect(_) => draw_connect(score, obj, &ctx, renderer),
             ObjData::Clef(_) => draw_clef(score, obj, &ctx, renderer),
@@ -103,8 +118,9 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
         }
     }
 
-    // Draw ties after all objects (so ties layer on top of the last page)
+    // Draw ties and slurs after all objects (so they layer on top of the last page)
     draw_ties(&tie_starts, &tie_ends, renderer);
+    draw_slurs_from_endpoints(&slur_starts, &slur_ends, renderer);
 
     // End the last page if we were in multi-page mode
     if current_page >= 0 {

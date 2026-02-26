@@ -639,3 +639,137 @@ pub fn draw_ties(
         }
     }
 }
+
+/// Draw slurs from collected endpoint data (Notelist pipeline).
+///
+/// Port of IICreateAllSlurs (InternalInput.cp:881-918) matching + SetSlurCtlPoints
+/// (Slurs.cp:1021-1122) control point computation.
+///
+/// Differs from ties in two ways:
+/// 1. Matching: by voice only (first slurred_r → next slurred_l in same voice),
+///    not by pitch. This matches the OG IICreateAllSlurs algorithm.
+/// 2. Curvature: uses config.slurCurvature (default 50) instead of tieCurvature (85).
+///
+/// NGL slurs use pre-stored ASlur spline data and go through draw_slur() instead.
+pub fn draw_slurs_from_endpoints(
+    slur_starts: &[TieEndpoint],
+    slur_ends: &[TieEndpoint],
+    renderer: &mut dyn MusicRenderer,
+) {
+    // OG: config.slurCurvature default = 50 (Initialize.cp:974)
+    const SLUR_CURVATURE: f32 = 50.0;
+
+    // Track which ends have been matched (each end can only be used once)
+    let mut matched_ends: Vec<bool> = vec![false; slur_ends.len()];
+
+    for start in slur_starts {
+        // OG IICreateAllSlurs: search forward in same voice for first slurred_l note
+        // Match by voice only, taking the closest (leftmost) unmatched end to the right
+        let mut best_idx: Option<usize> = None;
+        let mut best_x = f32::MAX;
+
+        for (i, end) in slur_ends.iter().enumerate() {
+            if matched_ends[i] {
+                continue;
+            }
+            if end.voice == start.voice && end.x > start.x && end.x < best_x {
+                best_idx = Some(i);
+                best_x = end.x;
+            }
+        }
+
+        if let Some(idx) = best_idx {
+            matched_ends[idx] = true;
+            let end = &slur_ends[idx];
+            let lnsp = start.lnspace;
+
+            // Slur direction: curve UP when stem is DOWN (OG: SetAllSlursShape)
+            let curve_up = start.stem_down;
+
+            // Endpoint horizontal offsets (Slurs.cp:1045-1058)
+            let start_x = start.x + (2.0 * start.head_width) / 3.0;
+            let end_x = end.x + end.head_width / 6.0;
+
+            // Endpoint vertical offset: 1 lnSpace above/below note center (Slurs.cp:1063)
+            let vert_offset = if curve_up { -lnsp } else { lnsp };
+            let start_y = start.y + vert_offset;
+            let end_y = end.y + vert_offset;
+
+            // Control point computation (Slurs.cp:1074-1121)
+            let span = end_x - start_x;
+            if span <= 0.0 {
+                continue;
+            }
+
+            // Short-slur control point distance
+            // OG: SCALECURVE(dLineSp) = 4*(z)/2 = 2*z, capped at span/3
+            let mut x0_short = 2.0 * lnsp;
+            if x0_short > span / 3.0 {
+                x0_short = span / 3.0;
+            }
+            let y0_short = SLUR_CURVATURE * lnsp / 100.0;
+
+            // Long-slur control point distance
+            let x0_long = span / 4.0;
+            let y0_long = span / 16.0;
+
+            // Blend based on span (Slurs.cp:1088-1107)
+            // OG: tmp = 6*dLineSp; long if span > 2*tmp, blend if span > tmp
+            let short_threshold = 6.0 * lnsp;
+            let long_threshold = 12.0 * lnsp;
+
+            let (cx_offset, cy_offset) = if span > long_threshold {
+                (x0_long, y0_long)
+            } else if span > short_threshold {
+                let t = (span - short_threshold) / (long_threshold - short_threshold);
+                (
+                    x0_short + t * (x0_long - x0_short),
+                    y0_short + t * (y0_long - y0_short),
+                )
+            } else {
+                (x0_short, y0_short)
+            };
+
+            // Control points: offset from endpoints (symmetric, then rotated)
+            let cy = if curve_up { -cy_offset } else { cy_offset };
+
+            // Before rotation: c0 = (cx_offset, cy), c1 = (-cx_offset, cy)
+            // Rotation for slanted slurs (Slurs.cp:1114-1122 + RotateSlurCtrlPts)
+            let dx = end_x - start_x;
+            let dy = end_y - start_y;
+            let r = (dx * dx + dy * dy).sqrt();
+
+            let (c0_h, c0_v, c1_h, c1_v) = if r > 0.0 {
+                let cs = dx / r;
+                let sn = dy / r;
+                // Rotate c0 = (cx_offset, cy)
+                let c0h = cx_offset * cs - cy * sn;
+                let c0v = cx_offset * sn + cy * cs;
+                // Rotate c1 = (-cx_offset, cy)
+                let c1h = -cx_offset * cs - cy * sn;
+                let c1v = -cx_offset * sn + cy * cs;
+                (c0h, c0v, c1h, c1v)
+            } else {
+                (cx_offset, cy, -cx_offset, cy)
+            };
+
+            let c1 = Point {
+                x: start_x + c0_h,
+                y: start_y + c0_v,
+            };
+            let c2 = Point {
+                x: end_x + c1_h,
+                y: end_y + c1_v,
+            };
+
+            let p0 = Point {
+                x: start_x,
+                y: start_y,
+            };
+            let p3 = Point { x: end_x, y: end_y };
+
+            renderer.slur(p0, c1, c2, p3, false);
+        }
+        // else: unmatched slur start — cross-system slur (TODO)
+    }
+}

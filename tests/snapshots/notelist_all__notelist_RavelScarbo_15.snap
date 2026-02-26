@@ -13,9 +13,9 @@ MusicChar: 573
 NoteStem: 205
 SetMusicSize: 12
 SetWidths: 1
-Slur: 19
+Slur: 35
 Staff: 12
-TOTAL: 1574
+TOTAL: 1590
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00

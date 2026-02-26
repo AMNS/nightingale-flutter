@@ -522,6 +522,63 @@ pub fn collect_tie_endpoints(
     }
 }
 
+/// Collect slur endpoint information from a Sync object's notes.
+///
+/// Port of IICreateAllSlurs matching logic (InternalInput.cp:881-918).
+/// Slurs match by voice (first slurred_r → next slurred_l in same voice),
+/// NOT by pitch like ties.
+///
+/// Reference: NotelistOpen.cp line 294 (IICreateAllSlurs call)
+pub fn collect_slur_endpoints(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    slur_starts: &mut Vec<TieEndpoint>,
+    slur_ends: &mut Vec<TieEndpoint>,
+) {
+    if let Some(anote_list) = score.notes.get(&obj.header.first_sub_obj) {
+        for anote in anote_list {
+            if anote.rest || (!anote.slurred_l && !anote.slurred_r) {
+                continue;
+            }
+            if let Some(note_ctx) = ctx.get(anote.header.staffn) {
+                if !note_ctx.visible || !anote.header.visible {
+                    continue;
+                }
+                let note_x = d2r_sum3(note_ctx.measure_left, obj.header.xd, anote.xd);
+                let note_y = d2r_sum(note_ctx.staff_top, anote.yd);
+
+                let lnspace = lnspace_for_staff(note_ctx.staff_height, note_ctx.staff_lines);
+                let head_width = 1.125 * lnspace; // HeadWidth (defs.h:355)
+
+                // Determine stem direction for slur curvature direction
+                // OG: curveUp = (NoteYSTEM > NoteYD) i.e. stem goes down → slur curves up
+                let stem_down = anote.ystem > anote.yd;
+
+                let ep = TieEndpoint {
+                    x: note_x,
+                    y: note_y,
+                    head_width,
+                    stem_down,
+                    staff: anote.header.staffn,
+                    voice: anote.voice,
+                    note_num: anote.note_num,
+                    lnspace,
+                    staff_right: crate::render::types::ddist_to_render(note_ctx.staff_right),
+                    staff_left: crate::render::types::ddist_to_render(note_ctx.staff_left),
+                };
+
+                if anote.slurred_r {
+                    slur_starts.push(ep.clone());
+                }
+                if anote.slurred_l {
+                    slur_ends.push(ep);
+                }
+            }
+        }
+    }
+}
+
 /// Check if a chord is stem-down and has at least one note to the left of the stem.
 ///
 /// Port of Objects.cp ChordNoteToLeft() (line 1432-1450).
