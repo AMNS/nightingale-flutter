@@ -11,7 +11,13 @@
 //!
 //! - `error`: Error types for NGL operations
 //! - `reader`: Reads .ngl files from disk into raw heap data
-//! - `interpret`: Decodes raw N105 bytes into typed Rust structs
+//! - `interpret`: Decodes raw N105 bytes into typed Rust structs (core types + interpret_heap)
+//! - `unpack_headers`: ObjectHeader, SubObjHeader, KsInfo unpackers
+//! - `unpack_notes`: ANote, ANoteBeam, ANoteTuple unpackers
+//! - `unpack_structural`: AStaff, AMeasure unpackers
+//! - `unpack_notation`: AClef, AKeySig, ATimeSig unpackers
+//! - `unpack_slur`: ASlur unpacker
+//! - `unpack_stubs`: Stub unpackers for types not yet fully implemented
 //! - `doc_header`: Parses the 72-byte document header
 //! - `writer`: (future) Writes .ngl files to disk
 //!
@@ -21,6 +27,12 @@ pub mod doc_header;
 pub mod error;
 pub mod interpret;
 pub mod reader;
+pub mod unpack_headers;
+pub mod unpack_notation;
+pub mod unpack_notes;
+pub mod unpack_slur;
+pub mod unpack_structural;
+pub mod unpack_stubs;
 
 // Future modules (stubs for now):
 // pub mod writer;

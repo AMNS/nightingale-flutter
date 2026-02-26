@@ -72,7 +72,7 @@
 ### Next: Engraving & Layout (priority order)
 
 #### Tier 1 — High Priority (core engraving completeness)
-- [ ] **Clef changes**: mid-score clef changes rendered at correct position (already have preamble clefs; need mid-measure clef insertion + context update)
+- [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
 - [ ] **Slurs**: curved slurs between notes, including cross-system and cross-page slurs (DrawSLUR port from Slurs.cp)
@@ -156,10 +156,10 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~22,500 |
-| Rust test lines | ~3,600 |
-| Test count | 208 (unit + integration + cross-validate/render + doctest + notelist_all + bitmap regression) |
-| Test fixture files | 17 .ngl + 18 .nl |
+| Rust source lines | ~24,400 |
+| Rust test lines | ~10,200 |
+| Test count | 223 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff) |
+| Test fixture files | 17 .ngl + 20 .nl |
 | Insta snapshots | 37 |
-| Bitmap goldens | 17 |
+| Bitmap goldens | 37 (17 NGL + 20 Notelist) |
 | Modules | 18 (basic_types, beam, context, defs, doc_types, draw, duration, limits, music_font, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
