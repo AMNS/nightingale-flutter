@@ -2,7 +2,7 @@
 
 ## Mission
 
-Port the Nightingale music notation engine from legacy C++/Carbon/QuickDraw to a modern
+Port the Nightingale music notation engine from legacy C/Carbon/QuickDraw to a modern
 Rust core with a Flutter UI, preserving the engraving algorithms that are the project's
 real value. The owner (Geoff Chirgwin) is ruthless about cutting cruft — when in doubt,
 delete it.
@@ -256,9 +256,35 @@ Use Rust tests and approved Bash commands (cargo, xxd, etc.) instead. If a new B
 command is needed, ask the user to add it to the allowed list rather than using an
 unapproved command that will block on permissions.
 
+## Module Map (mirrors OG C source files)
+
+Shared algorithm modules (used by both NGL and Notelist pipelines):
+```
+src/
+├── pitch_utils.rs     <- PitchUtils.cp  (pitch→staff position)
+├── utility.rs         <- Utility.cp     (calc_ystem, nflags, std2d, head_width)
+├── music_font.rs      <- MusicFont.cp   (font metrics)
+├── objects.rs         <- Objects.cp     (stem direction, chord processing, key sig)
+├── beam.rs            <- Beam.cp        (beam slope computation)
+├── space_time.rs      <- SpaceTime.cp   (duration-proportional spacing)
+```
+
+Drawing modules (split from score_renderer.rs):
+```
+src/draw/
+├── draw_high_level.rs <- DrawHighLevel.cp  (render_score main loop)
+├── draw_object.rs     <- DrawObject.cp     (staff, measure, connect, clef, keysig, timesig, ties)
+├── draw_nrgr.rs       <- DrawNRGR.cp       (sync/notes/rests, ledger lines)
+├── draw_utils.rs      <- DrawUtils.cp      (glyph mapping, KS Y offsets)
+├── draw_beam.rs       <- DrawBeam.cp       (beam sets)
+├── draw_tuplet.rs     <- Tuplet.cp         (tuplet brackets/numbers)
+├── helpers.rs         (d2r_sum, count_staves, TieEndpoint)
+└── score_renderer.rs  (backward-compat re-export shim)
+```
+
 ## Conventions
 
-- Rust code: `snake_case`, modules mirror the original C++ file organization where sensible
+- Rust code: `snake_case`, modules mirror the original C file organization
 - Tests: every ported function gets at least one test with data from a real .ngl file
-- Comments: when porting, include a reference to the original C++ file and line number
+- Comments: when porting, include a reference to the original C file and line number
 - Commits: `[phase-N] descriptive message` format

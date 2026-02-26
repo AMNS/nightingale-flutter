@@ -101,6 +101,33 @@
 - [ ] **Cross-bar (cross-measure) beams**: beams that span across barlines — OG Nightingale handles these via beam subobjects that reference notes in different measures (see Esmerelda p.15 for example). Port relevant logic from Beam.cp, including `DrawBEAMSET`'s handling of beam subobjects crossing measure boundaries. Currently beams break at measure boundaries.
 - [ ] **Cross-staff notation**: notes/beams drawn on a different staff than they belong to (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp)
 
+### Module Refactor — COMPLETE
+Reorganized code to mirror OG Nightingale C source file organization, with shared
+modules used by both the NGL binary pipeline and Notelist text pipeline:
+
+#### Shared modules (1:1 with OG C files)
+- [x] `pitch_utils.rs` <- PitchUtils.cp: nl_midi_to_half_ln, clef_middle_c_half_ln, half_ln_to_yd
+- [x] `utility.rs` <- Utility.cp: calc_ystem, nflags, head_width, std2d, acc_x_offset
+- [x] `music_font.rs` <- MusicFont.cp: stem_space_width_ddist
+- [x] `objects.rs` <- Objects.cp: VoiceRole, normal_stem_up_down_single/chord, get_nc_ystem, setup_ks_info
+- [x] `beam.rs` <- Beam.cp: BeamNoteInfo, compute_beam_slope
+- [x] `space_time.rs` <- SpaceTime.cp: ideal_space_stdist, stdist_to_ddist
+
+#### draw/ submodules (1:1 with OG C files)
+- [x] `draw/draw_high_level.rs` <- DrawHighLevel.cp: render_score() main loop
+- [x] `draw/draw_object.rs` <- DrawObject.cp: staff, measure, connect, clef, keysig, timesig, ties
+- [x] `draw/draw_nrgr.rs` <- DrawNRGR.cp: sync (notes/rests), ledger lines, tie endpoints
+- [x] `draw/draw_utils.rs` <- DrawUtils.cp: glyph mapping, key signature Y offsets
+- [x] `draw/draw_beam.rs` <- DrawBeam.cp: beam sets
+- [x] `draw/draw_tuplet.rs` <- Tuplet.cp: tuplet brackets and numbers
+- [x] `draw/helpers.rs`: d2r_sum, d2r_sum3, count_staves, TieEndpoint, lnspace_for_staff
+
+#### to_score.rs deduplication
+- [x] Replaced 7 inline implementations with calls to shared modules (-154 lines)
+
+### Known Bugs
+- [ ] Treble clefs render one staff line too high (B instead of G) for NGL files (Notelists OK)
+
 ### Deferred
 - [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
@@ -108,9 +135,9 @@
 - [ ] N105 format test fixtures
 
 ## Phase 3: Engraving Engine — PARTIALLY IN PROGRESS
-- [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam slope in to_score.rs
-- [x] Port Objects.cp NormalStemUpDown -> beam group stem unification
-- [ ] Port SpaceTime.cp / SpaceHighLevel.cp -> spacing module
+- [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam.rs (shared)
+- [x] Port Objects.cp NormalStemUpDown -> objects.rs (shared)
+- [x] Port SpaceTime.cp IdealSpace/stdist_to_ddist -> space_time.rs (shared)
 - [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
 - [x] Port Tuplet.cp -> tuplet rendering (DrawTUPLET/DrawPSTupletBracket)
 - [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
@@ -129,10 +156,10 @@
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~21,400 |
-| Rust test lines | ~3,150 |
-| Test count | ~168 (unit + integration + cross-validate/render + doctest + notelist_all) |
-| Test fixture files | 16 .ngl + 18 .nl |
-| Insta snapshots | 19 (1 HBD_33 + 18 notelist_all) |
-| Commits | 12 |
-| Modules | 12 (basic_types, limits, defs, obj_types, doc_types, ngl, notelist, context, duration, render, draw, lib) |
+| Rust source lines | ~22,500 |
+| Rust test lines | ~3,600 |
+| Test count | 208 (unit + integration + cross-validate/render + doctest + notelist_all + bitmap regression) |
+| Test fixture files | 17 .ngl + 18 .nl |
+| Insta snapshots | 37 |
+| Bitmap goldens | 17 |
+| Modules | 18 (basic_types, beam, context, defs, doc_types, draw, duration, limits, music_font, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
