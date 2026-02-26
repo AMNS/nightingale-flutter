@@ -182,47 +182,47 @@ pub fn accidental_glyph(accident_code: u8) -> Option<u32> {
 
 /// Map clef type to SMuFL glyph.
 ///
-/// Reference: DrawObject.cp, DrawCLEF() (line 1075)
-/// Clef types from obj_types.rs:
-/// - 1: Treble 8va bassa (0xE052)
-/// - 3: Treble (0xE050)
-/// - 6: Alto (0xE05C)
-/// - 8: Tenor (0xE05C, same glyph as alto)
-/// - 10: Bass (0xE062)
-/// - 12: Percussion (0xE069)
+/// Reference: DrawUtils.cp, GetClefDrawInfo() (line 285-308)
+///
+/// Clef types (NObjTypes.h:298-311):
+///   1=TREBLE8_CLEF, 2=FRVIOLIN_CLEF, 3=TREBLE_CLEF, 4=SOPRANO_CLEF,
+///   5=MZSOPRANO_CLEF, 6=ALTO_CLEF, 7=TRTENOR_CLEF, 8=TENOR_CLEF,
+///   9=BARITONE_CLEF, 10=BASS_CLEF, 11=BASS8B_CLEF, 12=PERC_CLEF
 pub fn clef_glyph(clef_type: i8) -> u32 {
     match clef_type {
-        1 => 0xE052,  // gClef8vb
-        3 => 0xE050,  // gClef
-        6 => 0xE05C,  // cClef (alto)
-        8 => 0xE05C,  // cClef (tenor, same glyph)
-        10 => 0xE062, // fClef
-        12 => 0xE069, // unpitchedPercussionClef1
-        _ => 0xE050,  // Default to treble
+        1 => 0xE052,                 // TREBLE8_CLEF  -> gClef8vb
+        3 | 7 => 0xE050,             // TREBLE_CLEF / TRTENOR_CLEF -> gClef
+        4 | 5 | 6 | 8 | 9 => 0xE05C, // SOPRANO..BARITONE -> cClef
+        10 | 11 => 0xE062,           // BASS_CLEF / BASS8B_CLEF -> fClef
+        12 => 0xE069,                // PERC_CLEF -> unpitchedPercussionClef1
+        _ => 0xE050,                 // Default to treble
     }
 }
 
 /// Get the Y position (in half-lines from staff top) for a clef glyph origin.
 ///
-/// Reference: DrawObject.cp, DrawCLEF() (line 1088-1094)
-/// Half-lines are counted from staff top: 0 = top line, 8 = bottom line (5-line staff)
+/// Reference: DrawUtils.cp, GetClefDrawInfo() (line 337-384)
 ///
-/// Returns half-line position where the clef glyph origin should be placed:
-/// - Treble (3): 6 (sits on second line from bottom, G line)
-/// - Bass (10): 2 (sits on fourth line from top, F line)
-/// - Alto (6): 4 (sits on middle line)
-/// - Tenor (8): 4 (sits on middle line)
-/// - Treble 8vb (1): 6 (same as treble)
-/// - Percussion (12): 4 (middle)
+/// Half-lines are counted from staff top: 0 = top line, 8 = bottom line (5-line staff).
+/// The glyph origin for each family is:
+///   gClef: origin at the G line (the curl's intersection)
+///   cClef: origin at the C line (the middle indentation)
+///   fClef: origin at the F line (where the dots go)
+///   percClef: origin centered on the staff
+///
+/// For standard 5-line staff (lines at halflines 0, 2, 4, 6, 8):
+///   G line = halfline 6, F line = halfline 2, middle = halfline 4
 pub fn clef_halfline_position(clef_type: i8) -> i16 {
     match clef_type {
-        1 => 6,  // Treble 8vb
-        3 => 6,  // Treble
-        6 => 4,  // Alto
-        8 => 4,  // Tenor
-        10 => 2, // Bass
-        12 => 4, // Percussion
-        _ => 4,  // Default to middle
+        1 | 3 | 7 => 6, // TREBLE8/TREBLE/TRTENOR: G line (2nd from bottom)
+        4 => 8,         // SOPRANO: C on bottom line
+        5 => 6,         // MZSOPRANO: C on 2nd line from bottom
+        6 => 4,         // ALTO: C on middle line
+        8 => 2,         // TENOR: C on 2nd line from top
+        9 => 0,         // BARITONE: C on top line
+        10 | 11 => 2,   // BASS/BASS8B: F line (2nd from top)
+        12 => 4,        // PERC: centered
+        _ => 4,         // Default to middle
     }
 }
 
@@ -283,8 +283,8 @@ pub fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
     // MZSOPRANO_CLEF=5, ALTO_CLEF=6, TRTENOR_CLEF=7, TENOR_CLEF=8,
     // BARITONE_CLEF=9, BASS_CLEF=10, BASS8B_CLEF=11, PERC_CLEF=12
     match clef_type {
-        1..=3 | 12 => {
-            // TREBLE8_CLEF=1 | FRVIOLIN_CLEF=2 | TREBLE_CLEF=3 | PERC_CLEF=12
+        1..=3 | 7 | 12 => {
+            // TREBLE8_CLEF=1 | FRVIOLIN_CLEF=2 | TREBLE_CLEF=3 | TRTENOR_CLEF=7 | PERC_CLEF=12
             if is_sharp {
                 TREBLE_SHARP[idx]
             } else {

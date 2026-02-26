@@ -126,7 +126,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] Replaced 7 inline implementations with calls to shared modules (-154 lines)
 
 ### Known Bugs
-- [ ] Treble clefs render one staff line too high (B instead of G) for NGL files (Notelists OK)
+- [x] ~~Treble clefs render one staff line too high (B instead of G) for NGL files~~ — **Fixed**: NGL files use TRTENOR_CLEF (sub_type=7) not TREBLE_CLEF (3); added all 12 clef types to clef_glyph() and clef_halfline_position()
 
 ### Deferred
 - [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
