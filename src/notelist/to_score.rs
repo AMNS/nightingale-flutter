@@ -36,38 +36,23 @@
 //! - PitchUtils.cp: ClefMiddleCHalfLn()
 
 use crate::basic_types::*;
+use crate::beam::{compute_beam_slope, BeamNoteInfo};
 use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TIMESIG_TYPE, TUPLET_TYPE};
 use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
+use crate::objects::{normal_stem_up_down_chord, normal_stem_up_down_single, setup_ks_info};
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
+use crate::space_time::{ideal_space_stdist, stdist_to_ddist};
 use crate::utility::{calc_ystem, nflags};
 use std::collections::BTreeSet;
 
 // Re-export shared types for backward compatibility with existing callers.
+pub use crate::objects::VoiceRole;
 pub use crate::pitch_utils::{
     clef_middle_c_half_ln, AC_DBLFLAT, AC_DBLSHARP, AC_FLAT, AC_NATURAL, AC_SHARP,
 };
-
-// ===========================================================================
-// Voice roles — port of Multivoice.h constants
-// ===========================================================================
-
-/// Voice role constants from Multivoice.h.
-/// Determines stem direction and stem length for each voice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VoiceRole {
-    /// Single voice on staff: traditional midline-based stem direction.
-    /// (VCROLE_SINGLE = 6 in OG)
-    Single,
-    /// Upper voice in multi-voice notation: stems always UP.
-    /// (VCROLE_UPPER = 3 in OG)
-    Upper,
-    /// Lower voice in multi-voice notation: stems always DOWN.
-    /// (VCROLE_LOWER = 4 in OG)
-    Lower,
-}
 
 // ===========================================================================
 // Layout parameters
@@ -340,55 +325,8 @@ pub fn notelist_to_score_with_config(
     // Port of SpaceTime.cp IdealSpace / FillSpaceMap logic
     // ===========================================================================
 
-    // Nightingale's ideal spacing table (dfltSpaceMap from SpaceTime.cp line 701).
-    // Fibonacci/sqrt(2) progression. Index: 0=128th .. 8=breve.
-    // Values are multiplied by STD_LINEHT to get STDIST.
-    const IDEAL_SPACE_MAP: [f32; 9] = [0.625, 1.0, 1.625, 2.50, 3.75, 5.50, 8.00, 11.5, 16.25];
-    const STD_LINEHT_F: f32 = 8.0;
-
-    /// Convert l_dur to ideal space in STDIST (port of IdealSpace).
-    fn ideal_space_stdist(l_dur: i8) -> f32 {
-        // l_dur: BREVE=1, WHOLE=2, HALF=3, QTR=4, 8TH=5, 16TH=6, 32ND=7
-        // Map to spaceMap index (reverse order)
-        let idx: usize = match l_dur {
-            1 => 8,
-            2 => 7,
-            3 => 6,
-            4 => 5,
-            5 => 4,
-            6 => 3,
-            7 => 2,
-            8 => 1,
-            _ => 0,
-        };
-        IDEAL_SPACE_MAP[idx] * STD_LINEHT_F
-    }
-
-    /// Convert STDIST to DDIST for standard 5-line staff.
-    /// std2d(s, staffHeight, staffLines) = s * staffHeight / (STD_LINEHT * (staffLines-1))
-    /// For staffHeight=384, staffLines=5: 1 STDIST = 384 / 32 = 12 DDIST
-    fn stdist_to_ddist(stdist: f32, staff_height: Ddist) -> Ddist {
-        (stdist * staff_height as f32 / (STD_LINEHT_F * 4.0)) as Ddist
-    }
-
-    /// Build a KsInfo from (n_items, is_sharp).
-    /// Port of SetupKeySig (Objects.cp:1083-1144).
-    fn build_ks_info(n_items: u8, is_sharp: bool) -> KsInfo {
-        const SHARP_ORDER: [i8; 7] = [0, 3, 6, 2, 5, 1, 4]; // F C G D A E B
-        const FLAT_ORDER: [i8; 7] = [4, 1, 5, 2, 6, 3, 0]; // B E A D G C F
-        let mut ks = KsInfo {
-            n_ks_items: n_items as i8,
-            ..KsInfo::default()
-        };
-        let order = if is_sharp { &SHARP_ORDER } else { &FLAT_ORDER };
-        for (k, &letcode) in order.iter().enumerate().take(n_items.min(7) as usize) {
-            ks.ks_item[k] = KsItem {
-                letcode,
-                sharp: u8::from(is_sharp),
-            };
-        }
-        ks
-    }
+    // Spacing functions (ideal_space_stdist, stdist_to_ddist) now in crate::space_time.
+    // Key signature setup (setup_ks_info → setup_ks_info) now in crate::objects.
 
     // Preamble layout: faithful port of CreateSystem (Score.cp:1785-1814).
     // OG positions each preamble object using dLineSp-based formulas from Ross.
@@ -936,7 +874,7 @@ pub fn notelist_to_score_with_config(
                 space_below: config.inter_staff - config.staff_height,
                 clef_type: clef_types[s] as i8,
                 dynamic_type: 0,
-                ks_info: build_ks_info(key_sigs[s].0, key_sigs[s].1),
+                ks_info: setup_ks_info(key_sigs[s].0, key_sigs[s].1),
                 time_sig_type: 0,
                 numerator: 4,
                 denominator: 4,
@@ -1108,7 +1046,7 @@ pub fn notelist_to_score_with_config(
                     small: 0,
                     filler2: 0,
                     xd: 0,
-                    ks_info: build_ks_info(n_items, is_sharp),
+                    ks_info: setup_ks_info(n_items, is_sharp),
                 });
             }
             score.keysigs.insert(keysig_sub_link, keysig_subs);
@@ -1424,7 +1362,7 @@ pub fn notelist_to_score_with_config(
                             conn_staff: 0,
                             clef_type: clef_types[s] as i8,
                             dynamic_type: 0,
-                            ks_info: build_ks_info(key_sigs[s].0, key_sigs[s].1),
+                            ks_info: setup_ks_info(key_sigs[s].0, key_sigs[s].1),
                             time_sig_type: 0,
                             numerator: 4,
                             denominator: 4,
@@ -1529,15 +1467,7 @@ pub fn notelist_to_score_with_config(
                                 let stem_down = match stem_info.chars().next() {
                                     Some('+') => false, // Explicit: stem up
                                     Some('-') => true,  // Explicit: stem down
-                                    _ => match role {
-                                        VoiceRole::Upper => false, // Always stem up
-                                        VoiceRole::Lower => true,  // Always stem down
-                                        VoiceRole::Single => {
-                                            // Position-based (SINGLE_DI case from GetCStemInfo)
-                                            // Reference: Utility.cp:174
-                                            half_ln < n_staff_lines
-                                        }
-                                    },
+                                    _ => normal_stem_up_down_single(half_ln, n_staff_lines, role),
                                 };
 
                                 // Compute stem endpoint — port of CalcYStem (Utility.cp:49-89)
@@ -1803,23 +1733,13 @@ pub fn notelist_to_score_with_config(
                             }
                         }
 
-                        // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497):
-                        // VCROLE_UPPER: always stem up
-                        // VCROLE_LOWER: always stem down
-                        // VCROLE_SINGLE: compare extreme notes to midline
+                        // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497)
                         let role = voice_roles
                             .get(&(staffn, voice))
                             .copied()
                             .unwrap_or(VoiceRole::Single);
-                        let stem_down = match role {
-                            VoiceRole::Upper => false,
-                            VoiceRole::Lower => true,
-                            VoiceRole::Single => {
-                                let mid_line = config.staff_height / 2;
-                                (max_yd as i32 - mid_line as i32)
-                                    <= (mid_line as i32 - min_yd as i32)
-                            }
-                        };
+                        let stem_down =
+                            normal_stem_up_down_chord(min_yd, max_yd, config.staff_height, role);
 
                         // Use shorter stems for multi-voice
                         let chord_qtr_sp = match role {
@@ -2233,41 +2153,38 @@ pub fn notelist_to_score_with_config(
                 _ => config.stem_len_2v as i16,
             };
 
-            // Determine beam group stem direction based on voice role
-            let group_stem_down = match role {
-                VoiceRole::Upper => false,
-                VoiceRole::Lower => true,
-                VoiceRole::Single => {
-                    // Collect all yd values for notes in this beam group
-                    let mut max_yd: Ddist = i16::MIN;
-                    let mut min_yd: Ddist = i16::MAX;
+            // Determine beam group stem direction using NormalStemUpDown (Objects.cp:1457)
+            // For SINGLE voice, gather extreme yd across the entire beam group.
+            let group_stem_down = if role != VoiceRole::Single {
+                normal_stem_up_down_chord(0, 0, config.staff_height, role)
+            } else {
+                let mut max_yd: Ddist = i16::MIN;
+                let mut min_yd: Ddist = i16::MAX;
 
-                    for bnote in group {
-                        if let Some(sync_obj) =
-                            score.objects.iter().find(|o| o.index == bnote.sync_link)
-                        {
-                            if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
-                                for n in notes {
-                                    if n.voice == voice && n.header.staffn == staffn && !n.rest {
-                                        if n.yd > max_yd {
-                                            max_yd = n.yd;
-                                        }
-                                        if n.yd < min_yd {
-                                            min_yd = n.yd;
-                                        }
+                for bnote in group {
+                    if let Some(sync_obj) =
+                        score.objects.iter().find(|o| o.index == bnote.sync_link)
+                    {
+                        if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj) {
+                            for n in notes {
+                                if n.voice == voice && n.header.staffn == staffn && !n.rest {
+                                    if n.yd > max_yd {
+                                        max_yd = n.yd;
+                                    }
+                                    if n.yd < min_yd {
+                                        min_yd = n.yd;
                                     }
                                 }
                             }
                         }
                     }
-
-                    if max_yd == i16::MIN || min_yd == i16::MAX {
-                        continue;
-                    }
-
-                    let mid_line = config.staff_height / 2;
-                    (max_yd as i32 - mid_line as i32) <= (mid_line as i32 - min_yd as i32)
                 }
+
+                if max_yd == i16::MIN || min_yd == i16::MAX {
+                    continue;
+                }
+
+                normal_stem_up_down_chord(min_yd, max_yd, config.staff_height, role)
             };
 
             // Recompute ystem for all notes in the group using the unified direction
@@ -2319,13 +2236,7 @@ pub fn notelist_to_score_with_config(
             let voice = group[0].voice;
             let staffn = group[0].staff;
 
-            // Collect (sync_xd, note_yd, note_ystem, sync_link) for each note in group
-            struct BeamNoteInfo {
-                sync_xd: Ddist,
-                note_yd: Ddist,
-                note_ystem: Ddist,
-                sync_link: Link,
-            }
+            // Collect BeamNoteInfo structs for compute_beam_slope (Beam.cp)
             let mut infos: Vec<BeamNoteInfo> = Vec::new();
 
             for bnote in group {
@@ -2340,91 +2251,26 @@ pub fn notelist_to_score_with_config(
                                 sync_xd,
                                 note_yd: note.yd,
                                 note_ystem: note.ystem,
-                                sync_link: bnote.sync_link,
+                                sync_id: bnote.sync_link,
                             });
                         }
                     }
                 }
             }
 
-            if infos.len() < 2 {
-                continue;
-            }
-
-            // Determine stem direction from first note
-            let stem_down = infos[0].note_ystem > infos[0].note_yd;
-
-            // Natural CalcYStem endpoints (already computed)
-            let first_ystem = infos[0].note_ystem;
-            let last_ystem = infos[infos.len() - 1].note_ystem;
-
-            // endDiff: vertical difference between endpoints
-            // (Beam.cp:208: fEndDiff = (double)(firstystem1 - lastystem1))
-            let end_diff = first_ystem - last_ystem;
-
-            // Apply reduced slope (Beam.cp:214: fSlope = fEndDiff * relBeamSlope / 100)
-            let slope = end_diff as f32 * config.rel_beam_slope as f32 / 100.0;
-
-            // Find the "base" note — the one whose CalcYStem is the extreme.
-            // For stems up: base = note with smallest (highest) ystem
-            // For stems down: base = note with largest (lowest) ystem
-            // (Beam.cp:191-196)
-            let base_idx = if stem_down {
-                infos
-                    .iter()
-                    .enumerate()
-                    .max_by_key(|(_, info)| info.note_ystem)
-                    .map(|(i, _)| i)
-                    .unwrap_or(0)
-            } else {
-                infos
-                    .iter()
-                    .enumerate()
-                    .min_by_key(|(_, info)| info.note_ystem)
-                    .map(|(i, _)| i)
-                    .unwrap_or(0)
-            };
-
-            let base_ystem = infos[base_idx].note_ystem;
-
-            // Compute horizontal positions
-            let first_xd = infos[0].sync_xd;
-            let last_xd = infos[infos.len() - 1].sync_xd;
-            let beam_length = (last_xd - first_xd) as f32;
-
-            if beam_length.abs() < 1.0 {
-                continue; // Degenerate beam
-            }
-
-            // Compute offset from base note to first note
-            // (Beam.cp:220-224)
-            let base_xd = infos[base_idx].sync_xd;
-            let base_to_first = (first_xd - base_xd) as f32;
-            let base_frac = base_to_first / beam_length;
-            let base_offset = slope * base_frac;
-
-            // First and last ystem based on base note position + slope
-            // (Beam.cp:226-227)
-            let new_first_ystem = base_ystem as f32 + base_offset;
-            let new_last_ystem = new_first_ystem - slope;
-
-            // Interpolate all intermediate stems linearly along the beam line
-            for (i, info) in infos.iter().enumerate() {
-                let t = if beam_length.abs() > 0.0 {
-                    (info.sync_xd - first_xd) as f32 / beam_length
-                } else {
-                    0.0
-                };
-                let interpolated_ystem = new_first_ystem + t * (new_last_ystem - new_first_ystem);
-                let new_ystem = interpolated_ystem.round() as Ddist;
-
-                // Update the note's ystem in score.notes
-                if let Some(sync_obj) = score.objects.iter().find(|o| o.index == infos[i].sync_link)
-                {
-                    if let Some(notes) = score.notes.get_mut(&sync_obj.header.first_sub_obj) {
-                        for note in notes.iter_mut() {
-                            if note.voice == voice && note.header.staffn == staffn && note.beamed {
-                                note.ystem = new_ystem;
+            // Call shared beam slope algorithm (Beam.cp:181-235)
+            if let Some(new_ystems) = compute_beam_slope(&infos, config.rel_beam_slope) {
+                // Apply the computed ystem values back to score.notes
+                for (i, info) in infos.iter().enumerate() {
+                    if let Some(sync_obj) = score.objects.iter().find(|o| o.index == info.sync_id) {
+                        if let Some(notes) = score.notes.get_mut(&sync_obj.header.first_sub_obj) {
+                            for note in notes.iter_mut() {
+                                if note.voice == voice
+                                    && note.header.staffn == staffn
+                                    && note.beamed
+                                {
+                                    note.ystem = new_ystems[i];
+                                }
                             }
                         }
                     }
