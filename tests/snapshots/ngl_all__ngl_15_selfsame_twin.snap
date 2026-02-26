@@ -13,9 +13,9 @@ MusicChar: 3089
 NoteStem: 1444
 SetMusicSize: 150
 SetWidths: 1
-Slur: 153
+Slur: 265
 Staff: 150
-TOTAL: 6907
+TOTAL: 7019
 
 === STAVES ===
 y=81.7 x=[157.0..763.0] lines=5 spacing=4.50
@@ -175,7 +175,7 @@ y=506.9 x=[125.0..763.0] lines=5 spacing=4.50
 
 === STEMS: 1444 total ===
 
-=== SLURS: 153 total ===
+=== SLURS: 265 total ===
 
 === GLYPHS ===
 Smufl(57424): 100

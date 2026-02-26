@@ -367,6 +367,88 @@ pub fn draw_timesig(
     }
 }
 
+/// Draw a Slur object (slurs from NGL file with pre-computed spline data).
+///
+/// Port of DrawObject.cp DrawSLUR() (line 3054) + Slurs.cp GetSlurPoints() (line 76).
+///
+/// For NGL files, the ASlur subobjects contain pre-computed spline data:
+/// - startPt/endPt: absolute paper-relative base positions (Points = 1/72 inch)
+/// - seg.knot: offset from startPt to start knot (DDIST = 1/16 point)
+/// - endKnot: offset from endPt to end knot (DDIST)
+/// - seg.c0: offset from start knot to first control point (DDIST)
+/// - seg.c1: offset from end knot to second control point (DDIST)
+///
+/// Coordinate conversion (GetSlurPoints, Slurs.cp:76-92):
+///   knot     = p2d(startPt) + seg.knot         (absolute DDIST)
+///   endKnot  = p2d(endPt)   + endKnot          (absolute DDIST)
+///   c0       = knot + seg.c0                    (absolute DDIST)
+///   c1       = endKnot + seg.c1                 (absolute DDIST)
+///   render_x = ddist / 16.0 = pt.h + seg.knot.h/16.0
+///
+/// Ties (slur.tie == true) are skipped here — they're handled by draw_ties()
+/// using note-level tied_l/tied_r flags with recomputed Bezier curves.
+///
+/// Reference: DrawObject.cp:3054, Slurs.cp:76-92, PS_Stdio.cp:1933
+pub fn draw_slur(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    _ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    if let crate::ngl::interpret::ObjData::Slur(slur) = &obj.data {
+        // Skip ties — those are handled by draw_ties() via note-level flags
+        if slur.tie {
+            return;
+        }
+
+        let n_entries = obj.header.n_entries;
+        let aslur_list = score.get_slur_subs(obj.header.first_sub_obj, n_entries);
+
+        for aslur in &aslur_list {
+            if !aslur.visible {
+                continue;
+            }
+
+            // Skip degenerate slurs where both endpoints are at origin
+            if aslur.start_pt.h == 0
+                && aslur.start_pt.v == 0
+                && aslur.end_pt.h == 0
+                && aslur.end_pt.v == 0
+            {
+                continue;
+            }
+
+            // GetSlurPoints algorithm (Slurs.cp:76-92):
+            // startPt/endPt are in Points (screen coords, 72dpi).
+            // seg.knot, endKnot, seg.c0, seg.c1 are in DDIST (1/16 point).
+            // p2d(pt) = pt * 16 converts Points→DDIST.
+            // In render coords (points): render = Points + DDIST/16.0
+
+            let start_x = aslur.start_pt.h as f32 + aslur.seg.knot.h as f32 / 16.0;
+            let start_y = aslur.start_pt.v as f32 + aslur.seg.knot.v as f32 / 16.0;
+
+            let end_x = aslur.end_pt.h as f32 + aslur.end_knot.h as f32 / 16.0;
+            let end_y = aslur.end_pt.v as f32 + aslur.end_knot.v as f32 / 16.0;
+
+            let c0_x = start_x + aslur.seg.c0.h as f32 / 16.0;
+            let c0_y = start_y + aslur.seg.c0.v as f32 / 16.0;
+
+            let c1_x = end_x + aslur.seg.c1.h as f32 / 16.0;
+            let c1_y = end_y + aslur.seg.c1.v as f32 / 16.0;
+
+            let p0 = Point {
+                x: start_x,
+                y: start_y,
+            };
+            let c1_pt = Point { x: c0_x, y: c0_y };
+            let c2_pt = Point { x: c1_x, y: c1_y };
+            let p3 = Point { x: end_x, y: end_y };
+
+            renderer.slur(p0, c1_pt, c2_pt, p3, aslur.dashed);
+        }
+    }
+}
+
 /// Draw ties by matching tied_r notes (starts) to tied_l notes (ends).
 ///
 /// Port of DrawSLUR (DrawObject.cp:3054) + SetSlurCtlPoints (Slurs.cp:1021).

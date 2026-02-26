@@ -785,6 +785,14 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                         })
                     }
                     SLUR_TYPE => {
+                        // N105 SLUR_5 object: 30 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24:    voice (SignedByte)
+                        // 25:    bitfield: filler:2|crossStaff:1|crossStfBack:1|crossSystem:1|tempFlag:1|used:1|tie:1
+                        // 26-27: firstSyncL (LINK)
+                        // 28-29: lastSyncL (LINK)
+                        // Source: NObjTypesN105.h lines 472-485
                         let ext_header = crate::obj_types::ExtObjHeader {
                             staffn: if obj_bytes.len() > 23 {
                                 obj_bytes[23] as i8
@@ -792,23 +800,46 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                                 1
                             },
                         };
+                        let voice = if obj_bytes.len() > 24 {
+                            obj_bytes[24] as i8
+                        } else {
+                            1
+                        };
+                        // Byte 25: bitfield (MSB-first on PowerPC)
+                        let b25 = if obj_bytes.len() > 25 {
+                            obj_bytes[25]
+                        } else {
+                            0
+                        };
+                        let cross_staff = (b25 >> 5) & 1;
+                        let cross_stf_back = (b25 >> 4) & 1;
+                        let cross_system = (b25 >> 3) & 1;
+                        let temp_flag = (b25 >> 2) & 1 != 0;
+                        let used = (b25 >> 1) & 1 != 0;
+                        let tie = b25 & 1 != 0;
+                        let first_sync_l = if obj_bytes.len() >= 28 {
+                            u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                        } else {
+                            NILINK
+                        };
+                        let last_sync_l = if obj_bytes.len() >= 30 {
+                            u16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                        } else {
+                            NILINK
+                        };
                         ObjData::Slur(Slur {
                             header: header.clone(),
                             ext_header,
-                            voice: if obj_bytes.len() > 24 {
-                                obj_bytes[24] as i8
-                            } else {
-                                1
-                            },
+                            voice,
                             philler: 0,
-                            cross_staff: 0,
-                            cross_stf_back: 0,
-                            cross_system: 0,
-                            temp_flag: false,
-                            used: false,
-                            tie: false,
-                            first_sync_l: NILINK,
-                            last_sync_l: NILINK,
+                            cross_staff,
+                            cross_stf_back,
+                            cross_system,
+                            temp_flag,
+                            used,
+                            tie,
+                            first_sync_l,
+                            last_sync_l,
                         })
                     }
                     TUPLET_TYPE => {

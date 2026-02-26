@@ -63,10 +63,10 @@ impl Default for GraphicsState {
             translate_y: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
-            staff_line_width: 0.5,   // PS_Stdio.cp default
+            staff_line_width: 0.4, // OG default 8% of lnSpace ≈ 0.48; slightly thinner per user pref
             ledger_line_width: 0.64, // PS_Stdio.cp default
-            stem_width: 0.8,         // PS_Stdio.cp default
-            bar_line_width: 1.0,     // PS_Stdio.cp default
+            stem_width: 0.8,       // PS_Stdio.cp default
+            bar_line_width: 1.0,   // PS_Stdio.cp default
         }
     }
 }
@@ -717,32 +717,91 @@ impl MusicRenderer for PdfRenderer {
         self.content.fill_nonzero();
     }
 
-    /// Draw a slur or tie as a cubic Bezier curve.
-    /// Reference: PS_Stdio.cp, PS_Slur(), line 1933
+    /// Draw a slur or tie as a filled Bezier shape.
+    ///
+    /// Port of PS_Stdio.cp PS_Slur() (line 1933).
+    ///
+    /// Solid slurs: filled region between two offset cubic Bezier curves,
+    /// creating a natural taper (zero thickness at endpoints, maximum at
+    /// midpoint). The inner curve has control points offset by SLURTHICK
+    /// in the Y direction.
+    ///
+    /// Dashed slurs: single stroked Bezier curve with dash pattern.
+    ///
+    /// OG formula: SLURTHICK(lnSpace) = config.slurMidLW * lnSpace / 100
+    /// where slurMidLW defaults to ~25 (25% of staff line spacing).
+    ///
+    /// Reference: PS_Stdio.cp:1931-1959, MC/SL PostScript operators
     fn slur(&mut self, p0: Point, c1: Point, c2: Point, p3: Point, dashed: bool) {
-        self.sync_stroke_color();
-        self.content.set_line_width(1.0 * self.state.scale_x);
-        self.content
-            .set_line_cap(pdf_writer::types::LineCapStyle::RoundCap);
-
         if dashed {
+            // Dashed slurs: single stroked Bezier curve
+            // Reference: PS_Stdio.cp:1938-1945
+            self.sync_stroke_color();
+            self.content.set_line_width(0.8 * self.state.scale_x);
+            self.content
+                .set_line_cap(pdf_writer::types::LineCapStyle::RoundCap);
             let d = 3.0 * self.state.scale_x;
             self.content.set_dash_pattern([d, d], 0.0);
-        }
 
-        self.content.move_to(self.tx(p0.x), self.ty(p0.y));
-        self.content.cubic_to(
-            self.tx(c1.x),
-            self.ty(c1.y),
-            self.tx(c2.x),
-            self.ty(c2.y),
-            self.tx(p3.x),
-            self.ty(p3.y),
-        );
-        self.content.stroke();
-
-        if dashed {
+            self.content.move_to(self.tx(p0.x), self.ty(p0.y));
+            self.content.cubic_to(
+                self.tx(c1.x),
+                self.ty(c1.y),
+                self.tx(c2.x),
+                self.ty(c2.y),
+                self.tx(p3.x),
+                self.ty(p3.y),
+            );
+            self.content.stroke();
             self.content.set_dash_pattern([], 0.0);
+        } else {
+            // Solid slurs: filled region between two offset Bezier curves.
+            // Reference: PS_Stdio.cp:1947-1956
+            //
+            // SLURTHICK(lnSpace) = config.slurMidLW * lnSpace / 100
+            // lnSpace = music_size / 4 (4 staff spaces in music font size)
+            let ln_space = self.music_size / 4.0;
+            let slur_mid_lw: f32 = 30.0; // OG SLURMIDLW_DFLT (Initialize.cp:975)
+
+            // Direction: determine whether slur curves up or down.
+            // OG (PS_Stdio.cp:1951): up = c1y < p0y (QD coords, Y↓)
+            // Our coords: same convention (Y increases downward).
+            let up = c1.y < p0.y;
+            let thick = if up {
+                slur_mid_lw * ln_space / 100.0
+            } else {
+                -(slur_mid_lw * ln_space / 100.0)
+            };
+
+            self.sync_fill_color();
+
+            // Outer curve: p0 → p3 via (c1, c2)
+            // OG: MC operator = moveto p0, curveto c1 c2 p3
+            self.content.move_to(self.tx(p0.x), self.ty(p0.y));
+            self.content.cubic_to(
+                self.tx(c1.x),
+                self.ty(c1.y),
+                self.tx(c2.x),
+                self.ty(c2.y),
+                self.tx(p3.x),
+                self.ty(p3.y),
+            );
+
+            // Inner curve (reversed): p3 → p0 via (c2+thick, c1+thick)
+            // OG: SL operator = curveto c2+thick c1+thick p0, closepath fill
+            // Endpoints NOT offset → taper to zero at ends.
+            // Control points offset by thick → maximum width at midpoint.
+            self.content.cubic_to(
+                self.tx(c2.x),
+                self.ty(c2.y + thick),
+                self.tx(c1.x),
+                self.ty(c1.y + thick),
+                self.tx(p0.x),
+                self.ty(p0.y),
+            );
+
+            self.content.close_path();
+            self.content.fill_nonzero();
         }
     }
 
