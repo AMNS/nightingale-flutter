@@ -13,6 +13,7 @@
 //! See PORTING_ROADMAP.txt for the systematic porting order.
 
 pub mod basic_types;
+pub mod beam;
 pub mod context;
 pub mod defs;
 pub mod doc_types;
@@ -23,6 +24,8 @@ pub mod music_font;
 pub mod ngl;
 pub mod notelist;
 pub mod obj_types;
+pub mod objects;
 pub mod pitch_utils;
 pub mod render;
+pub mod space_time;
 pub mod utility;
