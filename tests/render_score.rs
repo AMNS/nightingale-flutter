@@ -725,8 +725,19 @@ fn test_ngl_interpret_and_render_all_fixtures() {
             commands.len()
         );
 
-        // Also generate PDF for visual inspection
-        let mut pdf_renderer = PdfRenderer::new(612.0, 792.0);
+        // Generate PDF using page dimensions from NGL document header
+        let (page_width, page_height) =
+            nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
+                .map(|hdr| {
+                    let w = (hdr.orig_paper_rect.right - hdr.orig_paper_rect.left) as f32;
+                    let h = (hdr.orig_paper_rect.bottom - hdr.orig_paper_rect.top) as f32;
+                    (
+                        if w > 0.0 { w } else { 612.0 },
+                        if h > 0.0 { h } else { 792.0 },
+                    )
+                })
+                .unwrap_or((612.0, 792.0));
+        let mut pdf_renderer = PdfRenderer::new(page_width, page_height);
         let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
         if font_path.exists() {
             pdf_renderer.load_music_font_file(font_path);

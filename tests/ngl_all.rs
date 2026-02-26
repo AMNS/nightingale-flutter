@@ -344,10 +344,18 @@ fn test_all_ngl_produce_valid_pdf() {
         let ngl = NglFile::read_from_file(path).unwrap();
         let score = interpret_heap(&ngl).unwrap();
 
-        // Use page dimensions from the score's system rects if available,
-        // otherwise default to US Letter.
-        let page_width = 612.0_f32;
-        let page_height = 792.0_f32;
+        // Use page dimensions from NGL document header (respects landscape/portrait)
+        let (page_width, page_height) =
+            nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
+                .map(|hdr| {
+                    let w = (hdr.orig_paper_rect.right - hdr.orig_paper_rect.left) as f32;
+                    let h = (hdr.orig_paper_rect.bottom - hdr.orig_paper_rect.top) as f32;
+                    (
+                        if w > 0.0 { w } else { 612.0 },
+                        if h > 0.0 { h } else { 792.0 },
+                    )
+                })
+                .unwrap_or((612.0, 792.0));
 
         let mut pdf_renderer = PdfRenderer::new(page_width, page_height);
 

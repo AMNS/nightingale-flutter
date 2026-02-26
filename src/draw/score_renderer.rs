@@ -702,7 +702,16 @@ fn draw_sync(
                         } else {
                             0.0
                         };
-                        let rest_y = note_y + rest_y_off;
+                        // SMuFL glyph origin correction:
+                        // Sonata: whole rest baseline at bottom of rect (sits on line)
+                        // SMuFL: whole rest origin at top of rect (hangs from line)
+                        // NGL yd positions for Sonata baseline; shift up 1 lnSpace for SMuFL.
+                        // Half rest is the opposite (Sonata baseline at top, SMuFL at bottom).
+                        let smufl_rest_correction = match draw_l_dur {
+                            x if x == WHOLE_L_DUR => -lnspace, // shift up to hang from correct line
+                            _ => 0.0,
+                        };
+                        let rest_y = note_y + rest_y_off + smufl_rest_correction;
 
                         // Draw rest glyph
                         let rest_glyph = rest_glyph_for_duration(draw_l_dur);
@@ -1077,12 +1086,13 @@ fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
 
     let idx = (letcode as usize).min(6);
 
-    // Clef type constants from defs.h:
-    // TREBLE_CLEF=3, BASS_CLEF=5, ALTO_CLEF=4, TENOR_CLEF=6, SOPRANO_CLEF=7
-    // PERC_CLEF=1, TREBLE8_CLEF=2, BASS8B_CLEF=8, TRTENOR_CLEF=9
+    // Clef type constants from NObjTypes.h:298-314
+    // TREBLE8_CLEF=1, FRVIOLIN_CLEF=2, TREBLE_CLEF=3, SOPRANO_CLEF=4,
+    // MZSOPRANO_CLEF=5, ALTO_CLEF=6, TRTENOR_CLEF=7, TENOR_CLEF=8,
+    // BARITONE_CLEF=9, BASS_CLEF=10, BASS8B_CLEF=11, PERC_CLEF=12
     match clef_type {
-        1..=3 => {
-            // PERC_CLEF=1 | TREBLE8_CLEF=2 | TREBLE_CLEF=3
+        1..=3 | 12 => {
+            // TREBLE8_CLEF=1 | FRVIOLIN_CLEF=2 | TREBLE_CLEF=3 | PERC_CLEF=12
             if is_sharp {
                 TREBLE_SHARP[idx]
             } else {
@@ -1090,30 +1100,6 @@ fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
             }
         }
         4 => {
-            // ALTO_CLEF
-            if is_sharp {
-                ALTO_SHARP[idx]
-            } else {
-                ALTO_FLAT[idx]
-            }
-        }
-        5 | 8 => {
-            // BASS_CLEF | BASS8B_CLEF
-            if is_sharp {
-                BASS_SHARP[idx]
-            } else {
-                BASS_FLAT[idx]
-            }
-        }
-        6 => {
-            // TENOR_CLEF
-            if is_sharp {
-                TENOR_SHARP[idx]
-            } else {
-                TENOR_FLAT[idx]
-            }
-        }
-        7 => {
             // SOPRANO_CLEF
             if is_sharp {
                 SOPRANO_SHARP[idx]
@@ -1121,7 +1107,7 @@ fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
                 SOPRANO_FLAT[idx]
             }
         }
-        10 => {
+        5 => {
             // MZSOPRANO_CLEF
             if is_sharp {
                 MZ_SOPR_SHARP[idx]
@@ -1129,7 +1115,23 @@ fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
                 MZ_SOPR_FLAT[idx]
             }
         }
-        11 => {
+        6 => {
+            // ALTO_CLEF
+            if is_sharp {
+                ALTO_SHARP[idx]
+            } else {
+                ALTO_FLAT[idx]
+            }
+        }
+        8 => {
+            // TENOR_CLEF
+            if is_sharp {
+                TENOR_SHARP[idx]
+            } else {
+                TENOR_FLAT[idx]
+            }
+        }
+        9 => {
             // BARITONE_CLEF
             if is_sharp {
                 BARITONE_SHARP[idx]
@@ -1137,8 +1139,16 @@ fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
                 BARITONE_FLAT[idx]
             }
         }
+        10 | 11 => {
+            // BASS_CLEF=10 | BASS8B_CLEF=11
+            if is_sharp {
+                BASS_SHARP[idx]
+            } else {
+                BASS_FLAT[idx]
+            }
+        }
         _ => {
-            // Default to treble (includes TRTENOR_CLEF=9)
+            // Default to treble (includes TRTENOR_CLEF=7)
             if is_sharp {
                 TREBLE_SHARP[idx]
             } else {

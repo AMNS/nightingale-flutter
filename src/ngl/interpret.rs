@@ -510,47 +510,54 @@ pub fn unpack_subobj_header_n105(data: &[u8]) -> Result<SubObjHeader, String> {
     })
 }
 
-/// Unpack KsInfo from raw bytes (7 bytes for N105 WHOLE_KSINFO).
+/// Unpack WHOLE_KSINFO_5 from N105 format.
 ///
-/// KsInfo stores a key signature as an array of KsItem structs.
-/// The N105 binary format uses a compact representation.
+/// Source: NBasicTypesN105.h lines 31-48
 ///
-/// Source: NBasicTypes.h lines 64-67, NObjTypesN105.h WHOLE_KSINFO
-/// Unpack WHOLE_KSINFO_5 from raw bytes at `offset`.
+/// N105 KSITEM_5 is a 1-byte bitfield struct:
+///   char letcode:7;    // bits 6-0: F=0, E=1, D=2, C=3, B=4, A=5, G=6
+///   Boolean sharp:1;   // bit 7: True=sharp, False=flat
 ///
-/// On-disk layout (mac68k alignment, 15 bytes total):
-///   - 7 x KSITEM_5 (2 bytes each: 1 byte data + 1 byte padding) = 14 bytes
-///   - 1 x nKSItems (SignedByte) = 1 byte
+/// WHOLE_KSINFO_5 = KSITEM_5[7] + SignedByte nKSItems = 8 bytes
 ///
-/// Each KSITEM_5 byte packs: sharp:1 (bit 7) | letcode:7 (bits 6-0)
-/// Letcode values: A=5, B=4, C=3, D=2, E=1, F=0, G=6
+/// However, Ngale5ProgQuickRef-TN1 says AKEYSIG_5 is 24 bytes total with
+/// 4+1+1+2 = 8 bytes before KSINFO. That leaves 16 bytes for KSINFO area.
+/// With mac68k alignment, each 1-byte KSITEM_5 may be padded to 2 bytes,
+/// giving KSITEM_5[7] = 14 bytes + 1 nKSItems + 1 pad = 16 bytes.
 ///
-/// Source: NBasicTypesN105.h lines 31-43, NObjTypesN105.h line 172
+/// On-disk layout (mac68k alignment, 16 bytes):
+///   offset+0..+13: KSITEM_5[7] (7 items × 2 bytes: 1 data + 1 pad)
+///     byte 0 of each: letcode(bits 7-1) | sharp(bit 0)
+///       (68k/PPC MSB-first bitfield: first declared field in high bits)
+///     byte 1 of each: padding
+///   offset+14: nKSItems (SignedByte)
+///   offset+15: padding
+///   TOTAL: 16 bytes
 fn unpack_ksinfo_n105(data: &[u8], offset: usize) -> KsInfo {
     let mut ks_info = KsInfo {
         ks_item: [KsItem::default(); crate::basic_types::MAX_KSITEMS],
         n_ks_items: 0,
     };
 
-    // Need at least 15 bytes: 7*2 (items) + 1 (count)
-    if data.len() < offset + 15 {
+    // Need at least 16 bytes for mac68k padded KSINFO
+    if data.len() < offset + 16 {
         return ks_info;
     }
 
-    // KSItem array comes FIRST (7 items x 2 bytes each = 14 bytes).
-    // Each KSITEM_5 is 2 bytes on disk (mac68k padding): data byte at even offset,
-    // pad byte at odd offset.
+    // KSItem array: 7 items × 2 bytes each (1 data byte + 1 padding byte).
+    // KSITEM_5 bitfield on 68k/PPC (MSB-first bitfield ordering):
+    //   char letcode:7;     // bits 7-1 (MSB)
+    //   Boolean sharp:1;    // bit 0 (LSB)
     for i in 0..crate::basic_types::MAX_KSITEMS {
         let item_offset = offset + i * 2;
         let b = data[item_offset];
-        // Bit 7 = sharp flag, bits 6-0 = letcode
         ks_info.ks_item[i] = KsItem {
-            letcode: (b & 0x7F) as i8,
-            sharp: (b >> 7) & 1,
+            letcode: ((b >> 1) & 0x7F) as i8,
+            sharp: b & 1,
         };
     }
 
-    // nKSItems follows the 14-byte array at offset+14
+    // nKSItems at offset+14
     ks_info.n_ks_items = data[offset + 14] as i8;
 
     ks_info
@@ -1178,9 +1185,17 @@ pub fn unpack_anoteottava_n105(_data: &[u8]) -> Result<ANoteOttava, String> {
     Err("ANOTEOTTAVA unpacking not yet implemented".to_string())
 }
 
-pub fn unpack_anotetuple_n105(_data: &[u8]) -> Result<ANoteTuple, String> {
-    // TODO: Implement full ANOTETUPLE_5 unpacking (4 bytes)
-    Err("ANOTETUPLE unpacking not yet implemented".to_string())
+/// Unpack ANOTETUPLE_5 from N105 format (4 bytes).
+/// Layout:
+///   0-1  next (LINK, u16 big-endian)
+///   2-3  tpSync (LINK, u16 big-endian)
+pub fn unpack_anotetuple_n105(data: &[u8]) -> Result<ANoteTuple, String> {
+    if data.len() < 4 {
+        return Err(format!("ANOTETUPLE_5 data too short: {} bytes", data.len()));
+    }
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let tp_sync = u16::from_be_bytes([data[2], data[3]]);
+    Ok(ANoteTuple { next, tp_sync })
 }
 
 pub fn unpack_arptend_n105(_data: &[u8]) -> Result<ARptEnd, String> {
@@ -1583,6 +1598,109 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                             last_sync_l: NILINK,
                         })
                     }
+                    TUPLET_TYPE => {
+                        // N105 TUPLET object: 40 bytes total
+                        // 0-22: OBJECTHEADER_5 (23 bytes)
+                        // 23:   staffn (EXTOBJHEADER)
+                        // 24:   accNum
+                        // 25:   accDenom
+                        // 26:   voice (SignedByte)
+                        // 27:   numVis
+                        // 28:   denomVis
+                        // 29:   brackVis
+                        // 30:   small
+                        // 31:   filler
+                        // 32-33: xdFirst (DDIST)
+                        // 34-35: ydFirst (DDIST)
+                        // 36-37: xdLast (DDIST)
+                        // 38-39: ydLast (DDIST)
+                        // Note: acnxd/acnyd ("now unused") are NOT in N105 disk format
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        let acc_num = if obj_bytes.len() > 24 {
+                            obj_bytes[24]
+                        } else {
+                            3
+                        };
+                        let acc_denom = if obj_bytes.len() > 25 {
+                            obj_bytes[25]
+                        } else {
+                            2
+                        };
+                        let voice = if obj_bytes.len() > 26 {
+                            obj_bytes[26] as i8
+                        } else {
+                            1
+                        };
+                        let num_vis = if obj_bytes.len() > 27 {
+                            obj_bytes[27]
+                        } else {
+                            1
+                        };
+                        let denom_vis = if obj_bytes.len() > 28 {
+                            obj_bytes[28]
+                        } else {
+                            0
+                        };
+                        let brack_vis = if obj_bytes.len() > 29 {
+                            obj_bytes[29]
+                        } else {
+                            1
+                        };
+                        let small = if obj_bytes.len() > 30 {
+                            obj_bytes[30]
+                        } else {
+                            0
+                        };
+                        let filler = if obj_bytes.len() > 31 {
+                            obj_bytes[31]
+                        } else {
+                            0
+                        };
+                        let xd_first = if obj_bytes.len() > 33 {
+                            i16::from_be_bytes([obj_bytes[32], obj_bytes[33]])
+                        } else {
+                            0
+                        };
+                        let yd_first = if obj_bytes.len() > 35 {
+                            i16::from_be_bytes([obj_bytes[34], obj_bytes[35]])
+                        } else {
+                            0
+                        };
+                        let xd_last = if obj_bytes.len() > 37 {
+                            i16::from_be_bytes([obj_bytes[36], obj_bytes[37]])
+                        } else {
+                            0
+                        };
+                        let yd_last = if obj_bytes.len() > 39 {
+                            i16::from_be_bytes([obj_bytes[38], obj_bytes[39]])
+                        } else {
+                            0
+                        };
+                        ObjData::Tuplet(crate::obj_types::Tuplet {
+                            header: header.clone(),
+                            ext_header,
+                            acc_num,
+                            acc_denom,
+                            voice,
+                            num_vis,
+                            denom_vis,
+                            brack_vis,
+                            small,
+                            filler,
+                            acnxd: 0, // not stored in N105
+                            acnyd: 0, // not stored in N105
+                            xd_first,
+                            yd_first,
+                            xd_last,
+                            yd_last,
+                        })
+                    }
                     _ => ObjData::GrSync(GrSync {
                         header: header.clone(),
                     }),
@@ -1798,6 +1916,25 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !slurs.is_empty() {
                     score.slurs.insert(obj.header.first_sub_obj, slurs);
+                }
+            }
+
+            TUPLET_TYPE => {
+                // Unpack ANOTETUPLE subobjects (4 bytes each: next + tpSync)
+                let mut notetuples = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(nt) = unpack_anotetuple_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            notetuples.push(nt);
+                        }
+                    }
+                }
+                if !notetuples.is_empty() {
+                    score.tuplets.insert(obj.header.first_sub_obj, notetuples);
                 }
             }
 
