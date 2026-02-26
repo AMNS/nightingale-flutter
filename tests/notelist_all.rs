@@ -11,8 +11,10 @@
 use nightingale_core::draw::render_score;
 use nightingale_core::notelist::{notelist_to_score, parse_notelist, NotelistLayoutConfig};
 use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 // ============================================================================
@@ -53,6 +55,15 @@ fn short_name(path: &str) -> String {
 /// Count render commands by name.
 fn count_by_name(commands: &[RenderCommand], name: &str) -> usize {
     commands.iter().filter(|c| c.name() == name).count()
+}
+
+/// Compute a deterministic hash of the full render command stream.
+fn command_stream_hash(commands: &[RenderCommand]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for cmd in commands {
+        format!("{:?}", cmd).hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 /// Build a compact summary of render commands for snapshot regression.
@@ -496,4 +507,81 @@ fn test_all_notelists_beam_presence() {
 
         println!("[{}] Beams: {}", name, beam_count);
     }
+}
+
+// ============================================================================
+// Command-stream hash: exact render output fingerprint for refactor safety
+// ============================================================================
+
+/// Exact render-command fingerprint for every Notelist fixture.
+///
+/// Same approach as the NGL hash test: captures the full sequence of render
+/// commands. Any behavioral change will break the hash.
+/// Use `REGENERATE_REFS=1 cargo test` to update baselines.
+#[test]
+fn test_all_notelists_command_stream_hashes() {
+    let regenerate = std::env::var("REGENERATE_REFS").is_ok();
+
+    let expected: std::collections::HashMap<&str, u64> = [
+        ("BachEbSonata_20_2sizes", 12995971367917878962),
+        ("BachEbSonata_20", 12995971367917878962),
+        ("BachStAnne_63", 5242798667749380058),
+        ("BinchoisDePlus_17", 8986185804129711820),
+        ("Debussy_Images_9", 12852113412974850555),
+        ("GoodbyePorkPieHat", 42339889141671962),
+        ("HBD_33", 15126206798252735708),
+        ("KillingMe_36", 8475317791705320548),
+        ("keysig_d_major", 1882963057310755303),
+        ("keysig_eb_major", 11711652780243886394),
+        ("MahlerLiedVonDE_25", 5192177798363478689),
+        ("MendelssohnOp7N1_2", 14189712159425392603),
+        ("RavelScarbo_15", 14547043791901178632),
+        ("SchenkerDiagram_Chopin_6", 5061056563860761757),
+        ("SchoenbergOp19N1_21", 16918725533100864910),
+        ("TestMIDIChannels_3", 15074235829092286149),
+        ("tuplet_triplet", 14097833128011352111),
+        ("Webern_Op5N3_22", 10509085129869270482),
+    ]
+    .into_iter()
+    .collect();
+
+    let mut all_ok = true;
+    for path in ALL_NOTELISTS {
+        let name = short_name(path);
+        let file = fs::File::open(path).unwrap();
+        let notelist = parse_notelist(file).unwrap();
+        let score = notelist_to_score(&notelist);
+
+        let mut cmd_renderer = CommandRenderer::new();
+        render_score(&score, &mut cmd_renderer);
+        let commands = cmd_renderer.take_commands();
+        let hash = command_stream_hash(&commands);
+
+        if regenerate {
+            println!("        (\"{}\", {}),", name, hash);
+        } else if let Some(&exp) = expected.get(name.as_str()) {
+            if exp != 0 && hash != exp {
+                eprintln!(
+                    "[{}] HASH MISMATCH: expected {} got {} ({} commands)",
+                    name,
+                    exp,
+                    hash,
+                    commands.len()
+                );
+                all_ok = false;
+            }
+        }
+    }
+
+    if regenerate {
+        println!("\n// Copy the lines above into the expected hash table");
+        return;
+    }
+
+    assert!(
+        all_ok,
+        "Command-stream hash mismatches detected! \
+         Run `REGENERATE_REFS=1 cargo test test_all_notelists_command_stream_hashes -- --nocapture` \
+         to regenerate baselines after intentional changes."
+    );
 }

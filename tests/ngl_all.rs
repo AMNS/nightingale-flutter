@@ -12,8 +12,10 @@ use nightingale_core::defs::*;
 use nightingale_core::draw::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
 use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 // ============================================================================
@@ -54,6 +56,19 @@ fn short_name(path: &str) -> String {
 /// Count render commands by name.
 fn count_by_name(commands: &[RenderCommand], name: &str) -> usize {
     commands.iter().filter(|c| c.name() == name).count()
+}
+
+/// Compute a deterministic hash of the full render command stream.
+///
+/// Hashes the Debug representation of every command in sequence.
+/// Any change to any coordinate, glyph, color, or command ordering
+/// will change the hash. Used as a refactor-safety guard.
+fn command_stream_hash(commands: &[RenderCommand]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for cmd in commands {
+        format!("{:?}", cmd).hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 /// Build a compact summary of render commands for snapshot regression.
@@ -521,6 +536,228 @@ fn test_all_ngl_score_structure() {
             .collect();
 
         println!("[{}] OK: {}", name, type_names.join(", "));
+    }
+}
+
+// ============================================================================
+// Command-stream hash: exact render output fingerprint for refactor safety
+// ============================================================================
+
+/// Exact render-command fingerprint for every NGL fixture.
+///
+/// Each hash captures the full sequence of render commands (coordinates, glyphs,
+/// colors, ordering). Any behavioral change — even a 0.01pt coordinate shift —
+/// will break the hash. Use `REGENERATE_REFS=1 cargo test` to update baselines
+/// after intentional rendering changes.
+#[test]
+fn test_all_ngl_command_stream_hashes() {
+    let regenerate = std::env::var("REGENERATE_REFS").is_ok();
+
+    let expected: std::collections::HashMap<&str, u64> = [
+        ("01_me_and_lucy", 10687385366423386178),
+        ("02_cloning_frank_blacks", 13982872353156779011),
+        ("03_holed_up_in_penjinskya", 15761544026529331273),
+        ("04_eating_humble_pie", 12933458484849204335),
+        ("05_abigail", 12429986271950333849),
+        ("06_melyssa_with_a_y", 1844616962735454603),
+        ("07_new_york_debutante", 4312723980633413409),
+        ("08_darling_sunshine", 7152146844659583322),
+        ("09_swiss_ann", 17124312840450400155),
+        ("10_ghost_of_fusion_bob", 16220721296539521613),
+        ("11_philip", 1027433326897166661),
+        ("12_what_do_i_know", 17256836037372356154),
+        ("13_miss_b", 10760555966502166402),
+        ("14_chrome_molly", 11806851732308029677),
+        ("15_selfsame_twin", 1313842490251767559),
+        ("16_esmerelda", 3740813075569476410),
+        ("17_capital_regiment_march", 4015289515686892782),
+    ]
+    .into_iter()
+    .collect();
+
+    let mut all_ok = true;
+    for path in ALL_NGL_FILES {
+        let name = short_name(path);
+        let ngl = NglFile::read_from_file(path).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        let mut cmd_renderer = CommandRenderer::new();
+        render_score(&score, &mut cmd_renderer);
+        let commands = cmd_renderer.take_commands();
+        let hash = command_stream_hash(&commands);
+
+        if regenerate {
+            println!("        (\"{}\", {}),", name, hash);
+        } else if let Some(&exp) = expected.get(name.as_str()) {
+            if exp != 0 && hash != exp {
+                eprintln!(
+                    "[{}] HASH MISMATCH: expected {} got {} ({} commands)",
+                    name,
+                    exp,
+                    hash,
+                    commands.len()
+                );
+                all_ok = false;
+            }
+        }
+    }
+
+    if regenerate {
+        println!("\n// Copy the lines above into the expected hash table");
+        return;
+    }
+
+    assert!(
+        all_ok,
+        "Command-stream hash mismatches detected! \
+         Run `REGENERATE_REFS=1 cargo test test_all_ngl_command_stream_hashes -- --nocapture` \
+         to regenerate baselines after intentional changes."
+    );
+}
+
+// ============================================================================
+// Bitmap regression: PDF page 1 rendered to PNG and compared against golden
+// ============================================================================
+
+/// Visual regression test using bitmap comparison.
+///
+/// Renders each NGL fixture to PDF, converts page 1 to PNG via `sips`,
+/// and compares byte-for-byte against the golden PNG in tests/golden_bitmaps/.
+///
+/// This catches visual rendering differences that might not show up in the
+/// command-stream hash (e.g. font rendering changes, PDF structure changes).
+///
+/// Requires macOS `sips` command. Regenerate goldens with:
+///   `REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression -- --nocapture`
+#[test]
+#[cfg(target_os = "macos")]
+fn test_all_ngl_bitmap_regression() {
+    let regenerate = std::env::var("REGENERATE_REFS").is_ok();
+    let golden_dir = Path::new("tests/golden_bitmaps");
+    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    let diff_dir = Path::new("/tmp/nightingale-test-output/bitmap-diff");
+    fs::create_dir_all(output_dir).unwrap();
+    fs::create_dir_all(diff_dir).unwrap();
+
+    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+
+    let mut mismatches = Vec::new();
+
+    for path in ALL_NGL_FILES {
+        let name = short_name(path);
+        let ngl = NglFile::read_from_file(path).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        // Render to PDF
+        let (page_width, page_height) =
+            nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
+                .map(|hdr| {
+                    let w = (hdr.orig_paper_rect.right - hdr.orig_paper_rect.left) as f32;
+                    let h = (hdr.orig_paper_rect.bottom - hdr.orig_paper_rect.top) as f32;
+                    (
+                        if w > 0.0 { w } else { 612.0 },
+                        if h > 0.0 { h } else { 792.0 },
+                    )
+                })
+                .unwrap_or((612.0, 792.0));
+
+        let mut pdf_renderer = PdfRenderer::new(page_width, page_height);
+        if font_path.exists() {
+            pdf_renderer.load_music_font_file(font_path);
+        }
+        render_score(&score, &mut pdf_renderer);
+        let pdf_bytes = pdf_renderer.finish();
+
+        // Write PDF and convert page 1 to PNG via sips
+        let pdf_path = output_dir.join(format!("{}.pdf", name));
+        fs::write(&pdf_path, &pdf_bytes).unwrap();
+
+        let current_png = diff_dir.join(format!("{}_current.png", name));
+        let sips_result = std::process::Command::new("sips")
+            .args([
+                "-s",
+                "format",
+                "png",
+                "-s",
+                "dpiHeight",
+                "72",
+                "-s",
+                "dpiWidth",
+                "72",
+            ])
+            .arg(&pdf_path)
+            .arg("--out")
+            .arg(&current_png)
+            .output();
+
+        let Ok(output) = sips_result else {
+            eprintln!("[{}] sips not available, skipping bitmap test", name);
+            continue;
+        };
+
+        if !output.status.success() {
+            eprintln!(
+                "[{}] sips failed: {}",
+                name,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            continue;
+        }
+
+        let golden_path = golden_dir.join(format!("{}_page1.png", name));
+
+        if regenerate {
+            // Copy current to golden
+            fs::copy(&current_png, &golden_path).unwrap();
+            println!("[{}] Updated golden: {}", name, golden_path.display());
+            continue;
+        }
+
+        if !golden_path.exists() {
+            eprintln!("[{}] No golden bitmap at {}", name, golden_path.display());
+            mismatches.push(name.clone());
+            continue;
+        }
+
+        // Compare golden vs current
+        let golden_bytes = fs::read(&golden_path).unwrap();
+        let current_bytes = fs::read(&current_png).unwrap();
+
+        if golden_bytes != current_bytes {
+            // Save both for visual inspection
+            let golden_copy = diff_dir.join(format!("{}_golden.png", name));
+            fs::copy(&golden_path, &golden_copy).unwrap();
+
+            let size_diff_pct = ((current_bytes.len() as f64 - golden_bytes.len() as f64)
+                / golden_bytes.len() as f64
+                * 100.0)
+                .abs();
+
+            eprintln!(
+                "[{}] BITMAP MISMATCH: golden={} bytes, current={} bytes (diff {:.1}%)\n  \
+                 golden: {}\n  current: {}",
+                name,
+                golden_bytes.len(),
+                current_bytes.len(),
+                size_diff_pct,
+                golden_copy.display(),
+                current_png.display(),
+            );
+            mismatches.push(name.clone());
+        } else {
+            // Clean up matching current
+            let _ = fs::remove_file(&current_png);
+        }
+    }
+
+    if !regenerate && !mismatches.is_empty() {
+        panic!(
+            "Bitmap mismatches in {} fixture(s): {}\n\
+             Visual diff: open /tmp/nightingale-test-output/bitmap-diff/\n\
+             Regenerate: REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression",
+            mismatches.len(),
+            mismatches.join(", ")
+        );
     }
 }
 
