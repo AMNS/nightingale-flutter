@@ -14,11 +14,13 @@
 
 mod common;
 
+use common::{DiffEntry, NewEntry};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
 const DIFF_DIR: &str = "/tmp/nightingale-test-output/golden-diff";
+const REPORT_PATH: &str = "/tmp/nightingale-test-output/golden-diff/review.html";
 
 /// Extract a file's contents from git HEAD.
 fn git_show_head(repo_file: &str) -> Option<Vec<u8>> {
@@ -36,6 +38,7 @@ fn git_show_head(repo_file: &str) -> Option<Vec<u8>> {
 #[test]
 fn diff_changed_golden_bitmaps() {
     let golden_dir = Path::new("tests/golden_bitmaps");
+    let golden_dir_abs = fs::canonicalize(golden_dir).expect("canonicalize golden dir");
     let diff_dir = Path::new(DIFF_DIR);
     fs::create_dir_all(diff_dir).unwrap();
 
@@ -46,9 +49,9 @@ fn diff_changed_golden_bitmaps() {
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "png"))
         .collect();
 
-    let mut changed = Vec::new();
+    let mut changed: Vec<DiffEntry> = Vec::new();
+    let mut new_entries: Vec<NewEntry> = Vec::new();
     let mut unchanged = 0;
-    let mut new_files = 0;
 
     for entry in &entries {
         let path = entry.path();
@@ -60,10 +63,13 @@ fn diff_changed_golden_bitmaps() {
         let old_bytes = match git_show_head(&repo_path) {
             Some(b) => b,
             None => {
-                new_files += 1;
+                let new_path = diff_dir.join(format!("{}_new.png", stem));
+                fs::copy(&path, &new_path).ok();
                 eprintln!("[NEW] {}", filename);
-                // Copy new file to diff dir for review
-                fs::copy(&path, diff_dir.join(format!("{}_new.png", stem))).ok();
+                new_entries.push(NewEntry {
+                    name: filename.to_string(),
+                    new_path: new_path.to_string_lossy().to_string(),
+                });
                 continue;
             }
         };
@@ -90,11 +96,29 @@ fn diff_changed_golden_bitmaps() {
                     "[CHANGED] {}  — {}/{} pixels differ ({:.2}%)",
                     filename, diff_px, total, pct
                 );
-                changed.push(filename.to_string());
+                changed.push(DiffEntry {
+                    name: filename.to_string(),
+                    old_path: old_path.to_string_lossy().to_string(),
+                    new_path: new_path.to_string_lossy().to_string(),
+                    diff_path: diff_path.to_string_lossy().to_string(),
+                    total_pixels: total,
+                    diff_pixels: diff_px,
+                    diff_pct: pct,
+                    golden_path: golden_dir_abs.join(filename).to_string_lossy().to_string(),
+                });
             }
             Err(e) => {
                 eprintln!("[ERROR] {} — {}", filename, e);
             }
+        }
+    }
+
+    // Generate HTML report
+    if !changed.is_empty() || !new_entries.is_empty() {
+        let report_path = Path::new(REPORT_PATH);
+        match common::generate_html_diff_report(report_path, &changed, &new_entries, unchanged) {
+            Ok(()) => eprintln!("\nHTML report: file://{}", report_path.display()),
+            Err(e) => eprintln!("\nFailed to generate HTML report: {}", e),
         }
     }
 
@@ -106,14 +130,14 @@ fn diff_changed_golden_bitmaps() {
          Diff dir:  {}",
         unchanged,
         changed.len(),
-        new_files,
+        new_entries.len(),
         diff_dir.display()
     );
 
     if !changed.is_empty() {
         eprintln!("\nChanged files (open diff dir to review):");
         for f in &changed {
-            eprintln!("  {}", f);
+            eprintln!("  {}", f.name);
         }
         eprintln!("\nopen {}\n", diff_dir.display());
     }
