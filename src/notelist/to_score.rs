@@ -43,11 +43,12 @@ use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
 use crate::objects::{
-    arrange_chord_notes, normal_stem_up_down_chord, normal_stem_up_down_single, setup_ks_info,
+    arrange_chord_notes, arrange_nc_accs, normal_stem_up_down_chord, normal_stem_up_down_single,
+    setup_ks_info,
 };
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
 use crate::space_time::{ideal_space_stdist, stdist_to_ddist};
-use crate::utility::{calc_ystem, nflags};
+use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
 use std::collections::BTreeSet;
 
 // Re-export shared types for backward compatibility with existing callers.
@@ -1793,10 +1794,23 @@ pub fn notelist_to_score_with_config(
                             for (i, &idx) in indices.iter().enumerate() {
                                 notes[idx].other_stem_side = other_sides[i];
                             }
+
+                            // ArrangeNCAccs (PitchUtils.cp:1517-1572):
+                            // Compute xmove_acc for accidental staggering in chords.
+                            // Build (yd, accident) pairs in sorted order.
+                            let acc_pairs: Vec<(i16, u8)> = indices
+                                .iter()
+                                .map(|&idx| (notes[idx].yd, notes[idx].accident))
+                                .collect();
+                            let xmove_accs = arrange_nc_accs(&acc_pairs, stem_down);
+                            for (i, &idx) in indices.iter().enumerate() {
+                                notes[idx].xmove_acc = xmove_accs[i];
+                            }
                         } else {
                             // Single note: recompute ystem with voice-aware stem length
                             // Port of CalcYStem (Objects.cp:1638-1670)
                             let idx = indices[0];
+                            notes[idx].xmove_acc = DFLT_XMOVEACC as u8;
                             let note_yd = notes[idx].yd;
                             let note_dur = notes[idx].header.sub_type;
                             let n_staff_lines: i16 = 5;

@@ -8,6 +8,8 @@
 //! 5. Render → PdfRenderer (valid PDF output)
 //! 6. Insta snapshot for regression detection
 
+mod common;
+
 use nightingale_core::draw::render_score;
 use nightingale_core::notelist::{
     notelist_to_score, notelist_to_score_with_config, parse_notelist, NotelistLayoutConfig,
@@ -23,12 +25,13 @@ use std::path::Path;
 // Test infrastructure
 // ============================================================================
 
-/// All 17 notelist fixtures, in alphabetical order.
+/// All 19 notelist fixtures, in alphabetical order.
 const ALL_NOTELISTS: &[&str] = &[
     "tests/notelist_examples/BachEbSonata_20.2sizes.nl",
     "tests/notelist_examples/BachEbSonata_20.nl",
     "tests/notelist_examples/BachStAnne_63.nl",
     "tests/notelist_examples/BinchoisDePlus-17.nl",
+    "tests/notelist_examples/chord_seconds.nl",
     "tests/notelist_examples/Debussy.Images_9.nl",
     "tests/notelist_examples/GoodbyePorkPieHat.nl",
     "tests/notelist_examples/HBD_33.nl",
@@ -525,24 +528,25 @@ fn test_all_notelists_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("BachEbSonata_20_2sizes", 12995971367917878962),
-        ("BachEbSonata_20", 12995971367917878962),
-        ("BachStAnne_63", 5242798667749380058),
-        ("BinchoisDePlus_17", 8986185804129711820),
-        ("Debussy_Images_9", 6990745167473818562),
-        ("GoodbyePorkPieHat", 42339889141671962),
-        ("HBD_33", 3751175428117924303),
-        ("KillingMe_36", 8475317791705320548),
+        ("BachEbSonata_20_2sizes", 13050259863658406240),
+        ("BachEbSonata_20", 13050259863658406240),
+        ("BachStAnne_63", 18009765259003913481),
+        ("BinchoisDePlus_17", 14251184309055509515),
+        ("chord_seconds", 11155458039824192918),
+        ("Debussy_Images_9", 15879723346306659142),
+        ("GoodbyePorkPieHat", 7421649977720036040),
+        ("HBD_33", 17185519429362216488),
+        ("KillingMe_36", 2643544325615109449),
         ("keysig_d_major", 1882963057310755303),
         ("keysig_eb_major", 11711652780243886394),
-        ("MahlerLiedVonDE_25", 5192177798363478689),
-        ("MendelssohnOp7N1_2", 1670958285832300854),
-        ("RavelScarbo_15", 3780022326723686791),
-        ("SchenkerDiagram_Chopin_6", 5061056563860761757),
-        ("SchoenbergOp19N1_21", 2963419875824930481),
-        ("TestMIDIChannels_3", 15074235829092286149),
+        ("MahlerLiedVonDE_25", 6032094612687974298),
+        ("MendelssohnOp7N1_2", 9577859108483477923),
+        ("RavelScarbo_15", 15154150278730800432),
+        ("SchenkerDiagram_Chopin_6", 2979432536962914748),
+        ("SchoenbergOp19N1_21", 6310664834587163112),
+        ("TestMIDIChannels_3", 4823533993867358497),
         ("tuplet_triplet", 14097833128011352111),
-        ("Webern_Op5N3_22", 10509085129869270482),
+        ("Webern_Op5N3_22", 17844416406278652094),
     ]
     .into_iter()
     .collect();
@@ -592,113 +596,7 @@ fn test_all_notelists_command_stream_hashes() {
 // 7. Bitmap regression (Notelist → PDF → PNG → pixel diff against golden)
 // ============================================================================
 
-/// Try to convert a PDF to PNG using available system tools.
-fn pdf_to_png(pdf_path: &Path, png_path: &Path) -> Result<bool, String> {
-    // sips (macOS)
-    if let Ok(output) = std::process::Command::new("sips")
-        .args([
-            "-s",
-            "format",
-            "png",
-            "-s",
-            "dpiHeight",
-            "72",
-            "-s",
-            "dpiWidth",
-            "72",
-        ])
-        .arg(pdf_path)
-        .arg("--out")
-        .arg(png_path)
-        .output()
-    {
-        if output.status.success() {
-            return Ok(true);
-        }
-    }
-    // pdftoppm (Linux)
-    let prefix = png_path.with_extension("");
-    if let Ok(output) = std::process::Command::new("pdftoppm")
-        .args(["-png", "-r", "72", "-f", "1", "-l", "1"])
-        .arg(pdf_path)
-        .arg(&prefix)
-        .output()
-    {
-        if output.status.success() {
-            for suffix in &["-1.png", "-01.png"] {
-                let cand = format!("{}{}", prefix.display(), suffix);
-                let p = Path::new(&cand);
-                if p.exists() {
-                    fs::rename(p, png_path).map_err(|e| e.to_string())?;
-                    return Ok(true);
-                }
-            }
-        }
-    }
-    // ImageMagick
-    if let Ok(output) = std::process::Command::new("magick")
-        .args(["convert", "-density", "72"])
-        .arg(format!("{}[0]", pdf_path.display()))
-        .arg(png_path)
-        .output()
-    {
-        if output.status.success() {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-/// Compare two images pixel-by-pixel, produce a diff image.
-/// Returns (total_pixels, diff_pixels, diff_pct).
-fn compare_images_and_diff(
-    golden_path: &Path,
-    current_path: &Path,
-    diff_path: &Path,
-) -> Result<(u64, u64, f64), String> {
-    use image::{GenericImageView, Rgba, RgbaImage};
-    let golden = image::open(golden_path).map_err(|e| format!("open golden: {}", e))?;
-    let current = image::open(current_path).map_err(|e| format!("open current: {}", e))?;
-    let (gw, gh) = golden.dimensions();
-    let (cw, ch) = current.dimensions();
-    let w = gw.max(cw);
-    let h = gh.max(ch);
-    let total = w as u64 * h as u64;
-    let mut diff_img = RgbaImage::new(w, h);
-    let mut diff_count: u64 = 0;
-    for y in 0..h {
-        for x in 0..w {
-            let gpx = if x < gw && y < gh {
-                golden.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255])
-            };
-            let cpx = if x < cw && y < ch {
-                current.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255])
-            };
-            if gpx == cpx {
-                let r = (gpx[0] as u16 * 30 + 255 * 70) / 100;
-                let g = (gpx[1] as u16 * 30 + 255 * 70) / 100;
-                let b = (gpx[2] as u16 * 30 + 255 * 70) / 100;
-                diff_img.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
-            } else {
-                diff_img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
-                diff_count += 1;
-            }
-        }
-    }
-    diff_img
-        .save(diff_path)
-        .map_err(|e| format!("save diff: {}", e))?;
-    let pct = if total > 0 {
-        diff_count as f64 / total as f64 * 100.0
-    } else {
-        0.0
-    };
-    Ok((total, diff_count, pct))
-}
+// pdf_to_png and compare_images_and_diff are in tests/common/mod.rs
 
 /// Bitmap regression for all Notelist fixtures.
 ///
@@ -750,7 +648,7 @@ fn test_all_notelists_bitmap_regression() {
 
         // Convert to PNG
         let current_png = diff_dir.join(format!("{}_current.png", name));
-        match pdf_to_png(&pdf_path, &current_png) {
+        match common::pdf_to_png(&pdf_path, &current_png) {
             Ok(true) => {}
             Ok(false) => {
                 if skipped == 0 {
@@ -782,7 +680,7 @@ fn test_all_notelists_bitmap_regression() {
         }
 
         let diff_path = diff_dir.join(format!("{}_diff.png", name));
-        match compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+        match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
             Ok((_total, diff_px, pct)) => {
                 if diff_px > 0 {
                     eprintln!(

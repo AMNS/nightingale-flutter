@@ -8,8 +8,9 @@
 use crate::context::ContextState;
 use crate::defs::*;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore};
-use crate::render::types::{ddist_wide_to_render, MusicGlyph};
+use crate::render::types::{ddist_to_render, ddist_wide_to_render, MusicGlyph};
 use crate::render::MusicRenderer;
+use crate::utility::acc_x_offset;
 
 use super::draw_utils::{
     accidental_glyph, flag_glyph, notehead_glyph, resolve_rest_l_dur, rest_glyph_for_duration,
@@ -212,7 +213,7 @@ fn draw_note(
 
     // Draw accidental if present.
     // Accidentals anchor from xdNorm (before otherStemSide offset).
-    // Reference: DrawNRGR.cp DrawNote() line 798: DrawAcc(..., xdNorm, ...)
+    // Reference: DrawNRGR.cp DrawAcc() lines 314-424
     if anote.accident != 0 {
         if let Some(acc_glyph) = accidental_glyph(anote.accident) {
             // If chord is downstemmed with notes to the left of the stem,
@@ -225,9 +226,19 @@ fn draw_note(
             } else {
                 xd_norm
             };
-            // Position accidental to the left of notehead
-            // Typical offset: ~1.5 * lnspace
-            let acc_x = acc_anchor - (1.5 * lnspace);
+            // Use xmove_acc for accidental horizontal offset.
+            // Double flat is wider — push it 2 units further left.
+            // Reference: DrawNRGR.cp DrawAcc() lines 333-335
+            let xmove = if anote.accident == AC_DBLFLAT {
+                (anote.xmove_acc as i16 + 2).min(31)
+            } else {
+                anote.xmove_acc as i16
+            };
+            // acc_x_offset returns a DDIST offset; convert to render coords.
+            // Reference: DrawNRGR.cp line 336: AccXDOffset(xmoveAcc, pContext)
+            let offset_ddist =
+                acc_x_offset(xmove, note_ctx.staff_height, note_ctx.staff_lines as i16);
+            let acc_x = acc_anchor - ddist_to_render(offset_ddist);
             renderer.music_char(acc_x, note_y, MusicGlyph::smufl(acc_glyph), 100.0);
         }
     }

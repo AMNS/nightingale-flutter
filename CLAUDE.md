@@ -199,6 +199,50 @@ When working on rendering/engraving tasks, operate in autonomous micro-cycles:
 **Minimize prompts, maximize self-feedback.** The user prefers fewer back-and-forth
 exchanges with more work done per cycle.
 
+## Visual Review & Bitmap Regression
+
+### Golden bitmaps
+
+Every NGL and Notelist fixture has a golden bitmap in `tests/golden_bitmaps/`:
+- NGL: `{fixture_name}_page1.png`
+- Notelist: `nl_{fixture_name}_page1.png`
+
+Bitmap regression tests run as part of `cargo test`. On mismatch the test panics
+with the pixel diff percentage and a path to the diff image.
+
+### Reviewing visual changes
+
+```sh
+# Quick visual diff of all golden bitmaps vs git HEAD:
+./scripts/visual-review.sh
+
+# Or run the Rust test directly:
+cargo test --test golden_diff -- --nocapture
+
+# Diff images go to /tmp/nightingale-test-output/golden-diff/
+#   {name}_old.png   — committed version
+#   {name}_new.png   — current version
+#   {name}_diff.png  — visual diff (matching=dimmed, changed=red)
+```
+
+### Updating goldens after intentional rendering changes
+
+```sh
+# Regenerate NGL goldens:
+REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression
+
+# Regenerate Notelist goldens:
+REGENERATE_REFS=1 cargo test test_all_notelists_bitmap_regression
+
+# Then review the diffs before committing:
+./scripts/visual-review.sh
+```
+
+### Shared test utilities
+
+`tests/common/mod.rs` provides `pdf_to_png()` and `compare_images_and_diff()`
+used by ngl_all.rs, notelist_all.rs, and golden_diff.rs. Do not duplicate these.
+
 ## Porting Drawing Code
 
 OG Nightingale has two separate rendering pipelines:

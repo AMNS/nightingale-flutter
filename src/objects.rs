@@ -6,7 +6,7 @@
 //! Reference: Nightingale/src/CFilesBoth/Objects.cp
 
 use crate::basic_types::*;
-use crate::utility::{calc_ystem, nflags};
+use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
 
 /// Voice role constants from Multivoice.h.
 /// Determines stem direction and stem length for each voice.
@@ -232,6 +232,127 @@ pub fn arrange_chord_notes(yds: &[i16], stem_down: bool, half_ln: i16) -> Vec<bo
         }
         result[orig_idx] = other_side;
         prev_yd = yd;
+    }
+
+    result
+}
+
+/// Default horizontal step for accidental staggering.
+/// Port of HACCSTEP_DFLT from Initialize.cp:938.
+const HACCSTEP: i16 = 4;
+
+/// Compute `xmove_acc` values for each note in a chord.
+///
+/// Port of ArrangeNCAccs from PitchUtils.cp:1517-1572.
+///
+/// The algorithm creates a "pyramid" stagger pattern: the middle accidental
+/// is pushed furthest left, with accidentals above and below it progressively
+/// closer to the noteheads. This works well for small chords (2-4 accidentals).
+///
+/// Arguments:
+/// - `notes`: slice of (yd, accident) pairs in the chord's display order
+///   (sorted from extreme note toward stem end)
+/// - `stem_down`: true if stem goes down
+///
+/// Returns a Vec of `xmove_acc` values (0-31) indexed by position in `notes`.
+pub fn arrange_nc_accs(notes: &[(i16, u8)], stem_down: bool) -> Vec<u8> {
+    let n = notes.len();
+    if n == 0 {
+        return vec![];
+    }
+    if n == 1 {
+        return vec![DFLT_XMOVEACC as u8];
+    }
+
+    // Count accidentals and find the closest interval between two accidentals.
+    // OG uses yqpit (quarter-pitch units); we use yd (DDIST).
+    // QD_SECOND in the OG = 2 quarter-pitch units = one diatonic step.
+    // The threshold "6 * QD_SECOND" = 12 qd = "less than a 7th apart".
+    // In our coordinate system: 6 diatonic steps * half_ln DDIST per step.
+    // But since we're comparing yd values directly, and yd = half_ln * halflines,
+    // we need the half_ln to compute the threshold. Instead, we can count
+    // the diatonic interval directly from yd differences.
+    //
+    // However, the OG code compares yqpit (which is in quarter-spaces, 2 per step).
+    // For simplicity, we replicate the logic using sorted yd positions and
+    // compute the threshold in terms of the actual yd spacing.
+
+    let mut acc_count = 0i16;
+    let mut closest_yd: i32 = i32::MAX;
+    let mut prev_acc_yd: i32 = 0;
+    let mut has_prev_acc = false;
+
+    for &(yd, accident) in notes {
+        if accident != 0 {
+            if has_prev_acc {
+                let diff = (yd as i32 - prev_acc_yd).abs();
+                if diff < closest_yd {
+                    closest_yd = diff;
+                }
+            }
+            acc_count += 1;
+            prev_acc_yd = yd as i32;
+            has_prev_acc = true;
+        }
+    }
+
+    if acc_count == 0 {
+        return vec![DFLT_XMOVEACC as u8; n];
+    }
+
+    let max_step = acc_count / 2;
+    let mid_acc = if acc_count % 2 == 0 && !stem_down {
+        max_step - 1
+    } else {
+        max_step
+    };
+
+    // Threshold: accidentals more than ~6 diatonic steps apart don't need staggering.
+    // We can't know half_ln here, so we use the yd values directly.
+    // The notes are already sorted, so we check if any consecutive pair of
+    // accidentals is "close". We'll check against 6 half-lines, approximated
+    // from the yd spacing between consecutive notes in the sorted list.
+    //
+    // Actually, the simplest approach: if we have the minimum yd gap between
+    // accidentals, we compare it against a threshold. The OG threshold is
+    // 6 * QD_SECOND = 12 in yqpit terms. In yd terms for NGL (half_ln=8):
+    // 6*8=48. For Notelist (half_ln=48): 6*48=288.
+    // Rather than requiring half_ln, we can check: if all accidental pairs
+    // are >= 6 * (first detected step size), use defaults.
+    //
+    // Simpler: compute half_ln from the actual yd data. The minimum non-zero
+    // interval between any two notes gives us half_ln.
+    let mut min_step: i32 = i32::MAX;
+    if notes.len() >= 2 {
+        for i in 1..notes.len() {
+            let diff = (notes[i].0 as i32 - notes[i - 1].0 as i32).abs();
+            if diff > 0 && diff < min_step {
+                min_step = diff;
+            }
+        }
+    }
+    // If no useful step found, default everything
+    if min_step == i32::MAX {
+        return vec![DFLT_XMOVEACC as u8; n];
+    }
+
+    // The threshold is 6 * half_ln (6 diatonic steps = a 7th)
+    let threshold = 6 * min_step;
+    let needs_stagger = closest_yd < threshold;
+
+    let mut result = vec![DFLT_XMOVEACC as u8; n];
+    let mut acc_so_far = 0i16;
+
+    for (i, &(_yd, accident)) in notes.iter().enumerate() {
+        if needs_stagger {
+            let diff = max_step - (mid_acc - acc_so_far).abs();
+            let xmove = (DFLT_XMOVEACC + HACCSTEP * diff).min(31);
+            result[i] = xmove as u8;
+        }
+        // else: result[i] already = DFLT_XMOVEACC
+        if accident != 0 {
+            acc_so_far += 1;
+        }
     }
 
     result

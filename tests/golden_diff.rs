@@ -12,73 +12,13 @@
 //!   {name}_new.png    — current working-tree version
 //!   {name}_diff.png   — visual diff (matching=dimmed, changed=red)
 
-use image::{GenericImageView, Rgba, RgbaImage};
+mod common;
+
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
 const DIFF_DIR: &str = "/tmp/nightingale-test-output/golden-diff";
-
-/// Compare two images pixel-by-pixel, produce a diff image.
-///
-/// Returns (total_pixels, diff_pixels, diff_pct).
-/// Diff image: matching pixels shown dimmed (30% opacity), differences in bright red.
-fn compare_images_and_diff(
-    old_path: &Path,
-    new_path: &Path,
-    diff_path: &Path,
-) -> Result<(u64, u64, f64), String> {
-    let old = image::open(old_path).map_err(|e| format!("open old: {}", e))?;
-    let new = image::open(new_path).map_err(|e| format!("open new: {}", e))?;
-
-    let (ow, oh) = old.dimensions();
-    let (nw, nh) = new.dimensions();
-
-    let w = ow.max(nw);
-    let h = oh.max(nh);
-    let total = w as u64 * h as u64;
-
-    let mut diff_img = RgbaImage::new(w, h);
-    let mut diff_count: u64 = 0;
-
-    for y in 0..h {
-        for x in 0..w {
-            let opx = if x < ow && y < oh {
-                old.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255])
-            };
-            let npx = if x < nw && y < nh {
-                new.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255])
-            };
-
-            if opx == npx {
-                // Match: dimmed
-                let r = (opx[0] as u16 * 30 + 255 * 70) / 100;
-                let g = (opx[1] as u16 * 30 + 255 * 70) / 100;
-                let b = (opx[2] as u16 * 30 + 255 * 70) / 100;
-                diff_img.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
-            } else {
-                diff_img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
-                diff_count += 1;
-            }
-        }
-    }
-
-    diff_img
-        .save(diff_path)
-        .map_err(|e| format!("save diff: {}", e))?;
-
-    let pct = if total > 0 {
-        diff_count as f64 / total as f64 * 100.0
-    } else {
-        0.0
-    };
-
-    Ok((total, diff_count, pct))
-}
 
 /// Extract a file's contents from git HEAD.
 fn git_show_head(repo_file: &str) -> Option<Vec<u8>> {
@@ -99,7 +39,7 @@ fn diff_changed_golden_bitmaps() {
     let diff_dir = Path::new(DIFF_DIR);
     fs::create_dir_all(diff_dir).unwrap();
 
-    // Find all golden bitmaps in working tree
+    // Find all golden bitmaps in working tree (both NGL and Notelist)
     let entries: Vec<_> = fs::read_dir(golden_dir)
         .expect("tests/golden_bitmaps/ must exist")
         .filter_map(|e| e.ok())
@@ -144,7 +84,7 @@ fn diff_changed_golden_bitmaps() {
         fs::write(&old_path, &old_bytes).unwrap();
         fs::copy(&path, &new_path).unwrap();
 
-        match compare_images_and_diff(&old_path, &new_path, &diff_path) {
+        match common::compare_images_and_diff(&old_path, &new_path, &diff_path) {
             Ok((total, diff_px, pct)) => {
                 eprintln!(
                     "[CHANGED] {}  — {}/{} pixels differ ({:.2}%)",

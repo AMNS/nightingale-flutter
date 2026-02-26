@@ -8,6 +8,8 @@
 //! 5. Render → PdfRenderer (valid PDF output)
 //! 6. Insta snapshot for regression detection
 
+mod common;
+
 use nightingale_core::defs::*;
 use nightingale_core::draw::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
@@ -554,23 +556,23 @@ fn test_all_ngl_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("01_me_and_lucy", 2763143291660065552),
-        ("02_cloning_frank_blacks", 8976157431615939005),
-        ("03_holed_up_in_penjinskya", 12465882836638624708),
-        ("04_eating_humble_pie", 10999738705726807928),
-        ("05_abigail", 14040406989636705622),
-        ("06_melyssa_with_a_y", 11307204729145529381),
-        ("07_new_york_debutante", 16924711526240080343),
-        ("08_darling_sunshine", 3927317826068264013),
-        ("09_swiss_ann", 276465911600770439),
-        ("10_ghost_of_fusion_bob", 8755414963285868505),
-        ("11_philip", 10693192315106109090),
-        ("12_what_do_i_know", 2492877371819370303),
-        ("13_miss_b", 8002386449283309363),
-        ("14_chrome_molly", 15874903424341510996),
-        ("15_selfsame_twin", 4364788083162604189),
-        ("16_esmerelda", 7989006577813229098),
-        ("17_capital_regiment_march", 4015289515686892782),
+        ("01_me_and_lucy", 11941074108450884689),
+        ("02_cloning_frank_blacks", 15383323440229227290),
+        ("03_holed_up_in_penjinskya", 16053304772922475205),
+        ("04_eating_humble_pie", 16134818664165333948),
+        ("05_abigail", 17960441337246197452),
+        ("06_melyssa_with_a_y", 12712593906218662695),
+        ("07_new_york_debutante", 4101841604431281874),
+        ("08_darling_sunshine", 4839837668630453177),
+        ("09_swiss_ann", 1980557647141911110),
+        ("10_ghost_of_fusion_bob", 12822478291680429599),
+        ("11_philip", 7264080136348133322),
+        ("12_what_do_i_know", 1039197755689585167),
+        ("13_miss_b", 9876331604010644672),
+        ("14_chrome_molly", 4692443335232023715),
+        ("15_selfsame_twin", 17440400313860326009),
+        ("16_esmerelda", 7257353985256251561),
+        ("17_capital_regiment_march", 2991053122251194803),
     ]
     .into_iter()
     .collect();
@@ -619,140 +621,7 @@ fn test_all_ngl_command_stream_hashes() {
 // Bitmap regression: PDF page 1 rendered to PNG and compared pixel-by-pixel
 // ============================================================================
 
-/// Try to convert a PDF to PNG using available system tools.
-///
-/// Falls back through: sips (macOS) → pdftoppm (poppler-utils) → magick (ImageMagick).
-/// Returns Ok(true) if conversion succeeded, Ok(false) if no tool available.
-fn pdf_to_png(pdf_path: &Path, png_path: &Path) -> Result<bool, String> {
-    // Try sips (macOS built-in)
-    if let Ok(output) = std::process::Command::new("sips")
-        .args([
-            "-s",
-            "format",
-            "png",
-            "-s",
-            "dpiHeight",
-            "72",
-            "-s",
-            "dpiWidth",
-            "72",
-        ])
-        .arg(pdf_path)
-        .arg("--out")
-        .arg(png_path)
-        .output()
-    {
-        if output.status.success() {
-            return Ok(true);
-        }
-    }
-
-    // Try pdftoppm (poppler-utils, common on Linux)
-    // pdftoppm -png -r 72 -f 1 -l 1 input.pdf output_prefix
-    let prefix = png_path.with_extension("");
-    if let Ok(output) = std::process::Command::new("pdftoppm")
-        .args(["-png", "-r", "72", "-f", "1", "-l", "1"])
-        .arg(pdf_path)
-        .arg(&prefix)
-        .output()
-    {
-        if output.status.success() {
-            // pdftoppm outputs prefix-1.png (or prefix-01.png)
-            let candidates = [
-                prefix.with_extension("").to_string_lossy().to_string() + "-1.png",
-                prefix.with_extension("").to_string_lossy().to_string() + "-01.png",
-            ];
-            for cand in &candidates {
-                let p = Path::new(cand);
-                if p.exists() {
-                    fs::rename(p, png_path).map_err(|e| e.to_string())?;
-                    return Ok(true);
-                }
-            }
-        }
-    }
-
-    // Try ImageMagick (cross-platform)
-    if let Ok(output) = std::process::Command::new("magick")
-        .args(["convert", "-density", "72"])
-        .arg(format!("{}[0]", pdf_path.display())) // [0] = first page
-        .arg(png_path)
-        .output()
-    {
-        if output.status.success() {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
-}
-
-/// Compare two images pixel-by-pixel and generate a visual diff.
-///
-/// Returns (total_pixels, diff_pixels, diff_pct).
-/// Writes a diff image to `diff_path` where:
-/// - Matching pixels are shown at 30% opacity (dimmed)
-/// - Different pixels are shown in bright red
-fn compare_images_and_diff(
-    golden_path: &Path,
-    current_path: &Path,
-    diff_path: &Path,
-) -> Result<(u64, u64, f64), String> {
-    use image::{GenericImageView, Rgba, RgbaImage};
-
-    let golden = image::open(golden_path).map_err(|e| format!("open golden: {}", e))?;
-    let current = image::open(current_path).map_err(|e| format!("open current: {}", e))?;
-
-    let (gw, gh) = golden.dimensions();
-    let (cw, ch) = current.dimensions();
-
-    // Use the larger dimensions for the diff canvas
-    let w = gw.max(cw);
-    let h = gh.max(ch);
-    let total = w as u64 * h as u64;
-
-    let mut diff_img = RgbaImage::new(w, h);
-    let mut diff_count: u64 = 0;
-
-    for y in 0..h {
-        for x in 0..w {
-            let gpx = if x < gw && y < gh {
-                golden.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255]) // treat out-of-bounds as white
-            };
-            let cpx = if x < cw && y < ch {
-                current.get_pixel(x, y)
-            } else {
-                Rgba([255, 255, 255, 255])
-            };
-
-            if gpx == cpx {
-                // Match: show dimmed (30% opacity blend with white)
-                let r = (gpx[0] as u16 * 30 + 255 * 70) / 100;
-                let g = (gpx[1] as u16 * 30 + 255 * 70) / 100;
-                let b = (gpx[2] as u16 * 30 + 255 * 70) / 100;
-                diff_img.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
-            } else {
-                // Mismatch: bright red
-                diff_img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
-                diff_count += 1;
-            }
-        }
-    }
-
-    diff_img
-        .save(diff_path)
-        .map_err(|e| format!("save diff: {}", e))?;
-
-    let pct = if total > 0 {
-        diff_count as f64 / total as f64 * 100.0
-    } else {
-        0.0
-    };
-
-    Ok((total, diff_count, pct))
-}
+// pdf_to_png and compare_images_and_diff are in tests/common/mod.rs
 
 /// Visual regression test: PDF → PNG → pixel diff against golden.
 ///
@@ -804,7 +673,7 @@ fn test_all_ngl_bitmap_regression() {
         fs::write(&pdf_path, &pdf_bytes).unwrap();
 
         let current_png = diff_dir.join(format!("{}_current.png", name));
-        match pdf_to_png(&pdf_path, &current_png) {
+        match common::pdf_to_png(&pdf_path, &current_png) {
             Ok(true) => {} // success
             Ok(false) => {
                 if skipped == 0 {
@@ -838,7 +707,7 @@ fn test_all_ngl_bitmap_regression() {
 
         // Pixel-level comparison with visual diff output
         let diff_path = diff_dir.join(format!("{}_diff.png", name));
-        match compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+        match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
             Ok((total, diff_pixels, diff_pct)) => {
                 if diff_pixels == 0 {
                     // Perfect match — clean up
