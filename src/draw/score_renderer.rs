@@ -326,6 +326,16 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
                 renderer.begin_page((page_num + 1) as u32);
                 current_page = page_num;
             }
+            // SYSTEM boundaries: draw ties for the current system, then clear.
+            // This prevents ties from matching across distant systems and
+            // producing wild diagonal lines.
+            ObjData::System(_) => {
+                if !tie_starts.is_empty() || !tie_ends.is_empty() {
+                    draw_ties(&tie_starts, &tie_ends, renderer);
+                    tie_starts.clear();
+                    tie_ends.clear();
+                }
+            }
             ObjData::Staff(_) => draw_staff(score, obj, &ctx, renderer),
             ObjData::Measure(_) => draw_measure(score, obj, &ctx, renderer),
             ObjData::Sync(_) => {
@@ -1409,12 +1419,26 @@ fn draw_beamset(
             None => continue,
         };
 
-        // Find a beamed note in this sync that matches the beamset voice
+        // Find the stem-bearing beamed note in this sync for the beamset voice.
+        // In chords, multiple notes share beamed=true but only the "far" note
+        // (farthest from the beam) has a meaningful ystem != yd. Prefer that note
+        // so beam endpoints connect to actual stem tips.
         if let Some(anote_list) = score.notes.get(&sync_obj.header.first_sub_obj) {
-            // Find the first beamed note in this sync for this voice
-            if let Some(note) = anote_list.iter().find(|n| {
-                n.beamed && n.voice == beamset.voice && n.header.staffn == beamset.ext_header.staffn
-            }) {
+            let matching: Vec<&_> = anote_list
+                .iter()
+                .filter(|n| {
+                    n.beamed
+                        && n.voice == beamset.voice
+                        && n.header.staffn == beamset.ext_header.staffn
+                })
+                .collect();
+            // Prefer the note with a real stem (ystem != yd); fall back to first match
+            if let Some(note) = matching
+                .iter()
+                .find(|n| n.ystem != n.yd)
+                .or(matching.first())
+                .copied()
+            {
                 let lnspace = if staff_ctx.staff_lines > 1 {
                     ddist_to_render(staff_ctx.staff_height) / (staff_ctx.staff_lines as f32 - 1.0)
                 } else {
