@@ -616,21 +616,151 @@ fn test_all_ngl_command_stream_hashes() {
 }
 
 // ============================================================================
-// Bitmap regression: PDF page 1 rendered to PNG and compared against golden
+// Bitmap regression: PDF page 1 rendered to PNG and compared pixel-by-pixel
 // ============================================================================
 
-/// Visual regression test using bitmap comparison.
+/// Try to convert a PDF to PNG using available system tools.
 ///
-/// Renders each NGL fixture to PDF, converts page 1 to PNG via `sips`,
-/// and compares byte-for-byte against the golden PNG in tests/golden_bitmaps/.
+/// Falls back through: sips (macOS) → pdftoppm (poppler-utils) → magick (ImageMagick).
+/// Returns Ok(true) if conversion succeeded, Ok(false) if no tool available.
+fn pdf_to_png(pdf_path: &Path, png_path: &Path) -> Result<bool, String> {
+    // Try sips (macOS built-in)
+    if let Ok(output) = std::process::Command::new("sips")
+        .args([
+            "-s",
+            "format",
+            "png",
+            "-s",
+            "dpiHeight",
+            "72",
+            "-s",
+            "dpiWidth",
+            "72",
+        ])
+        .arg(pdf_path)
+        .arg("--out")
+        .arg(png_path)
+        .output()
+    {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+
+    // Try pdftoppm (poppler-utils, common on Linux)
+    // pdftoppm -png -r 72 -f 1 -l 1 input.pdf output_prefix
+    let prefix = png_path.with_extension("");
+    if let Ok(output) = std::process::Command::new("pdftoppm")
+        .args(["-png", "-r", "72", "-f", "1", "-l", "1"])
+        .arg(pdf_path)
+        .arg(&prefix)
+        .output()
+    {
+        if output.status.success() {
+            // pdftoppm outputs prefix-1.png (or prefix-01.png)
+            let candidates = [
+                prefix.with_extension("").to_string_lossy().to_string() + "-1.png",
+                prefix.with_extension("").to_string_lossy().to_string() + "-01.png",
+            ];
+            for cand in &candidates {
+                let p = Path::new(cand);
+                if p.exists() {
+                    fs::rename(p, png_path).map_err(|e| e.to_string())?;
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
+    // Try ImageMagick (cross-platform)
+    if let Ok(output) = std::process::Command::new("magick")
+        .args(["convert", "-density", "72"])
+        .arg(format!("{}[0]", pdf_path.display())) // [0] = first page
+        .arg(png_path)
+        .output()
+    {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+/// Compare two images pixel-by-pixel and generate a visual diff.
 ///
-/// This catches visual rendering differences that might not show up in the
-/// command-stream hash (e.g. font rendering changes, PDF structure changes).
+/// Returns (total_pixels, diff_pixels, diff_pct).
+/// Writes a diff image to `diff_path` where:
+/// - Matching pixels are shown at 30% opacity (dimmed)
+/// - Different pixels are shown in bright red
+fn compare_images_and_diff(
+    golden_path: &Path,
+    current_path: &Path,
+    diff_path: &Path,
+) -> Result<(u64, u64, f64), String> {
+    use image::{GenericImageView, Rgba, RgbaImage};
+
+    let golden = image::open(golden_path).map_err(|e| format!("open golden: {}", e))?;
+    let current = image::open(current_path).map_err(|e| format!("open current: {}", e))?;
+
+    let (gw, gh) = golden.dimensions();
+    let (cw, ch) = current.dimensions();
+
+    // Use the larger dimensions for the diff canvas
+    let w = gw.max(cw);
+    let h = gh.max(ch);
+    let total = w as u64 * h as u64;
+
+    let mut diff_img = RgbaImage::new(w, h);
+    let mut diff_count: u64 = 0;
+
+    for y in 0..h {
+        for x in 0..w {
+            let gpx = if x < gw && y < gh {
+                golden.get_pixel(x, y)
+            } else {
+                Rgba([255, 255, 255, 255]) // treat out-of-bounds as white
+            };
+            let cpx = if x < cw && y < ch {
+                current.get_pixel(x, y)
+            } else {
+                Rgba([255, 255, 255, 255])
+            };
+
+            if gpx == cpx {
+                // Match: show dimmed (30% opacity blend with white)
+                let r = (gpx[0] as u16 * 30 + 255 * 70) / 100;
+                let g = (gpx[1] as u16 * 30 + 255 * 70) / 100;
+                let b = (gpx[2] as u16 * 30 + 255 * 70) / 100;
+                diff_img.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
+            } else {
+                // Mismatch: bright red
+                diff_img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
+                diff_count += 1;
+            }
+        }
+    }
+
+    diff_img
+        .save(diff_path)
+        .map_err(|e| format!("save diff: {}", e))?;
+
+    let pct = if total > 0 {
+        diff_count as f64 / total as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    Ok((total, diff_count, pct))
+}
+
+/// Visual regression test: PDF → PNG → pixel diff against golden.
 ///
-/// Requires macOS `sips` command. Regenerate goldens with:
-///   `REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression -- --nocapture`
+/// Cross-platform: tries sips (macOS), pdftoppm (Linux), magick (ImageMagick).
+/// On mismatch, generates a visual diff image (matching pixels dimmed, diffs in red).
+///
+/// Regenerate goldens: `REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression`
 #[test]
-#[cfg(target_os = "macos")]
 fn test_all_ngl_bitmap_regression() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
     let golden_dir = Path::new("tests/golden_bitmaps");
@@ -642,6 +772,7 @@ fn test_all_ngl_bitmap_regression() {
     let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
 
     let mut mismatches = Vec::new();
+    let mut skipped = 0;
 
     for path in ALL_NGL_FILES {
         let name = short_name(path);
@@ -668,46 +799,32 @@ fn test_all_ngl_bitmap_regression() {
         render_score(&score, &mut pdf_renderer);
         let pdf_bytes = pdf_renderer.finish();
 
-        // Write PDF and convert page 1 to PNG via sips
+        // Write PDF and convert page 1 to PNG
         let pdf_path = output_dir.join(format!("{}.pdf", name));
         fs::write(&pdf_path, &pdf_bytes).unwrap();
 
         let current_png = diff_dir.join(format!("{}_current.png", name));
-        let sips_result = std::process::Command::new("sips")
-            .args([
-                "-s",
-                "format",
-                "png",
-                "-s",
-                "dpiHeight",
-                "72",
-                "-s",
-                "dpiWidth",
-                "72",
-            ])
-            .arg(&pdf_path)
-            .arg("--out")
-            .arg(&current_png)
-            .output();
-
-        let Ok(output) = sips_result else {
-            eprintln!("[{}] sips not available, skipping bitmap test", name);
-            continue;
-        };
-
-        if !output.status.success() {
-            eprintln!(
-                "[{}] sips failed: {}",
-                name,
-                String::from_utf8_lossy(&output.stderr)
-            );
-            continue;
+        match pdf_to_png(&pdf_path, &current_png) {
+            Ok(true) => {} // success
+            Ok(false) => {
+                if skipped == 0 {
+                    eprintln!(
+                        "No PDF-to-PNG tool found (tried sips, pdftoppm, magick). \
+                         Bitmap regression tests will be skipped."
+                    );
+                }
+                skipped += 1;
+                continue;
+            }
+            Err(e) => {
+                eprintln!("[{}] PDF-to-PNG error: {}", name, e);
+                continue;
+            }
         }
 
         let golden_path = golden_dir.join(format!("{}_page1.png", name));
 
         if regenerate {
-            // Copy current to golden
             fs::copy(&current_png, &golden_path).unwrap();
             println!("[{}] Updated golden: {}", name, golden_path.display());
             continue;
@@ -715,46 +832,58 @@ fn test_all_ngl_bitmap_regression() {
 
         if !golden_path.exists() {
             eprintln!("[{}] No golden bitmap at {}", name, golden_path.display());
-            mismatches.push(name.clone());
+            mismatches.push(format!("{} (no golden)", name));
             continue;
         }
 
-        // Compare golden vs current
-        let golden_bytes = fs::read(&golden_path).unwrap();
-        let current_bytes = fs::read(&current_png).unwrap();
+        // Pixel-level comparison with visual diff output
+        let diff_path = diff_dir.join(format!("{}_diff.png", name));
+        match compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+            Ok((total, diff_pixels, diff_pct)) => {
+                if diff_pixels == 0 {
+                    // Perfect match — clean up
+                    let _ = fs::remove_file(&current_png);
+                    let _ = fs::remove_file(&diff_path);
+                } else {
+                    // Save golden copy alongside current and diff
+                    let golden_copy = diff_dir.join(format!("{}_golden.png", name));
+                    let _ = fs::copy(&golden_path, &golden_copy);
 
-        if golden_bytes != current_bytes {
-            // Save both for visual inspection
-            let golden_copy = diff_dir.join(format!("{}_golden.png", name));
-            fs::copy(&golden_path, &golden_copy).unwrap();
-
-            let size_diff_pct = ((current_bytes.len() as f64 - golden_bytes.len() as f64)
-                / golden_bytes.len() as f64
-                * 100.0)
-                .abs();
-
-            eprintln!(
-                "[{}] BITMAP MISMATCH: golden={} bytes, current={} bytes (diff {:.1}%)\n  \
-                 golden: {}\n  current: {}",
-                name,
-                golden_bytes.len(),
-                current_bytes.len(),
-                size_diff_pct,
-                golden_copy.display(),
-                current_png.display(),
-            );
-            mismatches.push(name.clone());
-        } else {
-            // Clean up matching current
-            let _ = fs::remove_file(&current_png);
+                    eprintln!(
+                        "[{}] BITMAP MISMATCH: {}/{} pixels differ ({:.2}%)\n  \
+                         golden:  {}\n  current: {}\n  diff:    {}",
+                        name,
+                        diff_pixels,
+                        total,
+                        diff_pct,
+                        golden_copy.display(),
+                        current_png.display(),
+                        diff_path.display(),
+                    );
+                    mismatches.push(format!("{} ({:.2}% diff)", name, diff_pct));
+                }
+            }
+            Err(e) => {
+                eprintln!("[{}] Comparison error: {}", name, e);
+                mismatches.push(format!("{} (error: {})", name, e));
+            }
         }
+    }
+
+    if skipped == ALL_NGL_FILES.len() {
+        eprintln!(
+            "WARN: All {} bitmap tests skipped (no PDF-to-PNG tool). \
+             Install one of: sips (macOS), poppler-utils (pdftoppm), or ImageMagick (magick).",
+            skipped
+        );
+        return; // Don't fail — just warn
     }
 
     if !regenerate && !mismatches.is_empty() {
         panic!(
             "Bitmap mismatches in {} fixture(s): {}\n\
-             Visual diff: open /tmp/nightingale-test-output/bitmap-diff/\n\
-             Regenerate: REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression",
+             Visual diff images: open /tmp/nightingale-test-output/bitmap-diff/\n\
+             Regenerate goldens: REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression",
             mismatches.len(),
             mismatches.join(", ")
         );

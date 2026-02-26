@@ -19,3 +19,5 @@ ttf-parser = "0.25"
 [dev-dependencies]
 # Snapshot testing
 insta = "1"
+# PNG loading/saving and pixel-level comparison for visual regression tests
+image = "0.25"
