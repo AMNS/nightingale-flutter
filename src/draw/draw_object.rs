@@ -216,7 +216,9 @@ pub fn draw_clef(
                     let clef_y =
                         ddist_to_render(clef_ctx.staff_top) + (halfline as f32 * lnspace / 2.0);
 
-                    renderer.music_char(clef_x, clef_y, MusicGlyph::smufl(glyph), 100.0);
+                    // Mid-measure clefs drawn at 75% (OG: SMALLSIZE macro, style.h:16)
+                    let size_pct = if aclef.small != 0 { 75.0 } else { 100.0 };
+                    renderer.music_char(clef_x, clef_y, MusicGlyph::smufl(glyph), size_pct);
                 }
             }
         }

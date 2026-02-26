@@ -271,13 +271,49 @@ pub fn notelist_to_score_with_config(
         roles
     };
 
-    // Collect clef assignments (staff→clef_type)
+    // Collect INITIAL (preamble) clef assignments (staff→clef_type).
+    // Only take the FIRST clef per staff — subsequent ones are mid-score changes.
     let mut clef_types: Vec<u8> = vec![3; num_staves + 1]; // Default treble (type 3)
+    let mut clef_set: Vec<bool> = vec![false; num_staves + 1];
     for record in &notelist.records {
         if let NotelistRecord::Clef { staff, clef_type } = record {
             let s = *staff as usize;
-            if s > 0 && s <= num_staves {
+            if s > 0 && s <= num_staves && !clef_set[s] {
                 clef_types[s] = *clef_type;
+                clef_set[s] = true;
+            }
+        }
+    }
+
+    // Pre-scan for mid-score clef changes: assign each a time from the next note/rest.
+    // Only emit a mid-score clef when the clef type actually CHANGES from the current
+    // state for that staff. Nightingale's Notelist restates the same clef at each system
+    // boundary, which does NOT constitute a clef change.
+    // Format: (record_index, staff, clef_type, time)
+    let mut mid_score_clefs: Vec<(usize, i8, u8, i32)> = Vec::new();
+    {
+        let mut current_clef: Vec<u8> = clef_types.clone();
+        let mut first_clef_seen: Vec<bool> = vec![false; num_staves + 1];
+        for (idx, record) in notelist.records.iter().enumerate() {
+            if let NotelistRecord::Clef { staff, clef_type } = record {
+                let s = *staff as usize;
+                if s > 0 && s <= num_staves {
+                    if !first_clef_seen[s] {
+                        first_clef_seen[s] = true; // skip preamble clef
+                    } else if *clef_type != current_clef[s] {
+                        // Actual clef change — different from current
+                        let time = notelist.records[idx + 1..]
+                            .iter()
+                            .find_map(|r| match r {
+                                NotelistRecord::Note { time, .. }
+                                | NotelistRecord::Rest { time, .. } => Some(*time),
+                                _ => None,
+                            })
+                            .unwrap_or(0);
+                        mid_score_clefs.push((idx, *staff, *clef_type, time));
+                        current_clef[s] = *clef_type;
+                    }
+                }
             }
         }
     }
@@ -582,6 +618,17 @@ pub fn notelist_to_score_with_config(
         if total < ideal_space_stdist(4) && !span.event_times.is_empty() {
             total = ideal_space_stdist(4);
         }
+
+        // Add clef width for measures that start with a mid-score clef change.
+        // OG Nightingale: clef width = 0.85 * STD_LINEHT * 4 STDIST, with small (mid-measure)
+        // clefs at 75% → 0.85 * 8 * 4 * 0.75 ≈ 20.4 STDIST.
+        // Port of SpaceTime.cp:402-417 (SymWidthRight for CLEFtype).
+        if let Some(&first_time) = span.event_times.first() {
+            if mid_score_clefs.iter().any(|&(_, _, _, t)| t == first_time) {
+                const CLEF_WIDTH_SMALL_STDIST: f32 = 0.85 * 8.0 * 4.0 * 0.75; // ~20.4 STDIST
+                total += CLEF_WIDTH_SMALL_STDIST;
+            }
+        }
         measure_ideal_stdist.push(total);
     }
 
@@ -637,6 +684,10 @@ pub fn notelist_to_score_with_config(
 
     let mut event_rel_xd: std::collections::HashMap<i32, Ddist> = std::collections::HashMap::new();
 
+    // Pre-compute which measures have mid-score clef changes at their start time
+    let clef_change_times: std::collections::HashSet<i32> =
+        mid_score_clefs.iter().map(|&(_, _, _, t)| t).collect();
+
     for (mi, span) in measure_spans.iter().enumerate() {
         let ideal_total_std = measure_ideal_stdist[mi];
         let actual_width = measure_width_ddist[mi];
@@ -647,8 +698,23 @@ pub fn notelist_to_score_with_config(
             1.0
         };
 
-        // Leave a small indent from the barline before the first event
-        let indent: Ddist = 100; // ~6pt indent from barline
+        // Leave a small indent from the barline before the first event.
+        // If this measure starts with a mid-score clef change, add the
+        // clef's width (converted to DDIST) as an offset before notes.
+        // OG Nightingale: small clef = 0.85 * STD_LINEHT * 4 * 0.75 STDIST.
+        // Port of SpaceTime.cp:402-417 + SpaceHighLevel.cp:533-590 (J_IP positioning).
+        let has_clef_at_start = span
+            .event_times
+            .first()
+            .map(|t| clef_change_times.contains(t))
+            .unwrap_or(false);
+        let clef_indent: Ddist = if has_clef_at_start {
+            let clef_w_stdist: f32 = 0.85 * 8.0 * 4.0 * 0.75; // ~20.4 STDIST
+            stdist_to_ddist(clef_w_stdist, config.staff_height)
+        } else {
+            0
+        };
+        let indent: Ddist = 100 + clef_indent; // ~6pt base + clef room
         let mut acc_stdist: f32 = 0.0;
 
         for &et in &span.event_times {
@@ -712,6 +778,12 @@ pub fn notelist_to_score_with_config(
         },
         Sync {
             time: i32,
+            xd: Ddist,
+        },
+        Clef {
+            time: i32,
+            staff: i8,
+            clef_type: u8,
             xd: Ddist,
         },
     }
@@ -1284,7 +1356,32 @@ pub fn notelist_to_score_with_config(
                         continue;
                     }
 
+                    // Before adding the first sync at this time, insert any
+                    // mid-score clef changes that occur at this time.
                     if !seen_times.contains(time) {
+                        for &(_ridx, cstf, ctype, ctime) in &mid_score_clefs {
+                            if ctime == *time {
+                                // Place clef at the measure's barline indent (before the
+                                // extra clef_indent that was added to note positions).
+                                let clef_xd_pos = 100; // base indent, matching Step 5
+                                let link = next_link();
+                                music_objs.push(MusicObj {
+                                    link,
+                                    kind: MusicObjKind::Clef {
+                                        time: ctime,
+                                        staff: cstf,
+                                        clef_type: ctype,
+                                        xd: clef_xd_pos,
+                                    },
+                                });
+                                // Update clef_types so subsequent notes use the new clef
+                                let cs = cstf as usize;
+                                if cs > 0 && cs <= num_staves {
+                                    clef_types[cs] = ctype;
+                                }
+                            }
+                        }
+
                         seen_times.push(*time);
                         let rel_xd = event_rel_xd.get(time).copied().unwrap_or(100);
                         let link = next_link();
@@ -1346,6 +1443,17 @@ pub fn notelist_to_score_with_config(
                 },
                 MusicObjKind::Sync { time, xd } => MusicObjKind::Sync {
                     time: *time,
+                    xd: *xd,
+                },
+                MusicObjKind::Clef {
+                    time,
+                    staff,
+                    clef_type,
+                    xd,
+                } => MusicObjKind::Clef {
+                    time: *time,
+                    staff: *staff,
+                    clef_type: *clef_type,
                     xd: *xd,
                 },
             },
@@ -1450,6 +1558,63 @@ pub fn notelist_to_score_with_config(
                             space_percent: 100,
                             measure_b_box: Rect::default(),
                             l_time_stamp: 0,
+                        }),
+                    });
+                }
+
+                MusicObjKind::Clef {
+                    time: _,
+                    staff: clef_staff,
+                    clef_type: mid_clef_type,
+                    xd: clef_obj_xd,
+                } => {
+                    // Mid-score clef change object
+                    let clef_sub_link = note_sub_counter;
+                    note_sub_counter += 1;
+
+                    // Mid-measure clefs are drawn small (75% of normal).
+                    // Port of InsNew.cp:967 — aClef->small = ClefINMEAS(newL).
+                    let clef_subs = vec![AClef {
+                        header: SubObjHeader {
+                            next: NILINK,
+                            staffn: *clef_staff,
+                            sub_type: *mid_clef_type as i8,
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                        },
+                        filler1: 0,
+                        small: 1, // in_measure → small
+                        filler2: 0,
+                        xd: 0,
+                        yd: 0,
+                    }];
+                    score.clefs.insert(clef_sub_link, clef_subs);
+
+                    score.objects.push(InterpretedObject {
+                        index: mobj.link,
+                        header: ObjectHeader {
+                            right,
+                            left,
+                            first_sub_obj: clef_sub_link,
+                            xd: *clef_obj_xd,
+                            yd: 0,
+                            obj_type: CLEF_TYPE as i8,
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                            valid: true,
+                            tweaked: false,
+                            spare_flag: false,
+                            ohdr_filler1: 0,
+                            obj_rect: Rect::default(),
+                            rel_size: 0,
+                            ohdr_filler2: 0,
+                            n_entries: 1, // single staff clef change
+                        },
+                        data: ObjData::Clef(Clef {
+                            header: ObjectHeader::default(),
+                            in_measure: true, // mid-score clef
                         }),
                     });
                 }

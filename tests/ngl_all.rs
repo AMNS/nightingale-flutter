@@ -556,22 +556,22 @@ fn test_all_ngl_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("01_me_and_lucy", 11941074108450884689),
+        ("01_me_and_lucy", 1954603173460012872),
         ("02_cloning_frank_blacks", 15383323440229227290),
-        ("03_holed_up_in_penjinskya", 16053304772922475205),
+        ("03_holed_up_in_penjinskya", 2294965937357687147),
         ("04_eating_humble_pie", 16134818664165333948),
         ("05_abigail", 17960441337246197452),
         ("06_melyssa_with_a_y", 12712593906218662695),
-        ("07_new_york_debutante", 4101841604431281874),
+        ("07_new_york_debutante", 2846686361135722216),
         ("08_darling_sunshine", 4839837668630453177),
-        ("09_swiss_ann", 1980557647141911110),
-        ("10_ghost_of_fusion_bob", 12822478291680429599),
+        ("09_swiss_ann", 11021529873539644438),
+        ("10_ghost_of_fusion_bob", 9020389575208827672),
         ("11_philip", 7264080136348133322),
         ("12_what_do_i_know", 1039197755689585167),
         ("13_miss_b", 9876331604010644672),
-        ("14_chrome_molly", 4692443335232023715),
+        ("14_chrome_molly", 6413431007995057912),
         ("15_selfsame_twin", 17440400313860326009),
-        ("16_esmerelda", 7257353985256251561),
+        ("16_esmerelda", 17925754796964844013),
         ("17_capital_regiment_march", 2991053122251194803),
     ]
     .into_iter()
