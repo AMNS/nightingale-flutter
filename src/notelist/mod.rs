@@ -17,6 +17,11 @@ pub mod to_score;
 
 pub use parser::{parse_notelist, Notelist, NotelistRecord, ParseError};
 pub use to_score::{
-    clef_middle_c_half_ln, nl_midi_to_half_ln, notelist_to_score, notelist_to_score_with_config,
-    NotelistLayoutConfig, VoiceRole, AC_DBLFLAT, AC_DBLSHARP, AC_FLAT, AC_NATURAL, AC_SHARP,
+    notelist_to_score, notelist_to_score_with_config, NotelistLayoutConfig, VoiceRole,
+};
+// Pitch/accidental re-exports: canonical location is now crate::pitch_utils,
+// but kept here for backward compatibility with existing callers.
+pub use crate::pitch_utils::{
+    clef_middle_c_half_ln, nl_midi_to_half_ln, AC_DBLFLAT, AC_DBLSHARP, AC_FLAT, AC_NATURAL,
+    AC_SHARP,
 };
