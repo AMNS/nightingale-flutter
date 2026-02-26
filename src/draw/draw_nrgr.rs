@@ -83,8 +83,27 @@ pub fn draw_sync(
             if let Some(note_ctx) = ctx.get(anote.header.staffn) {
                 // Check if note is visible
                 if note_ctx.visible && anote.header.visible {
-                    // Compute note X: measure_left + sync xd + note xd
-                    let note_x = d2r_sum3(note_ctx.measure_left, obj.header.xd, anote.xd);
+                    // "Normal" note X: measure_left + sync xd + note xd
+                    // This is used as the accidental anchor point.
+                    // Reference: DrawUtils.cp NoteXLoc() line 1456-1479
+                    let xd_norm = d2r_sum3(note_ctx.measure_left, obj.header.xd, anote.xd);
+
+                    // Line spacing for ledger lines and notehead sizing
+                    let lnspace = lnspace_for_staff(note_ctx.staff_height, note_ctx.staff_lines);
+                    let head_width = 1.125 * lnspace; // HeadWidth = 9*lnSp*4/32
+
+                    // Apply otherStemSide offset for seconds in chords.
+                    // Reference: DrawUtils.cp NoteXLoc() line 1470-1478
+                    let note_x = if anote.other_stem_side && !anote.rest {
+                        let stem_down = find_stem_down(anote, anote_list);
+                        if stem_down {
+                            xd_norm - head_width // downstem: shift LEFT
+                        } else {
+                            xd_norm + head_width // upstem: shift RIGHT
+                        }
+                    } else {
+                        xd_norm
+                    };
 
                     // Compute note Y: staff_top + note yd (yd is relative to staff top)
                     let note_y = d2r_sum(note_ctx.staff_top, anote.yd);
@@ -92,17 +111,14 @@ pub fn draw_sync(
                     // l_dur is stored in header.sub_type
                     let l_dur = anote.header.sub_type;
 
-                    // Line spacing for ledger lines and notehead sizing
-                    let lnspace = lnspace_for_staff(note_ctx.staff_height, note_ctx.staff_lines);
-
                     // Half-space for dot positioning
                     let half_sp = lnspace / 2.0;
 
                     if !anote.rest {
                         // === NOTES ===
                         draw_note(
-                            anote, anote_list, note_ctx, note_x, note_y, l_dur, lnspace, half_sp,
-                            renderer,
+                            anote, anote_list, note_ctx, note_x, xd_norm, note_y, l_dur, lnspace,
+                            half_sp, renderer,
                         );
                     } else {
                         // === RESTS ===
@@ -114,15 +130,39 @@ pub fn draw_sync(
     }
 }
 
+/// Find the stem direction for a note's voice/staff group.
+///
+/// For chords, we need to find the "main note" (the one determining stem
+/// direction) and check its ystem vs yd.
+/// Reference: DrawUtils.cp NoteXLoc() line 1474 — FindMainNote + check ystem>yd
+fn find_stem_down(anote: &crate::obj_types::ANote, anote_list: &[crate::obj_types::ANote]) -> bool {
+    // Look for a note in the same voice/staff that has ystem != yd (i.e., has a stem)
+    for sibling in anote_list {
+        if sibling.header.staffn == anote.header.staffn
+            && sibling.voice == anote.voice
+            && !sibling.rest
+            && sibling.ystem != sibling.yd
+        {
+            return sibling.ystem > sibling.yd;
+        }
+    }
+    // Fallback: use this note's own stem direction
+    anote.ystem > anote.yd
+}
+
 /// Draw a single note (notehead, accidental, ledger lines, stem, flag, dots).
 ///
 /// Reference: DrawNRGR.cp, DrawNote() (line 662)
+///
+/// `note_x` is the notehead X position (after otherStemSide offset).
+/// `xd_norm` is the "normal" X position (before offset) used for accidental anchor.
 #[allow(clippy::too_many_arguments)]
 fn draw_note(
     anote: &crate::obj_types::ANote,
     anote_list: &[crate::obj_types::ANote],
     note_ctx: &crate::obj_types::Context,
     note_x: f32,
+    xd_norm: f32,
     note_y: f32,
     l_dur: i8,
     lnspace: f32,
@@ -170,12 +210,24 @@ fn draw_note(
     }
     // else: NO_VIS (0) or NOTHING_VIS (10) — intentionally invisible
 
-    // Draw accidental if present
+    // Draw accidental if present.
+    // Accidentals anchor from xdNorm (before otherStemSide offset).
+    // Reference: DrawNRGR.cp DrawNote() line 798: DrawAcc(..., xdNorm, ...)
     if anote.accident != 0 {
         if let Some(acc_glyph) = accidental_glyph(anote.accident) {
+            // If chord is downstemmed with notes to the left of the stem,
+            // shift accidental left by one head width.
+            // Reference: DrawNRGR.cp line 341-342
+            let head_width = 1.125 * lnspace;
+            let chord_note_to_l = chord_note_to_left(anote, anote_list);
+            let acc_anchor = if chord_note_to_l {
+                xd_norm - head_width
+            } else {
+                xd_norm
+            };
             // Position accidental to the left of notehead
             // Typical offset: ~1.5 * lnspace
-            let acc_x = note_x - (1.5 * lnspace);
+            let acc_x = acc_anchor - (1.5 * lnspace);
             renderer.music_char(acc_x, note_y, MusicGlyph::smufl(acc_glyph), 100.0);
         }
     }
@@ -223,11 +275,17 @@ fn draw_note(
         // HeadWidth (defs.h:355): 9*lnSp*4/32 = 1.125 * lnSpace
         let head_width = 1.125 * lnspace;
 
-        // Stem X: on right side for stems-up, left side for stems-down
+        // Stem X: always relative to the NORMAL column (xd_norm), not the
+        // displaced notehead position (note_x). This ensures the stem sits
+        // between the two note columns when seconds are present.
+        // Reference: PS_Stdio.cp PS_NoteStem() line 1694-1731:
+        //   stem-down: stem at x (the main note's position)
+        //   stem-up: stem at xNorm + headWidth
+        // In both cases the stem aligns with the normal column edge.
         let stem_x = if stem_down {
-            note_x // Stems down: left side of notehead
+            xd_norm // Stems down: left edge of normal column
         } else {
-            note_x + head_width // Stems up: right side
+            xd_norm + head_width // Stems up: right edge of normal column
         };
 
         // For chords, the stem should span from the near note's yd
@@ -451,4 +509,35 @@ pub fn collect_tie_endpoints(
             }
         }
     }
+}
+
+/// Check if a chord is stem-down and has at least one note to the left of the stem.
+///
+/// Port of Objects.cp ChordNoteToLeft() (line 1432-1450).
+/// Used to adjust accidental X positions for chords with seconds.
+///
+/// "Left of stem" for downstem means otherStemSide==true (the displaced side).
+fn chord_note_to_left(
+    anote: &crate::obj_types::ANote,
+    anote_list: &[crate::obj_types::ANote],
+) -> bool {
+    // Only relevant for downstem chords
+    let stem_down = find_stem_down(anote, anote_list);
+    if !stem_down {
+        return false;
+    }
+
+    // Check if any note in same voice/staff has otherStemSide set
+    // Reference: DSUtils.cp IsNoteLeftOfStem() line 2193-2202:
+    //   (stemDown == aNote->otherStemSide) => note is on left
+    for sibling in anote_list {
+        if sibling.header.staffn == anote.header.staffn
+            && sibling.voice == anote.voice
+            && !sibling.rest
+            && sibling.other_stem_side
+        {
+            return true; // downstem + otherStemSide => note on left
+        }
+    }
+    false
 }

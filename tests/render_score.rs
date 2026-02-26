@@ -1002,3 +1002,249 @@ fn test_crm_staff_parsing() {
     }
     assert!(found_staff, "Should find at least one Staff object");
 }
+
+// ============================================================================
+// Notehead collision avoidance tests — seconds in chords
+// ============================================================================
+
+/// Verify that arrange_chord_notes correctly identifies seconds and sets
+/// other_stem_side in the Notelist → InterpretedScore pipeline.
+///
+/// HBD_33 measure 1 (t=0): voice 3 on staff 1 has D4 (nn=62) and E4 (nn=64),
+/// which form a second. One of them must get other_stem_side=true.
+#[test]
+fn test_chord_seconds_get_other_stem_side() {
+    use nightingale_core::ngl::interpret::ObjData;
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    // Walk the score to find chords with seconds and verify other_stem_side
+    let mut found_second = false;
+    let mut second_count = 0;
+    for obj in score.walk() {
+        if let ObjData::Sync(_) = &obj.data {
+            let sub_link = obj.header.first_sub_obj;
+            if let Some(anotes) = score.notes.get(&sub_link) {
+                // Group notes by (staff, voice) to identify chords
+                let mut voice_groups: std::collections::HashMap<
+                    (i8, i8),
+                    Vec<&nightingale_core::obj_types::ANote>,
+                > = std::collections::HashMap::new();
+                for note in anotes {
+                    if !note.rest {
+                        voice_groups
+                            .entry((note.header.staffn, note.voice))
+                            .or_default()
+                            .push(note);
+                    }
+                }
+                for (&(staffn, voice), notes) in &voice_groups {
+                    if notes.len() < 2 {
+                        continue;
+                    }
+                    let mut yds: Vec<i16> = notes.iter().map(|n| n.yd).collect();
+                    yds.sort();
+                    // staff_height=384 -> half_ln=48; a second has yd delta <= 48
+                    let has_second = yds.windows(2).any(|w| (w[1] - w[0]).abs() <= 48);
+                    if has_second {
+                        let any_other_side = notes.iter().any(|n| n.other_stem_side);
+                        assert!(
+                            any_other_side,
+                            "Chord (stf={}, voice={}) with a second should have other_stem_side=true.\n\
+                             Notes: {:?}",
+                            staffn,
+                            voice,
+                            notes
+                                .iter()
+                                .map(|n| format!(
+                                    "yd={} oss={} nn={}",
+                                    n.yd, n.other_stem_side, n.note_num
+                                ))
+                                .collect::<Vec<_>>()
+                        );
+                        second_count += 1;
+                        found_second = true;
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        found_second,
+        "Should find at least one chord with a second in HBD_33"
+    );
+    // HBD_33 has many chords with seconds (D+E, F+G, etc.)
+    assert!(
+        second_count >= 3,
+        "Expected at least 3 chords with seconds, found {}",
+        second_count
+    );
+}
+
+/// Verify that noteheads in seconds are rendered at different X positions.
+///
+/// When a chord has a second, one notehead is displaced by ±headWidth.
+/// The render commands should show two MusicChar commands for noteheads
+/// at different X positions within the same sync.
+#[test]
+fn test_chord_second_noteheads_offset_in_render() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Collect all notehead glyph X positions. In a chord with a second,
+    // we expect noteheads at different X coords (offset by head_width).
+    use nightingale_core::render::MusicGlyph;
+    let noteheads: Vec<(f32, f32)> = commands
+        .iter()
+        .filter_map(|c| {
+            if let RenderCommand::MusicChar { x, y, glyph, .. } = c {
+                // Noteheads: whole=0xE0A2, half=0xE0A3, filled=0xE0A4
+                let is_notehead = matches!(
+                    glyph,
+                    MusicGlyph::Smufl(0xE0A2)
+                        | MusicGlyph::Smufl(0xE0A3)
+                        | MusicGlyph::Smufl(0xE0A4)
+                );
+                if is_notehead {
+                    return Some((*x, *y));
+                }
+                None
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Find pairs of noteheads that are very close in Y (within 10 units = ~1 staff space)
+    // but offset in X. These are notes in a second.
+    let mut found_offset_pair = false;
+    for i in 0..noteheads.len() {
+        for j in (i + 1)..noteheads.len() {
+            let (x1, y1) = noteheads[i];
+            let (x2, y2) = noteheads[j];
+            let y_delta = (y1 - y2).abs();
+            let x_delta = (x1 - x2).abs();
+            // Notes in a second: close in Y (within 1.5 staff spaces) and offset in X
+            if y_delta > 0.1 && y_delta < 10.0 && x_delta > 3.0 && x_delta < 15.0 {
+                found_offset_pair = true;
+                break;
+            }
+        }
+        if found_offset_pair {
+            break;
+        }
+    }
+
+    assert!(
+        found_offset_pair,
+        "Should find at least one pair of noteheads offset in X for a second in a chord.\n\
+         Total noteheads: {}",
+        noteheads.len()
+    );
+}
+
+/// Verify stem X sits between the two note columns when seconds are present.
+///
+/// For stem-down seconds: stem should be at normal column left edge (xd_norm),
+/// not at the displaced notehead's X position.
+/// For stem-up seconds: stem should be at normal column right edge (xd_norm + headWidth).
+#[test]
+fn test_stem_x_between_second_note_columns() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use nightingale_core::render::MusicGlyph;
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Collect noteheads and stems with their coordinates, in command order
+    struct NoteOrStem {
+        is_notehead: bool,
+        x: f32,
+        y: f32, // for noteheads; y_top for stems
+    }
+    let mut items: Vec<NoteOrStem> = Vec::new();
+
+    for c in &commands {
+        match c {
+            RenderCommand::MusicChar { x, y, glyph, .. } => {
+                let is_notehead = matches!(
+                    glyph,
+                    MusicGlyph::Smufl(0xE0A2)
+                        | MusicGlyph::Smufl(0xE0A3)
+                        | MusicGlyph::Smufl(0xE0A4)
+                );
+                if is_notehead {
+                    items.push(NoteOrStem {
+                        is_notehead: true,
+                        x: *x,
+                        y: *y,
+                    });
+                }
+            }
+            RenderCommand::NoteStem { x, y_top, .. } => {
+                items.push(NoteOrStem {
+                    is_notehead: false,
+                    x: *x,
+                    y: *y_top,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    // Find consecutive noteheads that form a second (close in Y, offset in X).
+    // Then check that the nearest stem X is BETWEEN the two notehead X values
+    // (or at the normal-column edge), not at the displaced notehead's X.
+    let head_width_approx = 6.75_f32; // 1.125 * lnspace for staff_height=384
+    let mut checked_seconds = 0;
+    for i in 0..items.len() {
+        if !items[i].is_notehead {
+            continue;
+        }
+        for j in (i + 1)..items.len().min(i + 4) {
+            if !items[j].is_notehead {
+                continue;
+            }
+            let y_delta = (items[i].y - items[j].y).abs();
+            let x_delta = (items[i].x - items[j].x).abs();
+            // Second: Y within 1 staff space (~6pt), X offset ≈ head_width
+            if y_delta > 0.1 && y_delta < 8.0 && (x_delta - head_width_approx).abs() < 1.5 {
+                // Find nearest stem
+                let normal_x = items[i].x.max(items[j].x); // normal column (higher X for stem-down)
+                for k in (0..items.len()).filter(|&k| !items[k].is_notehead) {
+                    let stem_x = items[k].x;
+                    // Stem should be near the normal column edge, not at the displaced edge
+                    if (stem_x - normal_x).abs() < 1.5
+                        || (stem_x - normal_x - head_width_approx).abs() < 1.5
+                    {
+                        checked_seconds += 1;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        checked_seconds >= 1,
+        "Should find at least one second with stem correctly positioned between columns"
+    );
+}

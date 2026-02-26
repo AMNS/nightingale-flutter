@@ -9,7 +9,9 @@
 //! 6. Insta snapshot for regression detection
 
 use nightingale_core::draw::render_score;
-use nightingale_core::notelist::{notelist_to_score, parse_notelist, NotelistLayoutConfig};
+use nightingale_core::notelist::{
+    notelist_to_score, notelist_to_score_with_config, parse_notelist, NotelistLayoutConfig,
+};
 use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
@@ -527,17 +529,17 @@ fn test_all_notelists_command_stream_hashes() {
         ("BachEbSonata_20", 12995971367917878962),
         ("BachStAnne_63", 5242798667749380058),
         ("BinchoisDePlus_17", 8986185804129711820),
-        ("Debussy_Images_9", 12852113412974850555),
+        ("Debussy_Images_9", 6990745167473818562),
         ("GoodbyePorkPieHat", 42339889141671962),
-        ("HBD_33", 15126206798252735708),
+        ("HBD_33", 3751175428117924303),
         ("KillingMe_36", 8475317791705320548),
         ("keysig_d_major", 1882963057310755303),
         ("keysig_eb_major", 11711652780243886394),
         ("MahlerLiedVonDE_25", 5192177798363478689),
-        ("MendelssohnOp7N1_2", 14189712159425392603),
-        ("RavelScarbo_15", 14547043791901178632),
+        ("MendelssohnOp7N1_2", 1670958285832300854),
+        ("RavelScarbo_15", 3780022326723686791),
         ("SchenkerDiagram_Chopin_6", 5061056563860761757),
-        ("SchoenbergOp19N1_21", 16918725533100864910),
+        ("SchoenbergOp19N1_21", 2963419875824930481),
         ("TestMIDIChannels_3", 15074235829092286149),
         ("tuplet_triplet", 14097833128011352111),
         ("Webern_Op5N3_22", 10509085129869270482),
@@ -584,4 +586,226 @@ fn test_all_notelists_command_stream_hashes() {
          Run `REGENERATE_REFS=1 cargo test test_all_notelists_command_stream_hashes -- --nocapture` \
          to regenerate baselines after intentional changes."
     );
+}
+
+// ============================================================================
+// 7. Bitmap regression (Notelist → PDF → PNG → pixel diff against golden)
+// ============================================================================
+
+/// Try to convert a PDF to PNG using available system tools.
+fn pdf_to_png(pdf_path: &Path, png_path: &Path) -> Result<bool, String> {
+    // sips (macOS)
+    if let Ok(output) = std::process::Command::new("sips")
+        .args([
+            "-s",
+            "format",
+            "png",
+            "-s",
+            "dpiHeight",
+            "72",
+            "-s",
+            "dpiWidth",
+            "72",
+        ])
+        .arg(pdf_path)
+        .arg("--out")
+        .arg(png_path)
+        .output()
+    {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+    // pdftoppm (Linux)
+    let prefix = png_path.with_extension("");
+    if let Ok(output) = std::process::Command::new("pdftoppm")
+        .args(["-png", "-r", "72", "-f", "1", "-l", "1"])
+        .arg(pdf_path)
+        .arg(&prefix)
+        .output()
+    {
+        if output.status.success() {
+            for suffix in &["-1.png", "-01.png"] {
+                let cand = format!("{}{}", prefix.display(), suffix);
+                let p = Path::new(&cand);
+                if p.exists() {
+                    fs::rename(p, png_path).map_err(|e| e.to_string())?;
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    // ImageMagick
+    if let Ok(output) = std::process::Command::new("magick")
+        .args(["convert", "-density", "72"])
+        .arg(format!("{}[0]", pdf_path.display()))
+        .arg(png_path)
+        .output()
+    {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Compare two images pixel-by-pixel, produce a diff image.
+/// Returns (total_pixels, diff_pixels, diff_pct).
+fn compare_images_and_diff(
+    golden_path: &Path,
+    current_path: &Path,
+    diff_path: &Path,
+) -> Result<(u64, u64, f64), String> {
+    use image::{GenericImageView, Rgba, RgbaImage};
+    let golden = image::open(golden_path).map_err(|e| format!("open golden: {}", e))?;
+    let current = image::open(current_path).map_err(|e| format!("open current: {}", e))?;
+    let (gw, gh) = golden.dimensions();
+    let (cw, ch) = current.dimensions();
+    let w = gw.max(cw);
+    let h = gh.max(ch);
+    let total = w as u64 * h as u64;
+    let mut diff_img = RgbaImage::new(w, h);
+    let mut diff_count: u64 = 0;
+    for y in 0..h {
+        for x in 0..w {
+            let gpx = if x < gw && y < gh {
+                golden.get_pixel(x, y)
+            } else {
+                Rgba([255, 255, 255, 255])
+            };
+            let cpx = if x < cw && y < ch {
+                current.get_pixel(x, y)
+            } else {
+                Rgba([255, 255, 255, 255])
+            };
+            if gpx == cpx {
+                let r = (gpx[0] as u16 * 30 + 255 * 70) / 100;
+                let g = (gpx[1] as u16 * 30 + 255 * 70) / 100;
+                let b = (gpx[2] as u16 * 30 + 255 * 70) / 100;
+                diff_img.put_pixel(x, y, Rgba([r as u8, g as u8, b as u8, 255]));
+            } else {
+                diff_img.put_pixel(x, y, Rgba([255, 0, 0, 255]));
+                diff_count += 1;
+            }
+        }
+    }
+    diff_img
+        .save(diff_path)
+        .map_err(|e| format!("save diff: {}", e))?;
+    let pct = if total > 0 {
+        diff_count as f64 / total as f64 * 100.0
+    } else {
+        0.0
+    };
+    Ok((total, diff_count, pct))
+}
+
+/// Bitmap regression for all Notelist fixtures.
+///
+/// Regenerate goldens: `REGENERATE_REFS=1 cargo test test_all_notelists_bitmap_regression`
+#[test]
+fn test_all_notelists_bitmap_regression() {
+    let regenerate = std::env::var("REGENERATE_REFS").is_ok();
+    let golden_dir = Path::new("tests/golden_bitmaps");
+    let output_dir = Path::new("/tmp/nightingale-test-output/notelists");
+    let diff_dir = Path::new("/tmp/nightingale-test-output/notelist-bitmap-diff");
+    fs::create_dir_all(output_dir).unwrap();
+    fs::create_dir_all(diff_dir).unwrap();
+
+    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let config = NotelistLayoutConfig::default();
+    let mut mismatches = Vec::new();
+    let mut skipped = 0;
+
+    for path in ALL_NOTELISTS {
+        let name = short_name(path);
+
+        let file = match fs::File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("[{}] open error: {}", name, e);
+                continue;
+            }
+        };
+        let notelist = match parse_notelist(file) {
+            Ok(nl) => nl,
+            Err(e) => {
+                eprintln!("[{}] parse error: {}", name, e);
+                continue;
+            }
+        };
+        let score = notelist_to_score_with_config(&notelist, &config);
+
+        // Render to PDF
+        let mut pdf_renderer =
+            PdfRenderer::new(config.page_width as f32, config.page_height as f32);
+        if font_path.exists() {
+            pdf_renderer.load_music_font_file(font_path);
+        }
+        render_score(&score, &mut pdf_renderer);
+        let pdf_bytes = pdf_renderer.finish();
+
+        let pdf_path = output_dir.join(format!("{}.pdf", name));
+        fs::write(&pdf_path, &pdf_bytes).unwrap();
+
+        // Convert to PNG
+        let current_png = diff_dir.join(format!("{}_current.png", name));
+        match pdf_to_png(&pdf_path, &current_png) {
+            Ok(true) => {}
+            Ok(false) => {
+                if skipped == 0 {
+                    eprintln!("No PDF-to-PNG tool found. Bitmap tests skipped.");
+                }
+                skipped += 1;
+                continue;
+            }
+            Err(e) => {
+                eprintln!("[{}] PDF-to-PNG error: {}", name, e);
+                continue;
+            }
+        }
+
+        let golden_path = golden_dir.join(format!("nl_{}_page1.png", name));
+
+        if regenerate {
+            fs::copy(&current_png, &golden_path).unwrap();
+            println!("[{}] Updated golden: {}", name, golden_path.display());
+            continue;
+        }
+
+        if !golden_path.exists() {
+            eprintln!(
+                "[{}] No golden bitmap (run REGENERATE_REFS=1 to create)",
+                name
+            );
+            continue;
+        }
+
+        let diff_path = diff_dir.join(format!("{}_diff.png", name));
+        match compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+            Ok((_total, diff_px, pct)) => {
+                if diff_px > 0 {
+                    eprintln!(
+                        "[{}] BITMAP MISMATCH: {} pixels differ ({:.2}%) — see {}",
+                        name,
+                        diff_px,
+                        pct,
+                        diff_path.display()
+                    );
+                    mismatches.push(name.clone());
+                }
+            }
+            Err(e) => eprintln!("[{}] diff error: {}", name, e),
+        }
+    }
+
+    if !mismatches.is_empty() {
+        panic!(
+            "Notelist bitmap mismatches: {:?}\n\
+             Diff images at: {}\n\
+             Run REGENERATE_REFS=1 to update goldens after intentional changes.",
+            mismatches,
+            diff_dir.display()
+        );
+    }
 }

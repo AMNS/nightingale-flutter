@@ -42,7 +42,9 @@ use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
-use crate::objects::{normal_stem_up_down_chord, normal_stem_up_down_single, setup_ks_info};
+use crate::objects::{
+    arrange_chord_notes, normal_stem_up_down_chord, normal_stem_up_down_single, setup_ks_info,
+};
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
 use crate::space_time::{ideal_space_stdist, stdist_to_ddist};
 use crate::utility::{calc_ystem, nflags};
@@ -1780,6 +1782,16 @@ pub fn notelist_to_score_with_config(
                                 } else {
                                     notes[idx].ystem = notes[idx].yd; // Hide stem
                                 }
+                            }
+
+                            // ArrangeChordNotes (PitchUtils.cp:1583-1616):
+                            // Compute other_stem_side for seconds in chords
+                            let chord_yds: Vec<i16> =
+                                indices.iter().map(|&idx| notes[idx].yd).collect();
+                            let half_ln = config.staff_height / 8;
+                            let other_sides = arrange_chord_notes(&chord_yds, stem_down, half_ln);
+                            for (i, &idx) in indices.iter().enumerate() {
+                                notes[idx].other_stem_side = other_sides[i];
                             }
                         } else {
                             // Single note: recompute ystem with voice-aware stem length

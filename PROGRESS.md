@@ -89,9 +89,9 @@
 
 #### Tier 3 — Engraving Polish
 - [ ] **Grace notes**: small grace notes before principal notes (DrawGRSync port)
-- [ ] **Notehead collision avoidance**: seconds in chords (otherStemSide placement), multi-voice X offsets
+- [x] **Notehead collision avoidance**: seconds in chords — ported ArrangeChordNotes (PitchUtils.cp) to objects.rs, NoteXLoc offset in draw_nrgr.rs, ChordNoteToLeft for accidental anchoring. Multi-voice X offsets still TODO.
 - [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
-- [ ] **Final barline**: double barline at end of piece
+- [x] **Final barline**: double barline at end of piece (already working — BAR_FINALDBL mapped and rendered)
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
 - [ ] **Mid-score time signature changes**: render TimeSig objects within measures
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)

@@ -168,6 +168,75 @@ pub fn setup_ks_info(n_items: u8, is_sharp: bool) -> KsInfo {
     ks
 }
 
+// ===========================================================================
+// ArrangeChordNotes — compute otherStemSide for seconds in chords
+// Port of PitchUtils.cp:1583-1616
+// ===========================================================================
+
+/// Compute `other_stem_side` flags for a list of note yd values in one chord.
+///
+/// Port of PitchUtils.cp ArrangeChordNotes() (line 1583-1616).
+///
+/// Takes yd values (in DDIST) and the half-line height (staff_height / 8).
+/// Sets `other_stem_side` = true for notes that should be placed on the "wrong"
+/// side of the stem due to a second interval (adjacent notes that would collide).
+///
+/// The OG uses yqpit (quarter-tone units) and checks `|delta| == QD_SECOND (2)`.
+/// Our equivalent: yd values in DDIST, where one diatonic step = `half_ln` DDIST.
+///
+/// Algorithm:
+/// 1. Sort notes by yd, starting from the extreme note furthest from stem end
+///    (lowest yd for stems-down, highest yd for stems-up)
+/// 2. Walk through sorted notes; first note always on normal side
+/// 3. For each interval of a second (|yd delta| == half_ln): toggle side
+/// 4. For intervals >= third: reset to normal side
+///
+/// Returns a Vec of booleans indexed by the original note order, indicating
+/// which notes should have `other_stem_side = true`.
+pub fn arrange_chord_notes(yds: &[i16], stem_down: bool, half_ln: i16) -> Vec<bool> {
+    let n = yds.len();
+    if n < 2 {
+        return vec![false; n];
+    }
+
+    // Build (yd, original_index) pairs and sort.
+    // Stem-down: sort ascending yd (highest note first = closest to stem end last).
+    //   OG scans from extreme note (furthest from stem end) which is lowest yd for stem-down.
+    // Stem-up: sort descending yd (lowest note first = closest to stem end last).
+    //   OG scans from extreme note which is highest yd for stem-up.
+    let mut sorted: Vec<(i16, usize)> = yds
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(i, y)| (y, i))
+        .collect();
+    if stem_down {
+        sorted.sort_by_key(|&(y, _)| y); // ascending: top notes first (far from stem)
+    } else {
+        sorted.sort_by_key(|&(y, _)| std::cmp::Reverse(y)); // descending: bottom notes first
+    }
+
+    let mut result = vec![false; n];
+    let mut other_side = false;
+    let mut prev_yd = sorted[0].0;
+
+    for &(yd, orig_idx) in sorted.iter().skip(1) {
+        let delta = (yd - prev_yd).abs();
+        // A "second" = exactly one diatonic step = one half-line of staff spacing.
+        // OG: |yqpit delta| == QD_SECOND (2 quarter-tone units)
+        // Ours: |yd delta| == half_ln DDIST
+        if delta > 0 && delta <= half_ln {
+            other_side = !other_side; // Toggle for seconds
+        } else {
+            other_side = false; // Reset for thirds or larger
+        }
+        result[orig_idx] = other_side;
+        prev_yd = yd;
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +284,52 @@ mod tests {
         assert_eq!(ks.ks_item[0].sharp, 0);
         assert_eq!(ks.ks_item[1].letcode, 1); // E
         assert_eq!(ks.ks_item[2].letcode, 5); // A
+    }
+
+    #[test]
+    fn test_arrange_chord_notes_no_seconds() {
+        // C-E-G: thirds only, no seconds → all false
+        // yd values: C=32, E=16, G=0 (8 DDIST per half-line)
+        let yds = vec![32, 16, 0];
+        let result = arrange_chord_notes(&yds, true, 8); // stem down, half_ln=8
+        assert_eq!(result, vec![false, false, false]);
+    }
+
+    #[test]
+    fn test_arrange_chord_notes_with_second() {
+        // C-D: second → second note on other side
+        // yd: C=32, D=24 (delta=8 = one half-line)
+        let yds = vec![32, 24];
+        let result = arrange_chord_notes(&yds, false, 8); // stem up, half_ln=8
+                                                          // Stem up: sort descending (start from bottom=32, then 24).
+                                                          // 32 → normal, 24 → second from 32 → toggle
+        assert_eq!(result, vec![false, true]);
+    }
+
+    #[test]
+    fn test_arrange_chord_notes_cluster() {
+        // C-D-E cluster (all seconds): alternating
+        // yd: C=32, D=24, E=16 (stem down)
+        let yds = vec![32, 24, 16];
+        let result = arrange_chord_notes(&yds, true, 8); // half_ln=8
+                                                         // Stem down: sort ascending (start from top=16, then 24, then 32).
+                                                         // 16 → normal, 24 → second from 16 → toggle, 32 → second from 24 → toggle back
+        assert_eq!(result, vec![false, true, false]);
+    }
+
+    #[test]
+    fn test_arrange_chord_notes_single() {
+        let yds = vec![32];
+        let result = arrange_chord_notes(&yds, true, 8);
+        assert_eq!(result, vec![false]);
+    }
+
+    #[test]
+    fn test_arrange_chord_notes_large_staff() {
+        // Same C-D second but with staff_height=384 (notelist default)
+        // half_ln = 384/8 = 48. C yd=432, D yd=384 (delta=48 = one half-line)
+        let yds = vec![432, 384];
+        let result = arrange_chord_notes(&yds, false, 48); // stem up, half_ln=48
+        assert_eq!(result, vec![false, true]);
     }
 }
