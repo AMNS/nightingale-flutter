@@ -73,7 +73,7 @@ fn count_staves(score: &InterpretedScore) -> usize {
     0
 }
 
-/// Map l_dur (logical duration) to notehead glyph for notes.
+/// Map l_dur (logical duration) to notehead glyph for normal-appearance notes.
 ///
 /// Reference: DrawNRGR.cp, MusCharXLoc() and GetMusicAscDesc()
 /// SMuFL noteheads:
@@ -87,6 +87,93 @@ fn notehead_glyph_for_duration(l_dur: i8) -> u32 {
         x if x == WHOLE_L_DUR => 0xE0A2, // noteheadWhole
         x if x == HALF_L_DUR => 0xE0A3,  // noteheadHalf
         _ => 0xE0A4,                     // noteheadBlack (quarter and shorter)
+    }
+}
+
+/// Map head_shape and l_dur to the appropriate notehead glyph.
+///
+/// Reference: Utilities/DrawUtils.cp, NoteGlyph() (line 1159) and GetNoteheadInfo() (line 1190)
+/// HeadShape values (from NObjTypes.h lines 125-137):
+/// - 0 = NO_VIS (invisible)
+/// - 1 = NORMAL_VIS (normal appearance)
+/// - 2 = X_SHAPE (X-shaped head)
+/// - 3 = HARMONIC_SHAPE (hollow harmonic head)
+/// - 4 = SQUAREH_SHAPE (square hollow)
+/// - 5 = SQUAREF_SHAPE (square filled)
+/// - 6 = DIAMONDH_SHAPE (diamond hollow)
+/// - 7 = DIAMONDF_SHAPE (diamond filled)
+/// - 8 = HALFNOTE_SHAPE (always half-note head)
+/// - 9 = SLASH_SHAPE (chord slash - drawn as line, not glyph)
+/// - 10 = NOTHING_VIS (everything invisible)
+///
+/// SMuFL alternate notehead glyphs:
+/// - X-shape: 0xE0A9 (noteheadXBlack), 0xE0A8 (noteheadXHalf), 0xE0A7 (noteheadXWhole)
+/// - Harmonic: 0xE0D3 (noteheadDiamondHalf) - OG uses 'O' (0x4F) in Sonata font
+/// - Square hollow: 0xE0B9 (noteheadSquareWhite)
+/// - Square filled: 0xE0B3 (noteheadSquareBlack)
+/// - Diamond hollow: 0xE0D3 (noteheadDiamondHalf), 0xE0D2 (noteheadDiamondWhole)
+/// - Diamond filled: 0xE0DB (noteheadDiamondBlack)
+/// - Slash: return 0 (must be drawn as custom line)
+fn notehead_glyph(head_shape: u8, l_dur: i8) -> u32 {
+    use crate::obj_types::HeadShape;
+
+    match head_shape {
+        x if x == HeadShape::XShape as u8 => {
+            // X-shaped noteheads (for percussion, ghost notes)
+            // Reference: DrawUtils.cp line 1163, MCH_xShapeHead = 0xC0
+            match l_dur {
+                x if x == WHOLE_L_DUR => 0xE0A7, // noteheadXWhole
+                x if x == HALF_L_DUR => 0xE0A8,  // noteheadXHalf
+                _ => 0xE0A9,                     // noteheadXBlack (quarter and shorter)
+            }
+        }
+        x if x == HeadShape::HarmonicShape as u8 => {
+            // Harmonic (hollow diamond-like) noteheads
+            // Reference: DrawUtils.cp line 1164, MCH_harmonicHead = 'O'
+            // Use diamond hollow shapes from SMuFL
+            match l_dur {
+                x if x == WHOLE_L_DUR || x == BREVE_L_DUR => 0xE0D2, // noteheadDiamondWhole
+                _ => 0xE0D3, // noteheadDiamondHalf (used for all other durations)
+            }
+        }
+        x if x == HeadShape::SquareHShape as u8 => {
+            // Square hollow notehead
+            // Reference: DrawUtils.cp line 1166, MCH_squareHHead = 0xAD
+            0xE0B9 // noteheadSquareWhite (always hollow)
+        }
+        x if x == HeadShape::SquareFShape as u8 => {
+            // Square filled notehead
+            // Reference: DrawUtils.cp line 1167, MCH_squareFHead = 0xD0
+            0xE0B3 // noteheadSquareBlack (always filled)
+        }
+        x if x == HeadShape::DiamondHShape as u8 => {
+            // Diamond hollow notehead
+            // Reference: DrawUtils.cp line 1168, MCH_diamondHHead = 0xE1
+            match l_dur {
+                x if x == WHOLE_L_DUR || x == BREVE_L_DUR => 0xE0D2, // noteheadDiamondWhole
+                _ => 0xE0D3,                                         // noteheadDiamondHalf
+            }
+        }
+        x if x == HeadShape::DiamondFShape as u8 => {
+            // Diamond filled notehead
+            // Reference: DrawUtils.cp line 1169, MCH_diamondFHead = 0xE2
+            0xE0DB // noteheadDiamondBlack (always filled)
+        }
+        x if x == HeadShape::HalfnoteShape as u8 => {
+            // Always use half-note head regardless of duration
+            // Reference: DrawUtils.cp line 1170, MCH_halfNoteHead = 0xFA
+            0xE0A3 // noteheadHalf
+        }
+        x if x == HeadShape::SlashShape as u8 => {
+            // Slash notation (chord slash)
+            // Reference: DrawUtils.cp line 1165 - returns '\0', must be drawn as line
+            // TODO: implement slash drawing in renderer
+            0 // Return 0 to indicate no glyph (must draw custom slash)
+        }
+        _ => {
+            // NORMAL_VIS (1), NO_VIS (0), or NOTHING_VIS (10): use normal duration-based glyph
+            notehead_glyph_for_duration(l_dur)
+        }
     }
 }
 
@@ -522,14 +609,52 @@ fn draw_sync(
                     if !anote.rest {
                         // === NOTES ===
 
-                        // Draw notehead
-                        let notehead_glyph = notehead_glyph_for_duration(l_dur);
-                        renderer.music_char(
-                            note_x,
-                            note_y,
-                            MusicGlyph::smufl(notehead_glyph),
-                            100.0,
-                        );
+                        // Draw notehead (use head_shape to select glyph)
+                        // Reference: DrawNRGR.cp DrawNote() line 722, GetNoteheadInfo()
+                        let notehead_glyph = notehead_glyph(anote.head_shape, l_dur);
+
+                        if notehead_glyph != 0 {
+                            renderer.music_char(
+                                note_x,
+                                note_y,
+                                MusicGlyph::smufl(notehead_glyph),
+                                100.0,
+                            );
+                        } else if anote.head_shape == crate::obj_types::HeadShape::SlashShape as u8
+                        {
+                            // Slash notehead: drawn as a steep filled parallelogram
+                            // via line_horizontal_thick (PS_LineHT).
+                            //
+                            // Reference: PS_Stdio.cp PS_NoteStem() line 1678-1684
+                            //   yoff = y + 2*dhalfSp
+                            //   thick = SLASH_THICK * dhalfSp / 4 = dhalfSp  (style.h:75)
+                            //   PS_LineHT(xoff, yoff, xoff+2*dhalfSp, yoff-4*dhalfSp, thick)
+                            //
+                            // Reference: DrawNRGR.cp DrawNotehead() line 477-499
+                            //   PenSize(thick, 1); Move(0, 2*dhalfSp); Line(2*dhalfSp, -4*dhalfSp)
+                            //
+                            // Geometry: 1 space wide × 2 spaces tall, slope ~63°,
+                            //           thickness = 1 half-space
+                            let stem_down = anote.ystem > anote.yd;
+                            let thick = half_sp; // SLASH_THICK * dhalfSp / 4 = dhalfSp
+                            let slash_xtweak = 2.0 / 16.0; // SLASH_XTWEAK = 2 DDIST = 0.125 pt
+
+                            let xoff = if stem_down {
+                                note_x - slash_xtweak
+                            } else {
+                                note_x - (3.0 * thick) / 4.0 + slash_xtweak
+                            };
+
+                            let yoff = note_y + 2.0 * half_sp; // bottom-left
+                            renderer.line_horizontal_thick(
+                                xoff,
+                                yoff,
+                                xoff + 2.0 * half_sp,
+                                yoff - 4.0 * half_sp,
+                                thick,
+                            );
+                        }
+                        // else: NO_VIS (0) or NOTHING_VIS (10) — intentionally invisible
 
                         // Draw accidental if present
                         if anote.accident != 0 {

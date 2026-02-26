@@ -281,10 +281,14 @@ impl PdfRenderer {
     /// If a music font was loaded, it is embedded as a Type0 composite font
     /// with Identity-H encoding and a ToUnicode CMap for copy/paste support.
     pub fn finish(mut self) -> Vec<u8> {
-        // Close the initial save_state
-        self.content.restore_state();
-        // Store the final page
-        self.pages.push(self.content.finish().to_vec());
+        // Only save the current page if we're still in_page (i.e., end_page() wasn't called).
+        // If end_page() was called, the page content was already saved and in_page=false.
+        if self.in_page {
+            // Close the initial save_state
+            self.content.restore_state();
+            // Store the final page
+            self.pages.push(self.content.finish().to_vec());
+        }
 
         // Build the PDF document
         let mut pdf = Pdf::new();
@@ -1146,5 +1150,38 @@ mod tests {
         assert!(pdf_bytes.starts_with(b"%PDF-"));
         // Should have 2 pages worth of content
         assert!(pdf_bytes.len() > 200);
+        // Verify we have exactly 2 pages (not 3 with a blank page)
+        let page_count = pdf_bytes
+            .windows(12)
+            .filter(|w| w == b"/Type /Page\n")
+            .count();
+        assert_eq!(
+            page_count, 2,
+            "Should have exactly 2 pages, not {}",
+            page_count
+        );
+    }
+
+    #[test]
+    fn test_pdf_renderer_multipage_with_end_page() {
+        let mut r = PdfRenderer::new(612.0, 792.0);
+        r.staff(100.0, 72.0, 540.0, 5, 10.0);
+        r.begin_page(2);
+        r.staff(100.0, 72.0, 540.0, 5, 10.0);
+        r.begin_page(3);
+        r.staff(100.0, 72.0, 540.0, 5, 10.0);
+        r.end_page(); // Explicitly end the last page
+        let pdf_bytes = r.finish();
+        assert!(pdf_bytes.starts_with(b"%PDF-"));
+        // Verify we have exactly 3 pages (not 4 with a blank page)
+        let page_count = pdf_bytes
+            .windows(12)
+            .filter(|w| w == b"/Type /Page\n")
+            .count();
+        assert_eq!(
+            page_count, 3,
+            "Should have exactly 3 pages, not {}",
+            page_count
+        );
     }
 }

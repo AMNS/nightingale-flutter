@@ -8,7 +8,8 @@ Beam: 342
 BeginPage: 30
 EndPage: 30
 LedgerLine: 890
-MusicChar: 3603
+LineHorizontalThick: 499
+MusicChar: 3104
 NoteStem: 1174
 SetMusicSize: 210
 SetWidths: 1
@@ -243,9 +244,12 @@ Smufl(57449): 30
 Smufl(57474): 7
 Smufl(57475): 28
 Smufl(57476): 91
-Smufl(57506): 78
-Smufl(57507): 410
-Smufl(57508): 1614
+Smufl(57506): 39
+Smufl(57507): 284
+Smufl(57508): 1091
+Smufl(57513): 23
+Smufl(57554): 39
+Smufl(57555): 127
 Smufl(57831): 95
 Smufl(57920): 27
 Smufl(57921): 44

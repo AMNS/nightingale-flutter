@@ -66,6 +66,8 @@
 - [x] **Comprehensive notelist test suite**: 6 tests × 17 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
 - [x] **Ddist overflow fix**: i16 arithmetic overflow in scores with many systems — widened to i32 in to_score.rs, context.rs, score_renderer.rs
 - [x] **Tuplet rendering**: Port of DrawTUPLET/DrawPSTupletBracket (Tuplet.cp) — bracket with cutoff lines + gap for number, SMuFL timeSig digit numerals, stem_info 'T' flag → in_tuplet, ANoteTuple subobjects linking to syncs, bracket Y from stem extremes (SetTupletYPos port). 3 snapshots updated (Mahler, Schoenberg, Webern).
+- [x] **Custom noteheads**: Port of NoteGlyph/GetNoteheadInfo (DrawUtils.cp) — X-shaped, harmonic, square hollow/filled, diamond hollow/filled, halfnote, slash notation. SMuFL alternate notehead glyphs (U+E0A7-E0DB). head_shape field already parsed from NGL/Notelist, now used in rendering.
+- [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag before saving final page. Capital Regiment March: 15→14 pages. Single-page scores unaffected.
 
 ### Next: Engraving & Layout (priority order)
 
@@ -96,6 +98,7 @@
 - [ ] **Rest rendering improvements**: show rests at beat positions without notes
 
 #### Tier 4 — Advanced Layout
+- [ ] **Cross-bar (cross-measure) beams**: beams that span across barlines — OG Nightingale handles these via beam subobjects that reference notes in different measures (see Esmerelda p.15 for example). Port relevant logic from Beam.cp, including `DrawBEAMSET`'s handling of beam subobjects crossing measure boundaries. Currently beams break at measure boundaries.
 - [ ] **Cross-staff notation**: notes/beams drawn on a different staff than they belong to (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp)
 
 ### Deferred
