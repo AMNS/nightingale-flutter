@@ -11,9 +11,10 @@ LedgerLine: 6
 Line: 4
 MusicChar: 8
 NoteStem: 4
+SetMusicSize: 1
 SetWidths: 1
 Staff: 1
-TOTAL: 29
+TOTAL: 30
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00

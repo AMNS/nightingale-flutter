@@ -925,6 +925,26 @@ pub fn unpack_astaff_n105(data: &[u8]) -> Result<AStaff, String> {
 /// Unpack N105 AMEASURE_5 from raw bytes (40 bytes).
 ///
 /// Source: NObjTypesN105.h lines 222-253
+/// On-disk layout (mac68k alignment):
+///   0-3   SUBOBJHEADER_5
+///   4     measureVisible:1 | connAbove:1 | filler1:3 | unused:3
+///   5     filler2 (SignedByte)
+///   6-7   oldFakeMeas:1 | measureNum:15 (short)
+///   8-15  measSizeRect (DRect = 4 × DDIST)
+///   16    connStaff (SignedByte)
+///   17    clefType (SignedByte)
+///   18    dynamicType (SignedByte)
+///   19    [PADDING — align KSITEM_5 struct to 2-byte boundary]
+///   20-33 KSITEM_5[7] (7 × 2 bytes = 14)
+///   34    nKSItems
+///   35    timeSigType
+///   36    numerator
+///   37    denominator
+///   38    xMNStdOffset (SHORTSTD = SignedByte)
+///   39    yMNStdOffset (SHORTSTD = SignedByte)
+///         TOTAL: 40 bytes
+///
+/// Source: NObjTypesN105.h lines 192-210
 pub fn unpack_ameasure_n105(data: &[u8]) -> Result<AMeasure, String> {
     if data.len() < 40 {
         return Err(format!("AMEASURE too short: {} bytes", data.len()));
@@ -932,36 +952,45 @@ pub fn unpack_ameasure_n105(data: &[u8]) -> Result<AMeasure, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: measureVisible:1 | connAbove:1 | filler1:6
+    // Byte 4: measureVisible:1 | connAbove:1 | filler1:3 | unused:3
     let b4 = data[4];
-    let measure_visible = (b4 & 0x80) != 0;
-    let conn_above = (b4 & 0x40) != 0;
-    let filler1 = b4 & 0x3F;
+    let measure_visible = (b4 >> 7) & 1 != 0;
+    let conn_above = (b4 >> 6) & 1 != 0;
+    let filler1 = (b4 >> 3) & 0x07;
 
+    // Byte 5: filler2
     let filler2 = data[5] as i8;
-    let reserved_m = i16::from_be_bytes([data[6], data[7]]);
-    let measure_num = i16::from_be_bytes([data[8], data[9]]);
 
-    // DRect: 4 x i16
+    // Bytes 6-7: oldFakeMeas:1 | measureNum:15 (single short)
+    let meas_short = i16::from_be_bytes([data[6], data[7]]);
+    let reserved_m = meas_short; // keep raw value for compat
+    let measure_num = meas_short & 0x7FFF;
+
+    // Bytes 8-15: DRect (4 × DDIST)
     let meas_size_rect = DRect {
-        top: i16::from_be_bytes([data[10], data[11]]),
-        left: i16::from_be_bytes([data[12], data[13]]),
-        bottom: i16::from_be_bytes([data[14], data[15]]),
-        right: i16::from_be_bytes([data[16], data[17]]),
+        top: i16::from_be_bytes([data[8], data[9]]),
+        left: i16::from_be_bytes([data[10], data[11]]),
+        bottom: i16::from_be_bytes([data[12], data[13]]),
+        right: i16::from_be_bytes([data[14], data[15]]),
     };
 
-    let conn_staff = data[18] as i8;
-    let clef_type = data[19] as i8;
-    let dynamic_type = data[20] as i8;
+    // Bytes 16-18: connStaff, clefType, dynamicType
+    let conn_staff = data[16] as i8;
+    let clef_type = data[17] as i8;
+    let dynamic_type = data[18] as i8;
 
-    // KsInfo: 7 bytes starting at offset 21
-    let ks_info = unpack_ksinfo_n105(data, 21);
+    // Byte 19: [PADDING — align KSITEM_5 struct to 2-byte boundary]
+    // Bytes 20-34: WHOLE_KSINFO_5 (15 bytes)
+    let ks_info = unpack_ksinfo_n105(data, 20);
 
-    let time_sig_type = data[28] as i8;
-    let numerator = data[29] as i8;
-    let denominator = data[30] as i8;
-    let x_mn_std_offset = i16::from_be_bytes([data[31], data[32]]) as ShortStd;
-    let y_mn_std_offset = i16::from_be_bytes([data[33], data[34]]) as ShortStd;
+    // Bytes 35-37: timeSigType, numerator, denominator
+    let time_sig_type = data[35] as i8;
+    let numerator = data[36] as i8;
+    let denominator = data[37] as i8;
+
+    // Bytes 38-39: xMNStdOffset, yMNStdOffset (SHORTSTD = SignedByte)
+    let x_mn_std_offset = data[38] as i8 as ShortStd;
+    let y_mn_std_offset = data[39] as i8 as ShortStd;
 
     Ok(AMeasure {
         header,
@@ -994,10 +1023,16 @@ pub fn unpack_aclef_n105(data: &[u8]) -> Result<AClef, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    let filler1 = data[4];
-    let small = data[5];
-    let filler2 = data[6];
+    // Byte 4: filler1:3 | small:2 | unused:3  (bitfields in one Byte)
+    // Reference: NObjTypesN105.h line 230-231
+    let b4 = data[4];
+    let filler1 = (b4 >> 5) & 0x07;
+    let small = (b4 >> 3) & 0x03;
+    // Byte 5: filler2
+    let filler2 = data[5];
+    // Bytes 6-7: xd (DDIST, 2-byte aligned — no padding needed after filler2)
     let xd = i16::from_be_bytes([data[6], data[7]]);
+    // Bytes 8-9: yd
     let yd = i16::from_be_bytes([data[8], data[9]]);
 
     Ok(AClef {
@@ -1012,7 +1047,15 @@ pub fn unpack_aclef_n105(data: &[u8]) -> Result<AClef, String> {
 
 /// Unpack N105 AKEYSIG_5 from raw bytes (24 bytes).
 ///
-/// Source: NObjTypesN105.h lines 268-293
+/// On-disk layout (mac68k alignment):
+///   0-3   SUBOBJHEADER_5
+///   4     nonstandard:1 | filler1:2 | small:2 | unused:3
+///   5     filler2 (SignedByte)
+///   6-7   xd (DDIST)
+///   8-22  WHOLE_KSINFO_5 (7×2-byte KSITEM_5 + 1 nKSItems = 15 bytes)
+///   23    [trailing mac68k padding]
+///
+/// Source: NObjTypesN105.h lines 262-270
 pub fn unpack_akeysig_n105(data: &[u8]) -> Result<AKeySig, String> {
     if data.len() < 24 {
         return Err(format!("AKEYSIG too short: {} bytes", data.len()));
@@ -1020,21 +1063,25 @@ pub fn unpack_akeysig_n105(data: &[u8]) -> Result<AKeySig, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: nonstandard:1 | filler1:7
+    // Byte 4: nonstandard:1 | filler1:2 | small:2 | unused:3 (all bitfields in one Byte)
+    // Reference: NObjTypesN105.h line 264-266
     let b4 = data[4];
-    let nonstandard = (b4 & 0x80) != 0;
-    let filler1 = b4 & 0x7F;
+    let nonstandard = (b4 >> 7) & 1;
+    let filler1 = (b4 >> 5) & 0x03;
+    let small = (b4 >> 3) & 0x03;
 
-    let small = data[5];
-    let filler2 = data[6] as i8;
-    let xd = i16::from_be_bytes([data[7], data[8]]);
+    // Byte 5: filler2
+    let filler2 = data[5] as i8;
 
-    // KsInfo: 7 bytes starting at offset 9
-    let ks_info = unpack_ksinfo_n105(data, 9);
+    // Bytes 6-7: xd (DDIST, 2-byte aligned)
+    let xd = i16::from_be_bytes([data[6], data[7]]);
+
+    // Bytes 8-22: WHOLE_KSINFO_5 (15 bytes)
+    let ks_info = unpack_ksinfo_n105(data, 8);
 
     Ok(AKeySig {
         header,
-        nonstandard: if nonstandard { 1 } else { 0 },
+        nonstandard,
         filler1,
         small,
         filler2,
@@ -1045,7 +1092,16 @@ pub fn unpack_akeysig_n105(data: &[u8]) -> Result<AKeySig, String> {
 
 /// Unpack N105 ATIMESIG_5 from raw bytes (12 bytes).
 ///
-/// Source: NObjTypesN105.h lines 295-308
+/// On-disk layout (mac68k alignment):
+///   0-3   SUBOBJHEADER_5
+///   4     filler:3 | small:2 | unused:3  (bitfields in one Byte)
+///   5     connStaff (SignedByte)
+///   6-7   xd (DDIST)
+///   8-9   yd (DDIST)
+///   10    numerator (SignedByte)
+///   11    denominator (SignedByte)
+///
+/// Source: NObjTypesN105.h lines 280-288
 pub fn unpack_atimesig_n105(data: &[u8]) -> Result<ATimeSig, String> {
     if data.len() < 12 {
         return Err(format!("ATIMESIG too short: {} bytes", data.len()));
@@ -1053,13 +1109,21 @@ pub fn unpack_atimesig_n105(data: &[u8]) -> Result<ATimeSig, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    let filler = data[4];
-    let small = data[5];
-    let conn_staff = data[6] as i8;
-    let xd = i16::from_be_bytes([data[7], data[8]]);
-    let yd = i16::from_be_bytes([data[9], data[10]]);
-    let numerator = data[11] as i8;
-    let denominator = if data.len() > 12 { data[12] as i8 } else { 4 };
+    // Byte 4: filler:3 | small:2 | unused:3  (bitfields in one Byte)
+    let b4 = data[4];
+    let filler = (b4 >> 5) & 0x07;
+    let small = (b4 >> 3) & 0x03;
+
+    // Byte 5: connStaff
+    let conn_staff = data[5] as i8;
+
+    // Bytes 6-7: xd, 8-9: yd
+    let xd = i16::from_be_bytes([data[6], data[7]]);
+    let yd = i16::from_be_bytes([data[8], data[9]]);
+
+    // Bytes 10-11: numerator, denominator
+    let numerator = data[10] as i8;
+    let denominator = data[11] as i8;
 
     Ok(ATimeSig {
         header,

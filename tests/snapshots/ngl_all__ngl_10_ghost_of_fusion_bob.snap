@@ -8,12 +8,13 @@ Beam: 406
 BeginPage: 26
 EndPage: 26
 LedgerLine: 657
-MusicChar: 2544
+MusicChar: 2516
 NoteStem: 498
+SetMusicSize: 156
 SetWidths: 1
 Slur: 80
 Staff: 156
-TOTAL: 4856
+TOTAL: 4984
 
 === STAVES ===
 y=256.7 x=[185.0..763.0] lines=5 spacing=4.50
@@ -185,7 +186,8 @@ y=506.3 x=[124.0..763.0] lines=5 spacing=4.50
 Smufl(57424): 124
 Smufl(57442): 8
 Smufl(57449): 26
-Smufl(57476): 72
+Smufl(57474): 18
+Smufl(57476): 54
 Smufl(57506): 14
 Smufl(57507): 362
 Smufl(57508): 1026
@@ -193,7 +195,7 @@ Smufl(57831): 126
 Smufl(57920): 1
 Smufl(57921): 3
 Smufl(57922): 7
-Smufl(57952): 513
+Smufl(57952): 485
 Smufl(57953): 12
 Smufl(57954): 45
 Smufl(58595): 152

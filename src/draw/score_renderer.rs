@@ -371,6 +371,16 @@ fn draw_staff(
     if let Some(astaff_list) = score.staffs.get(&obj.header.first_sub_obj) {
         for astaff in astaff_list {
             if let Some(staff_ctx) = ctx.get(astaff.staffn) {
+                // Set music font size from staff height.
+                // OG: PS_MusSize(doc, d2pt(pContext->staffHeight) + config.musFontSizeOffset)
+                // Reference: DrawUtils.cp:2619
+                // staffHeight in DDIST → points = staffHeight / 16.
+                // SMuFL font size = staff height in points (4 staff spaces).
+                let music_pt_size = ddist_to_render(staff_ctx.staff_height);
+                if music_pt_size > 0.0 {
+                    renderer.set_music_size(music_pt_size);
+                }
+
                 // Check if staff is visible and should show lines
                 // C++ code: if (showLines>0) — any non-zero means draw
                 // SHOW_ALL_LINES (127) means draw all lines

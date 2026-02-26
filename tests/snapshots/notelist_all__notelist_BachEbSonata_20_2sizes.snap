@@ -11,10 +11,11 @@ EndPage: 1
 LedgerLine: 66
 MusicChar: 1193
 NoteStem: 713
+SetMusicSize: 45
 SetWidths: 1
 Slur: 20
 Staff: 45
-TOTAL: 2689
+TOTAL: 2734
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00

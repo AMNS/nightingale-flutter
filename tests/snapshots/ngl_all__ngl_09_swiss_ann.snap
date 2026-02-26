@@ -10,10 +10,11 @@ EndPage: 35
 LedgerLine: 514
 MusicChar: 5134
 NoteStem: 2278
+SetMusicSize: 280
 SetWidths: 1
 Slur: 333
 Staff: 280
-TOTAL: 10800
+TOTAL: 11080
 
 === STAVES ===
 y=78.7 x=[93.0..763.0] lines=5 spacing=4.50
@@ -309,7 +310,9 @@ y=506.6 x=[93.0..763.0] lines=5 spacing=4.50
 Smufl(57424): 180
 Smufl(57436): 35
 Smufl(57442): 67
-Smufl(57476): 96
+Smufl(57474): 24
+Smufl(57475): 24
+Smufl(57476): 48
 Smufl(57507): 487
 Smufl(57508): 2080
 Smufl(57831): 777
