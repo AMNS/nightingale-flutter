@@ -3,14 +3,18 @@ source: tests/ngl_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
+BarLine: 777
 Beam: 368
 BeginPage: 30
 EndPage: 30
-MusicChar: 21
+LedgerLine: 792
+MusicChar: 4011
+NoteStem: 1628
 SetMusicSize: 210
 SetWidths: 1
+Slur: 168
 Staff: 210
-TOTAL: 870
+TOTAL: 8225
 
 === STAVES ===
 y=76.0 x=[147.0..763.0] lines=5 spacing=4.50
@@ -224,14 +228,31 @@ y=444.6 x=[109.0..763.0] lines=5 spacing=4.50
 y=518.9 x=[109.0..763.0] lines=5 spacing=4.50
 y=297.4 x=[109.0..763.0] lines=5 spacing=4.50
 
-=== BARLINES: 0 total ===
+=== BARLINES: 777 total ===
 
 === BEAMS: 368 total ===
 
-=== STEMS: 0 total ===
+=== STEMS: 1628 total ===
+
+=== SLURS: 168 total ===
 
 === GLYPHS ===
-Smufl(57424): 4
-Smufl(57442): 2
-Smufl(57449): 1
-Smufl(57476): 14
+Smufl(57424): 156
+Smufl(57442): 61
+Smufl(57449): 26
+Smufl(57474): 14
+Smufl(57475): 7
+Smufl(57476): 63
+Smufl(57506): 135
+Smufl(57507): 432
+Smufl(57508): 1947
+Smufl(57831): 129
+Smufl(57920): 63
+Smufl(57921): 46
+Smufl(57952): 60
+Smufl(57953): 37
+Smufl(57954): 365
+Smufl(58595): 254
+Smufl(58596): 105
+Smufl(58597): 53
+Smufl(58598): 58

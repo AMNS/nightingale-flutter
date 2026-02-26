@@ -7,14 +7,14 @@ BarLine: 825
 Beam: 241
 BeginPage: 38
 EndPage: 38
-LedgerLine: 1308
-MusicChar: 3390
-NoteStem: 1150
+LedgerLine: 1754
+MusicChar: 4461
+NoteStem: 1555
 SetMusicSize: 190
 SetWidths: 1
-Slur: 165
+Slur: 215
 Staff: 190
-TOTAL: 7536
+TOTAL: 9508
 
 === STAVES ===
 y=129.8 x=[143.0..763.0] lines=5 spacing=4.50
@@ -212,24 +212,24 @@ y=491.9 x=[95.0..763.0] lines=5 spacing=4.50
 
 === BEAMS: 241 total ===
 
-=== STEMS: 1150 total ===
+=== STEMS: 1555 total ===
 
-=== SLURS: 165 total ===
+=== SLURS: 215 total ===
 
 === GLYPHS ===
 Smufl(57424): 76
 Smufl(57442): 76
 Smufl(57449): 38
 Smufl(57474): 10
-Smufl(57506): 391
-Smufl(57507): 290
-Smufl(57508): 2179
-Smufl(57831): 47
-Smufl(57920): 34
-Smufl(57921): 50
-Smufl(57953): 14
-Smufl(57954): 38
-Smufl(58595): 97
-Smufl(58596): 22
-Smufl(58597): 12
-Smufl(58598): 16
+Smufl(57506): 493
+Smufl(57507): 367
+Smufl(57508): 2987
+Smufl(57831): 57
+Smufl(57920): 43
+Smufl(57921): 60
+Smufl(57953): 15
+Smufl(57954): 45
+Smufl(58595): 122
+Smufl(58596): 32
+Smufl(58597): 19
+Smufl(58598): 21

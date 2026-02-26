@@ -952,11 +952,17 @@ pub fn unpack_ameasure_n105(data: &[u8]) -> Result<AMeasure, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: measureVisible:1 | connAbove:1 | filler1:3 | unused:3
+    // Byte 4 layout (shared with SUBOBJHEADER_5):
+    //   bit 7: selected (header)
+    //   bit 6: visible (header)
+    //   bit 5: soft (header)
+    //   bit 4: measureVisible
+    //   bit 3: connAbove
+    //   bits 2-0: filler1
     let b4 = data[4];
-    let measure_visible = (b4 >> 7) & 1 != 0;
-    let conn_above = (b4 >> 6) & 1 != 0;
-    let filler1 = (b4 >> 3) & 0x07;
+    let measure_visible = (b4 >> 4) & 1 != 0;
+    let conn_above = (b4 >> 3) & 1 != 0;
+    let filler1 = b4 & 0x07;
 
     // Byte 5: filler2
     let filler2 = data[5] as i8;
@@ -1023,11 +1029,14 @@ pub fn unpack_aclef_n105(data: &[u8]) -> Result<AClef, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: filler1:3 | small:2 | unused:3  (bitfields in one Byte)
+    // Byte 4 layout (shared with SUBOBJHEADER_5):
+    //   bits 7-5: selected:1|visible:1|soft:1 (header)
+    //   bits 4-2: filler1:3
+    //   bits 1-0: small:2
     // Reference: NObjTypesN105.h line 230-231
     let b4 = data[4];
-    let filler1 = (b4 >> 5) & 0x07;
-    let small = (b4 >> 3) & 0x03;
+    let filler1 = (b4 >> 2) & 0x07;
+    let small = b4 & 0x03;
     // Byte 5: filler2
     let filler2 = data[5];
     // Bytes 6-7: xd (DDIST, 2-byte aligned — no padding needed after filler2)
@@ -1063,12 +1072,16 @@ pub fn unpack_akeysig_n105(data: &[u8]) -> Result<AKeySig, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: nonstandard:1 | filler1:2 | small:2 | unused:3 (all bitfields in one Byte)
+    // Byte 4 layout (shared with SUBOBJHEADER_5):
+    //   bits 7-5: selected:1|visible:1|soft:1 (header)
+    //   bit 4: nonstandard:1
+    //   bits 3-2: filler1:2
+    //   bits 1-0: small:2
     // Reference: NObjTypesN105.h line 264-266
     let b4 = data[4];
-    let nonstandard = (b4 >> 7) & 1;
-    let filler1 = (b4 >> 5) & 0x03;
-    let small = (b4 >> 3) & 0x03;
+    let nonstandard = (b4 >> 4) & 1;
+    let filler1 = (b4 >> 2) & 0x03;
+    let small = b4 & 0x03;
 
     // Byte 5: filler2
     let filler2 = data[5] as i8;
@@ -1109,10 +1122,13 @@ pub fn unpack_atimesig_n105(data: &[u8]) -> Result<ATimeSig, String> {
 
     let header = unpack_subobj_header_n105(data)?;
 
-    // Byte 4: filler:3 | small:2 | unused:3  (bitfields in one Byte)
+    // Byte 4 layout (shared with SUBOBJHEADER_5):
+    //   bits 7-5: selected:1|visible:1|soft:1 (header)
+    //   bits 4-2: filler:3
+    //   bits 1-0: small:2
     let b4 = data[4];
-    let filler = (b4 >> 5) & 0x07;
-    let small = (b4 >> 3) & 0x03;
+    let filler = (b4 >> 2) & 0x07;
+    let small = b4 & 0x03;
 
     // Byte 5: connStaff
     let conn_staff = data[5] as i8;
