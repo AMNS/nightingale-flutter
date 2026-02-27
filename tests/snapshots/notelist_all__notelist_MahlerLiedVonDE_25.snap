@@ -5,9 +5,9 @@ expression: summary
 === COMMAND COUNTS ===
 BarLine: 45
 Beam: 17
-BeginPage: 1
+BeginPage: 2
 Brace: 4
-EndPage: 1
+EndPage: 2
 LedgerLine: 87
 Line: 40
 MusicChar: 334
@@ -16,7 +16,7 @@ SetMusicSize: 12
 SetWidths: 1
 Slur: 46
 Staff: 12
-TOTAL: 726
+TOTAL: 728
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -28,9 +28,9 @@ y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=597.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=657.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=717.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=264.0 top=72.0 bottom=96.0
@@ -69,15 +69,15 @@ x=461.8 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
 x=558.0 top=482.0 bottom=506.0
 x=558.0 top=542.0 bottom=566.0
-x=325.7 top=597.0 bottom=621.0
-x=325.7 top=657.0 bottom=681.0
-x=325.7 top=717.0 bottom=741.0
-x=441.8 top=597.0 bottom=621.0
-x=441.8 top=657.0 bottom=681.0
-x=441.8 top=717.0 bottom=741.0
-x=558.0 top=597.0 bottom=621.0
-x=558.0 top=657.0 bottom=681.0
-x=558.0 top=717.0 bottom=741.0
+x=325.7 top=72.0 bottom=96.0
+x=325.7 top=132.0 bottom=156.0
+x=325.7 top=192.0 bottom=216.0
+x=441.8 top=72.0 bottom=96.0
+x=441.8 top=132.0 bottom=156.0
+x=441.8 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
 
 === BEAMS ===
 x=[149.5..171.8] y=[114.0..115.0] slope=0.045 thick=3.00
@@ -94,9 +94,9 @@ x=[241.9..271.1] y=[503.0..504.0] slope=0.034 thick=3.00
 x=[249.8..278.9] y=[461.0..458.0] slope=-0.103 thick=3.00
 x=[241.9..285.6] y=[473.0..476.0] slope=0.069 thick=3.00
 x=[241.9..285.6] y=[477.5..480.5] slope=0.069 thick=3.00
-x=[125.5..165.1] y=[687.0..688.0] slope=0.025 thick=3.00
-x=[196.2..229.4] y=[693.0..694.0] slope=0.030 thick=3.00
-x=[264.8..299.1] y=[699.0..700.0] slope=0.029 thick=3.00
+x=[125.5..165.1] y=[162.0..163.0] slope=0.025 thick=3.00
+x=[196.2..229.4] y=[168.0..169.0] slope=0.030 thick=3.00
+x=[264.8..299.1] y=[174.0..175.0] slope=0.029 thick=3.00
 
 === STEMS: 126 total ===
 

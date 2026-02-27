@@ -529,26 +529,26 @@ fn test_all_notelists_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("BachEbSonata_20_2sizes", 15151894676548639484),
-        ("BachEbSonata_20", 15151894676548639484),
-        ("BachStAnne_63", 15287284532065925354),
-        ("BinchoisDePlus_17", 17102427449092245376),
+        ("BachEbSonata_20_2sizes", 17045996937065094842),
+        ("BachEbSonata_20", 17045996937065094842),
+        ("BachStAnne_63", 10798182009014064624),
+        ("BinchoisDePlus_17", 6983745788402426399),
         ("chord_seconds", 16077817056208839509),
         ("clef_change", 6350287746106966148),
         ("Debussy_Images_9", 18337793112358747022),
         ("GoodbyePorkPieHat", 8444079949950981001),
         ("HBD_33", 11729378260332971304),
-        ("KillingMe_36", 9647497734047705878),
+        ("KillingMe_36", 7555780038939306010),
         ("keysig_d_major", 1882963057310755303),
         ("keysig_eb_major", 11711652780243886394),
-        ("MahlerLiedVonDE_25", 16898928814909566621),
-        ("MendelssohnOp7N1_2", 14411581547436973175),
-        ("RavelScarbo_15", 17250285101480994226),
+        ("MahlerLiedVonDE_25", 675841666936360028),
+        ("MendelssohnOp7N1_2", 9368912644174947794),
+        ("RavelScarbo_15", 12497036500049009420),
         ("SchenkerDiagram_Chopin_6", 6542884995845016953),
-        ("SchoenbergOp19N1_21", 7446644607945053768),
-        ("TestMIDIChannels_3", 296416162606259370),
+        ("SchoenbergOp19N1_21", 7826083691020529528),
+        ("TestMIDIChannels_3", 499514329435215668),
         ("tuplet_triplet", 7964566500588517736),
-        ("Webern_Op5N3_22", 14892925828705831074),
+        ("Webern_Op5N3_22", 6791268564877818038),
     ]
     .into_iter()
     .collect();

@@ -151,6 +151,38 @@ impl NotelistLayoutConfig {
     fn d_interline(&self) -> Ddist {
         self.staff_height / 4
     }
+
+    /// How many systems fit on one page, given the current config and
+    /// the system height (which depends on the number of staves).
+    ///
+    /// Port of the layout logic in PageFixSysRects (Score.cp:329).
+    /// First system starts at `system_top`; each subsequent system adds
+    /// `inter_system` to the Y position.  A system fits if its bottom
+    /// (top + system_height) is within the usable page height.
+    fn systems_per_page(&self, system_height: i32) -> usize {
+        let page_height_ddist = self.page_height as i32 * 16;
+        // Bottom margin same as top margin
+        let bottom_margin = self.system_top as i32;
+        let usable_bottom = page_height_ddist - bottom_margin;
+
+        // First system
+        let first_bottom = self.system_top as i32 + system_height;
+        if first_bottom > usable_bottom {
+            return 1; // At least one system per page
+        }
+
+        let mut count = 1;
+        let mut top = self.system_top as i32;
+        loop {
+            top += self.inter_system as i32;
+            let bottom = top + system_height;
+            if bottom > usable_bottom {
+                break;
+            }
+            count += 1;
+        }
+        count
+    }
 }
 
 // ===========================================================================
@@ -746,10 +778,21 @@ pub fn notelist_to_score_with_config(
         link_counter
     };
 
-    // ---- HEADER and PAGE (shared across systems) ----
+    // ---- HEADER and PAGE links ----
     let header_link = next_link();
     score.head_l = header_link;
-    let page_link = next_link();
+
+    // Calculate pagination: how many systems fit per page?
+    let system_height_for_pagination =
+        (num_staves as i32 - 1) * config.inter_staff as i32 + config.staff_height as i32;
+    let sys_per_page = config.systems_per_page(system_height_for_pagination);
+    let num_pages = num_systems.div_ceil(sys_per_page);
+
+    // Pre-allocate page links
+    let mut page_links: Vec<Link> = Vec::new();
+    for _ in 0..num_pages {
+        page_links.push(next_link());
+    }
 
     // Pre-allocate system links so we can wire left/right pointers
     let mut system_links: Vec<Link> = Vec::new();
@@ -788,11 +831,11 @@ pub fn notelist_to_score_with_config(
         },
     }
 
-    // HEADER object
+    // HEADER object — right points to first PAGE
     score.objects.push(InterpretedObject {
         index: header_link,
         header: ObjectHeader {
-            right: page_link,
+            right: page_links[0],
             left: NILINK,
             first_sub_obj: NILINK,
             xd: 0,
@@ -815,9 +858,14 @@ pub fn notelist_to_score_with_config(
         }),
     });
 
-    // PAGE object
+    // PAGE objects — one per page.
+    // Port of Nightingale page allocation (Score.cp:AddNewPage).
+    // Only the first page is emitted here; subsequent pages are inserted
+    // at the system loop when a page boundary is reached.
+
+    // Emit first PAGE (left = header, right = first system)
     score.objects.push(InterpretedObject {
-        index: page_link,
+        index: page_links[0],
         header: ObjectHeader {
             right: system_links[0],
             left: header_link,
@@ -840,7 +888,7 @@ pub fn notelist_to_score_with_config(
         data: ObjData::Page(Page {
             header: ObjectHeader::default(),
             l_page: NILINK,
-            r_page: NILINK,
+            r_page: if num_pages > 1 { page_links[1] } else { NILINK },
             sheet_num: 0,
             header_str_offset: 0,
             footer_str_offset: 0,
@@ -870,12 +918,62 @@ pub fn notelist_to_score_with_config(
     for (sys_idx, &(sys_meas_start, sys_meas_end)) in system_measure_ranges.iter().enumerate() {
         let system_link = system_links[sys_idx];
 
-        // System vertical position — stacked with inter_system spacing
-        // Port of PageFixSysRects (SFormat.cp)
-        // Use i32 arithmetic to avoid overflow for scores with many systems,
-        // then saturate back to Ddist range. Systems beyond the page are
-        // off-screen until multi-page layout is implemented.
-        let sys_top_i32 = config.system_top as i32 + sys_idx as i32 * config.inter_system as i32;
+        // Which page does this system belong to?
+        let page_idx = sys_idx / sys_per_page;
+        let sys_in_page = sys_idx % sys_per_page;
+        let page_link = page_links[page_idx];
+
+        // Insert PAGE object before the first system of pages 2, 3, ...
+        // Port of AddNewPage (Score.cp) — page boundary triggers a new PAGE
+        // object in the linked list between the end of the previous page's
+        // content and this system.
+        if page_idx > 0 && sys_in_page == 0 {
+            // The PAGE's left = last object of previous system (or prev page link)
+            let page_left = *last_obj_link_per_system
+                .last()
+                .unwrap_or(&page_links[page_idx - 1]);
+
+            score.objects.push(InterpretedObject {
+                index: page_link,
+                header: ObjectHeader {
+                    right: system_link,
+                    left: page_left,
+                    first_sub_obj: NILINK,
+                    xd: 0,
+                    yd: 0,
+                    obj_type: 4, // PAGEtype
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                    valid: true,
+                    tweaked: false,
+                    spare_flag: false,
+                    ohdr_filler1: 0,
+                    obj_rect: Rect::default(),
+                    rel_size: 0,
+                    ohdr_filler2: 0,
+                    n_entries: 0,
+                },
+                data: ObjData::Page(Page {
+                    header: ObjectHeader::default(),
+                    l_page: page_links[page_idx - 1],
+                    r_page: if page_idx + 1 < num_pages {
+                        page_links[page_idx + 1]
+                    } else {
+                        NILINK
+                    },
+                    sheet_num: page_idx as i16,
+                    header_str_offset: 0,
+                    footer_str_offset: 0,
+                }),
+            });
+        }
+
+        // System vertical position — page-relative, reset each page.
+        // Port of PageFixSysRects (Score.cp:329-381): first system on page
+        // starts at marginRect.top; subsequent systems spaced by yBetweenSys.
+        let sys_top_i32 =
+            config.system_top as i32 + sys_in_page as i32 * config.inter_system as i32;
         let sys_top = sys_top_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
         let sys_bottom_i32 = sys_top_i32 + system_height as i32;
         let sys_bottom = sys_bottom_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
@@ -900,11 +998,13 @@ pub fn notelist_to_score_with_config(
         let timesig_link = if has_timesig { next_link() } else { NILINK };
 
         // --- SYSTEM object ---
-        // left = previous system or page; right = staff
-        let sys_left = if sys_idx == 0 {
+        // left = page (if first system on this page) or last object of prev system.
+        // Port of SYS left-link convention from Score.cp CreateSystem.
+        let sys_left = if sys_in_page == 0 {
+            // First system on this page: left = this page's PAGE object
             page_link
         } else {
-            // last object of previous system
+            // Subsequent system on same page: left = last object of previous system
             *last_obj_link_per_system.last().unwrap_or(&page_link)
         };
         // right will point to staff_link of this system
@@ -948,15 +1048,22 @@ pub fn notelist_to_score_with_config(
             }),
         });
 
-        // Fix the right-link of the previous system's last object to point here
+        // Fix the right-link of the previous system's last object.
+        // If crossing a page boundary, it points to the new PAGE object;
+        // otherwise it points directly to this system.
         if sys_idx > 0 {
             if let Some(prev_last_link) = last_obj_link_per_system.last() {
+                let target = if sys_in_page == 0 {
+                    page_link // Page boundary: prev → PAGE → system
+                } else {
+                    system_link
+                };
                 if let Some(prev_obj) = score
                     .objects
                     .iter_mut()
                     .find(|o| o.index == *prev_last_link)
                 {
-                    prev_obj.header.right = system_link;
+                    prev_obj.header.right = target;
                 }
             }
         }
@@ -2839,7 +2946,7 @@ pub fn notelist_to_score_with_config(
             .rev()
             .find(|obj| obj.header.obj_type != 1) // Skip header-type objects
             .map(|obj| obj.index)
-            .unwrap_or(page_link)
+            .unwrap_or(*page_links.last().unwrap())
     };
 
     score.objects.push(InterpretedObject {

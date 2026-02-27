@@ -59,15 +59,20 @@
 - [x] **Renderer stem direction fix**: beam renderer now uses per-note ystem vs yd (matching OG) instead of heuristic
 - [x] **OG source line endings**: converted all 276 .cp/.h files to Unix LF — no more `tr` preprocessing
 
-### Recently Completed (this session)
-- [x] **Key signatures**: DrawKEYSIG port — full position tables for all 7 clef types (treble/bass/alto/tenor/soprano/mzsoprano/baritone), preamble KEYSIG objects, SetupKeySig circle-of-fifths order, SMuFL sharp/flat glyphs, preamble width adjustment for accidental count. 2 new test fixtures (D major, Eb major), 10 snapshots updated.
+### Recently Completed (previous sessions)
+- [x] **Key signatures**: DrawKEYSIG port — full position tables for all 7 clef types, preamble KEYSIG objects, SetupKeySig circle-of-fifths order, SMuFL sharp/flat glyphs, preamble width adjustment for accidental count.
 - [x] **Tied notes**: visual ties between notes across beats/measures + cross-system partial ties
 - [x] **Notelist stem_info parser fix**: accept all 6 flag characters (ties, slurs, tuplets were silently dropped)
-- [x] **Comprehensive notelist test suite**: 6 tests × 17 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
+- [x] **Comprehensive notelist test suite**: 6 tests × 20 .nl files (parse, convert, render, geometry, PDF, insta snapshots)
 - [x] **Ddist overflow fix**: i16 arithmetic overflow in scores with many systems — widened to i32 in to_score.rs, context.rs, score_renderer.rs
-- [x] **Tuplet rendering**: Port of DrawTUPLET/DrawPSTupletBracket (Tuplet.cp) — bracket with cutoff lines + gap for number, SMuFL timeSig digit numerals, stem_info 'T' flag → in_tuplet, ANoteTuple subobjects linking to syncs, bracket Y from stem extremes (SetTupletYPos port). 3 snapshots updated (Mahler, Schoenberg, Webern).
-- [x] **Custom noteheads**: Port of NoteGlyph/GetNoteheadInfo (DrawUtils.cp) — X-shaped, harmonic, square hollow/filled, diamond hollow/filled, halfnote, slash notation. SMuFL alternate notehead glyphs (U+E0A7-E0DB). head_shape field already parsed from NGL/Notelist, now used in rendering.
-- [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag before saving final page. Capital Regiment March: 15→14 pages. Single-page scores unaffected.
+- [x] **Tuplet rendering**: Port of DrawTUPLET/DrawPSTupletBracket (Tuplet.cp) — bracket with cutoff lines + gap for number, SMuFL timeSig digit numerals, stem_info 'T' flag → in_tuplet, ANoteTuple subobjects linking to syncs.
+- [x] **Custom noteheads**: Port of NoteGlyph/GetNoteheadInfo (DrawUtils.cp) — X-shaped, harmonic, square, diamond, halfnote, slash notation via SMuFL alternate notehead glyphs.
+- [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
+
+### Recently Completed (this session)
+- [x] **NGL slur rendering**: Filled tapered Bezier shapes (PS_Stdio.cp:1933 PS_Slur port). Two offset curves with configurable mid-line width (SLURMIDLW_DFLT=30). ASlur spline data from NGL files rendered directly.
+- [x] **Notelist slur rendering**: Endpoint collection from stem_info slurred_l/slurred_r flags (NotelistSave.cp:130). IICreateAllSlurs-style voice-based matching (InternalInput.cp:881). SetSlurCtlPoints port with short/long blending thresholds + RotateSlurCtrlPts for slanted slurs (Slurs.cp:1021-1122). slurCurvature=50 vs tieCurvature=85.
+- [x] **Final barline flush-right fix**: System-boundary and final barlines now use config.content_width() (staff_right) instead of computed measure edge.
 
 ### Next: Engraving & Layout (priority order)
 
@@ -75,7 +80,7 @@
 - [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
-- [ ] **Slurs**: curved slurs between notes, including cross-system and cross-page slurs (DrawSLUR port from Slurs.cp)
+- [x] **Slurs**: NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs still TODO.
 - [ ] **System layout / spacing improvements**: duration-proportional spacing (port SymWidthRight/CalcSpaceNeeded from SpaceTime.cp), measure width based on content density
 - [ ] **Ottava (8va/8vb)**: dashed line + text above/below staff (DrawOTTAVA port from DrawObject.cp)
 

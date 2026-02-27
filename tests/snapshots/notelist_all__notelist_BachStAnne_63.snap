@@ -5,9 +5,9 @@ expression: summary
 === COMMAND COUNTS ===
 BarLine: 351
 Beam: 521
-BeginPage: 1
+BeginPage: 10
 Brace: 30
-EndPage: 1
+EndPage: 10
 LedgerLine: 461
 MusicChar: 3960
 NoteStem: 2709
@@ -15,7 +15,7 @@ SetMusicSize: 90
 SetWidths: 1
 Slur: 219
 Staff: 90
-TOTAL: 8434
+TOTAL: 8452
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -27,87 +27,87 @@ y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=597.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=657.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=717.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=772.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=832.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=892.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=947.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1007.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1067.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1122.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1182.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1242.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1297.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1357.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1417.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1472.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1532.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1592.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1647.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1707.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1767.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1822.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1882.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1942.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=1997.0 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
-y=2047.9 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=223.0 top=72.0 bottom=96.0
@@ -146,844 +146,844 @@ x=451.1 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
 x=558.0 top=482.0 bottom=506.0
 x=558.0 top=542.0 bottom=566.0
-x=229.9 top=597.0 bottom=621.0
-x=229.9 top=657.0 bottom=681.0
-x=229.9 top=717.0 bottom=741.0
-x=336.7 top=597.0 bottom=621.0
-x=336.7 top=657.0 bottom=681.0
-x=336.7 top=717.0 bottom=741.0
-x=447.3 top=597.0 bottom=621.0
-x=447.3 top=657.0 bottom=681.0
-x=447.3 top=717.0 bottom=741.0
-x=558.0 top=597.0 bottom=621.0
-x=558.0 top=657.0 bottom=681.0
-x=558.0 top=717.0 bottom=741.0
-x=229.9 top=772.0 bottom=796.0
-x=229.9 top=832.0 bottom=856.0
-x=229.9 top=892.0 bottom=916.0
-x=340.5 top=772.0 bottom=796.0
-x=340.5 top=832.0 bottom=856.0
-x=340.5 top=892.0 bottom=916.0
-x=451.1 top=772.0 bottom=796.0
-x=451.1 top=832.0 bottom=856.0
-x=451.1 top=892.0 bottom=916.0
-x=558.0 top=772.0 bottom=796.0
-x=558.0 top=832.0 bottom=856.0
-x=558.0 top=892.0 bottom=916.0
-x=230.8 top=947.0 bottom=971.0
-x=230.8 top=1007.0 bottom=1031.0
-x=230.8 top=1067.0 bottom=1091.0
-x=334.8 top=947.0 bottom=971.0
-x=334.8 top=1007.0 bottom=1031.0
-x=334.8 top=1067.0 bottom=1091.0
-x=446.3 top=947.0 bottom=971.0
-x=446.3 top=1007.0 bottom=1031.0
-x=446.3 top=1067.0 bottom=1091.0
-x=558.0 top=947.0 bottom=971.0
-x=558.0 top=1007.0 bottom=1031.0
-x=558.0 top=1067.0 bottom=1091.0
-x=229.9 top=1122.0 bottom=1146.0
-x=229.9 top=1182.0 bottom=1206.0
-x=229.9 top=1242.0 bottom=1266.0
-x=340.5 top=1122.0 bottom=1146.0
-x=340.5 top=1182.0 bottom=1206.0
-x=340.5 top=1242.0 bottom=1266.0
-x=451.1 top=1122.0 bottom=1146.0
-x=451.1 top=1182.0 bottom=1206.0
-x=451.1 top=1242.0 bottom=1266.0
-x=558.0 top=1122.0 bottom=1146.0
-x=558.0 top=1182.0 bottom=1206.0
-x=558.0 top=1242.0 bottom=1266.0
-x=228.9 top=1297.0 bottom=1321.0
-x=228.9 top=1357.0 bottom=1381.0
-x=228.9 top=1417.0 bottom=1441.0
-x=338.6 top=1297.0 bottom=1321.0
-x=338.6 top=1357.0 bottom=1381.0
-x=338.6 top=1417.0 bottom=1441.0
-x=448.3 top=1297.0 bottom=1321.0
-x=448.3 top=1357.0 bottom=1381.0
-x=448.3 top=1417.0 bottom=1441.0
-x=558.0 top=1297.0 bottom=1321.0
-x=558.0 top=1357.0 bottom=1381.0
-x=558.0 top=1417.0 bottom=1441.0
-x=228.9 top=1472.0 bottom=1496.0
-x=228.9 top=1532.0 bottom=1556.0
-x=228.9 top=1592.0 bottom=1616.0
-x=338.6 top=1472.0 bottom=1496.0
-x=338.6 top=1532.0 bottom=1556.0
-x=338.6 top=1592.0 bottom=1616.0
-x=448.3 top=1472.0 bottom=1496.0
-x=448.3 top=1532.0 bottom=1556.0
-x=448.3 top=1592.0 bottom=1616.0
-x=558.0 top=1472.0 bottom=1496.0
-x=558.0 top=1532.0 bottom=1556.0
-x=558.0 top=1592.0 bottom=1616.0
-x=225.2 top=1647.0 bottom=1671.0
-x=225.2 top=1707.0 bottom=1731.0
-x=225.2 top=1767.0 bottom=1791.0
-x=336.1 top=1647.0 bottom=1671.0
-x=336.1 top=1707.0 bottom=1731.0
-x=336.1 top=1767.0 bottom=1791.0
-x=446.9 top=1647.0 bottom=1671.0
-x=446.9 top=1707.0 bottom=1731.0
-x=446.9 top=1767.0 bottom=1791.0
-x=558.0 top=1647.0 bottom=1671.0
-x=558.0 top=1707.0 bottom=1731.0
-x=558.0 top=1767.0 bottom=1791.0
-x=228.9 top=1822.0 bottom=1846.0
-x=228.9 top=1882.0 bottom=1906.0
-x=228.9 top=1942.0 bottom=1966.0
-x=338.6 top=1822.0 bottom=1846.0
-x=338.6 top=1882.0 bottom=1906.0
-x=338.6 top=1942.0 bottom=1966.0
-x=448.3 top=1822.0 bottom=1846.0
-x=448.3 top=1882.0 bottom=1906.0
-x=448.3 top=1942.0 bottom=1966.0
-x=558.0 top=1822.0 bottom=1846.0
-x=558.0 top=1882.0 bottom=1906.0
-x=558.0 top=1942.0 bottom=1966.0
-x=228.9 top=1997.0 bottom=2021.0
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=1997.0 bottom=2021.0
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=1997.0 bottom=2021.0
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=1997.0 bottom=2021.0
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=230.1 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=341.0 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=446.9 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=228.9 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=448.3 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=212.2 top=2047.9 bottom=2071.9
-x=212.2 top=2047.9 bottom=2071.9
-x=212.2 top=2047.9 bottom=2071.9
-x=317.2 top=2047.9 bottom=2071.9
-x=317.2 top=2047.9 bottom=2071.9
-x=317.2 top=2047.9 bottom=2071.9
-x=427.9 top=2047.9 bottom=2071.9
-x=427.9 top=2047.9 bottom=2071.9
-x=427.9 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=230.2 top=2047.9 bottom=2071.9
-x=230.2 top=2047.9 bottom=2071.9
-x=230.2 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=338.6 top=2047.9 bottom=2071.9
-x=441.4 top=2047.9 bottom=2071.9
-x=441.4 top=2047.9 bottom=2071.9
-x=441.4 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=240.9 top=2047.9 bottom=2071.9
-x=240.9 top=2047.9 bottom=2071.9
-x=240.9 top=2047.9 bottom=2071.9
-x=355.1 top=2047.9 bottom=2071.9
-x=355.1 top=2047.9 bottom=2071.9
-x=355.1 top=2047.9 bottom=2071.9
-x=456.5 top=2047.9 bottom=2071.9
-x=456.5 top=2047.9 bottom=2071.9
-x=456.5 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=230.7 top=2047.9 bottom=2071.9
-x=230.7 top=2047.9 bottom=2071.9
-x=230.7 top=2047.9 bottom=2071.9
-x=342.1 top=2047.9 bottom=2071.9
-x=342.1 top=2047.9 bottom=2071.9
-x=342.1 top=2047.9 bottom=2071.9
-x=446.4 top=2047.9 bottom=2071.9
-x=446.4 top=2047.9 bottom=2071.9
-x=446.4 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=222.6 top=2047.9 bottom=2071.9
-x=222.6 top=2047.9 bottom=2071.9
-x=222.6 top=2047.9 bottom=2071.9
-x=323.4 top=2047.9 bottom=2071.9
-x=323.4 top=2047.9 bottom=2071.9
-x=323.4 top=2047.9 bottom=2071.9
-x=441.9 top=2047.9 bottom=2071.9
-x=441.9 top=2047.9 bottom=2071.9
-x=441.9 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=217.0 top=2047.9 bottom=2071.9
-x=217.0 top=2047.9 bottom=2071.9
-x=217.0 top=2047.9 bottom=2071.9
-x=331.4 top=2047.9 bottom=2071.9
-x=331.4 top=2047.9 bottom=2071.9
-x=331.4 top=2047.9 bottom=2071.9
-x=443.5 top=2047.9 bottom=2071.9
-x=443.5 top=2047.9 bottom=2071.9
-x=443.5 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=227.7 top=2047.9 bottom=2071.9
-x=227.7 top=2047.9 bottom=2071.9
-x=227.7 top=2047.9 bottom=2071.9
-x=341.1 top=2047.9 bottom=2071.9
-x=341.1 top=2047.9 bottom=2071.9
-x=341.1 top=2047.9 bottom=2071.9
-x=442.1 top=2047.9 bottom=2071.9
-x=442.1 top=2047.9 bottom=2071.9
-x=442.1 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=238.2 top=2047.9 bottom=2071.9
-x=238.2 top=2047.9 bottom=2071.9
-x=238.2 top=2047.9 bottom=2071.9
-x=357.1 top=2047.9 bottom=2071.9
-x=357.1 top=2047.9 bottom=2071.9
-x=357.1 top=2047.9 bottom=2071.9
-x=458.8 top=2047.9 bottom=2071.9
-x=458.8 top=2047.9 bottom=2071.9
-x=458.8 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=234.9 top=2047.9 bottom=2071.9
-x=234.9 top=2047.9 bottom=2071.9
-x=234.9 top=2047.9 bottom=2071.9
-x=343.4 top=2047.9 bottom=2071.9
-x=343.4 top=2047.9 bottom=2071.9
-x=343.4 top=2047.9 bottom=2071.9
-x=449.4 top=2047.9 bottom=2071.9
-x=449.4 top=2047.9 bottom=2071.9
-x=449.4 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
-x=558.0 top=2047.9 bottom=2071.9
+x=229.9 top=72.0 bottom=96.0
+x=229.9 top=132.0 bottom=156.0
+x=229.9 top=192.0 bottom=216.0
+x=336.7 top=72.0 bottom=96.0
+x=336.7 top=132.0 bottom=156.0
+x=336.7 top=192.0 bottom=216.0
+x=447.3 top=72.0 bottom=96.0
+x=447.3 top=132.0 bottom=156.0
+x=447.3 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=229.9 top=247.0 bottom=271.0
+x=229.9 top=307.0 bottom=331.0
+x=229.9 top=367.0 bottom=391.0
+x=340.5 top=247.0 bottom=271.0
+x=340.5 top=307.0 bottom=331.0
+x=340.5 top=367.0 bottom=391.0
+x=451.1 top=247.0 bottom=271.0
+x=451.1 top=307.0 bottom=331.0
+x=451.1 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=230.8 top=422.0 bottom=446.0
+x=230.8 top=482.0 bottom=506.0
+x=230.8 top=542.0 bottom=566.0
+x=334.8 top=422.0 bottom=446.0
+x=334.8 top=482.0 bottom=506.0
+x=334.8 top=542.0 bottom=566.0
+x=446.3 top=422.0 bottom=446.0
+x=446.3 top=482.0 bottom=506.0
+x=446.3 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=229.9 top=72.0 bottom=96.0
+x=229.9 top=132.0 bottom=156.0
+x=229.9 top=192.0 bottom=216.0
+x=340.5 top=72.0 bottom=96.0
+x=340.5 top=132.0 bottom=156.0
+x=340.5 top=192.0 bottom=216.0
+x=451.1 top=72.0 bottom=96.0
+x=451.1 top=132.0 bottom=156.0
+x=451.1 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=228.9 top=247.0 bottom=271.0
+x=228.9 top=307.0 bottom=331.0
+x=228.9 top=367.0 bottom=391.0
+x=338.6 top=247.0 bottom=271.0
+x=338.6 top=307.0 bottom=331.0
+x=338.6 top=367.0 bottom=391.0
+x=448.3 top=247.0 bottom=271.0
+x=448.3 top=307.0 bottom=331.0
+x=448.3 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=228.9 top=422.0 bottom=446.0
+x=228.9 top=482.0 bottom=506.0
+x=228.9 top=542.0 bottom=566.0
+x=338.6 top=422.0 bottom=446.0
+x=338.6 top=482.0 bottom=506.0
+x=338.6 top=542.0 bottom=566.0
+x=448.3 top=422.0 bottom=446.0
+x=448.3 top=482.0 bottom=506.0
+x=448.3 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=225.2 top=72.0 bottom=96.0
+x=225.2 top=132.0 bottom=156.0
+x=225.2 top=192.0 bottom=216.0
+x=336.1 top=72.0 bottom=96.0
+x=336.1 top=132.0 bottom=156.0
+x=336.1 top=192.0 bottom=216.0
+x=446.9 top=72.0 bottom=96.0
+x=446.9 top=132.0 bottom=156.0
+x=446.9 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=228.9 top=247.0 bottom=271.0
+x=228.9 top=307.0 bottom=331.0
+x=228.9 top=367.0 bottom=391.0
+x=338.6 top=247.0 bottom=271.0
+x=338.6 top=307.0 bottom=331.0
+x=338.6 top=367.0 bottom=391.0
+x=448.3 top=247.0 bottom=271.0
+x=448.3 top=307.0 bottom=331.0
+x=448.3 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=228.9 top=422.0 bottom=446.0
+x=228.9 top=482.0 bottom=506.0
+x=228.9 top=542.0 bottom=566.0
+x=338.6 top=422.0 bottom=446.0
+x=338.6 top=482.0 bottom=506.0
+x=338.6 top=542.0 bottom=566.0
+x=448.3 top=422.0 bottom=446.0
+x=448.3 top=482.0 bottom=506.0
+x=448.3 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=228.9 top=72.0 bottom=96.0
+x=228.9 top=132.0 bottom=156.0
+x=228.9 top=192.0 bottom=216.0
+x=338.6 top=72.0 bottom=96.0
+x=338.6 top=132.0 bottom=156.0
+x=338.6 top=192.0 bottom=216.0
+x=448.3 top=72.0 bottom=96.0
+x=448.3 top=132.0 bottom=156.0
+x=448.3 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=228.9 top=247.0 bottom=271.0
+x=228.9 top=307.0 bottom=331.0
+x=228.9 top=367.0 bottom=391.0
+x=338.6 top=247.0 bottom=271.0
+x=338.6 top=307.0 bottom=331.0
+x=338.6 top=367.0 bottom=391.0
+x=448.3 top=247.0 bottom=271.0
+x=448.3 top=307.0 bottom=331.0
+x=448.3 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=230.1 top=422.0 bottom=446.0
+x=230.1 top=482.0 bottom=506.0
+x=230.1 top=542.0 bottom=566.0
+x=341.0 top=422.0 bottom=446.0
+x=341.0 top=482.0 bottom=506.0
+x=341.0 top=542.0 bottom=566.0
+x=446.9 top=422.0 bottom=446.0
+x=446.9 top=482.0 bottom=506.0
+x=446.9 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=228.9 top=72.0 bottom=96.0
+x=228.9 top=132.0 bottom=156.0
+x=228.9 top=192.0 bottom=216.0
+x=338.6 top=72.0 bottom=96.0
+x=338.6 top=132.0 bottom=156.0
+x=338.6 top=192.0 bottom=216.0
+x=448.3 top=72.0 bottom=96.0
+x=448.3 top=132.0 bottom=156.0
+x=448.3 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=230.1 top=247.0 bottom=271.0
+x=230.1 top=307.0 bottom=331.0
+x=230.1 top=367.0 bottom=391.0
+x=341.0 top=247.0 bottom=271.0
+x=341.0 top=307.0 bottom=331.0
+x=341.0 top=367.0 bottom=391.0
+x=446.9 top=247.0 bottom=271.0
+x=446.9 top=307.0 bottom=331.0
+x=446.9 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=228.9 top=422.0 bottom=446.0
+x=228.9 top=482.0 bottom=506.0
+x=228.9 top=542.0 bottom=566.0
+x=338.6 top=422.0 bottom=446.0
+x=338.6 top=482.0 bottom=506.0
+x=338.6 top=542.0 bottom=566.0
+x=448.3 top=422.0 bottom=446.0
+x=448.3 top=482.0 bottom=506.0
+x=448.3 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=228.9 top=72.0 bottom=96.0
+x=228.9 top=132.0 bottom=156.0
+x=228.9 top=192.0 bottom=216.0
+x=338.6 top=72.0 bottom=96.0
+x=338.6 top=132.0 bottom=156.0
+x=338.6 top=192.0 bottom=216.0
+x=448.3 top=72.0 bottom=96.0
+x=448.3 top=132.0 bottom=156.0
+x=448.3 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=228.9 top=247.0 bottom=271.0
+x=228.9 top=307.0 bottom=331.0
+x=228.9 top=367.0 bottom=391.0
+x=338.6 top=247.0 bottom=271.0
+x=338.6 top=307.0 bottom=331.0
+x=338.6 top=367.0 bottom=391.0
+x=448.3 top=247.0 bottom=271.0
+x=448.3 top=307.0 bottom=331.0
+x=448.3 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=212.2 top=422.0 bottom=446.0
+x=212.2 top=482.0 bottom=506.0
+x=212.2 top=542.0 bottom=566.0
+x=317.2 top=422.0 bottom=446.0
+x=317.2 top=482.0 bottom=506.0
+x=317.2 top=542.0 bottom=566.0
+x=427.9 top=422.0 bottom=446.0
+x=427.9 top=482.0 bottom=506.0
+x=427.9 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=230.2 top=72.0 bottom=96.0
+x=230.2 top=132.0 bottom=156.0
+x=230.2 top=192.0 bottom=216.0
+x=338.6 top=72.0 bottom=96.0
+x=338.6 top=132.0 bottom=156.0
+x=338.6 top=192.0 bottom=216.0
+x=441.4 top=72.0 bottom=96.0
+x=441.4 top=132.0 bottom=156.0
+x=441.4 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=240.9 top=247.0 bottom=271.0
+x=240.9 top=307.0 bottom=331.0
+x=240.9 top=367.0 bottom=391.0
+x=355.1 top=247.0 bottom=271.0
+x=355.1 top=307.0 bottom=331.0
+x=355.1 top=367.0 bottom=391.0
+x=456.5 top=247.0 bottom=271.0
+x=456.5 top=307.0 bottom=331.0
+x=456.5 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=230.7 top=422.0 bottom=446.0
+x=230.7 top=482.0 bottom=506.0
+x=230.7 top=542.0 bottom=566.0
+x=342.1 top=422.0 bottom=446.0
+x=342.1 top=482.0 bottom=506.0
+x=342.1 top=542.0 bottom=566.0
+x=446.4 top=422.0 bottom=446.0
+x=446.4 top=482.0 bottom=506.0
+x=446.4 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=222.6 top=72.0 bottom=96.0
+x=222.6 top=132.0 bottom=156.0
+x=222.6 top=192.0 bottom=216.0
+x=323.4 top=72.0 bottom=96.0
+x=323.4 top=132.0 bottom=156.0
+x=323.4 top=192.0 bottom=216.0
+x=441.9 top=72.0 bottom=96.0
+x=441.9 top=132.0 bottom=156.0
+x=441.9 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=217.0 top=247.0 bottom=271.0
+x=217.0 top=307.0 bottom=331.0
+x=217.0 top=367.0 bottom=391.0
+x=331.4 top=247.0 bottom=271.0
+x=331.4 top=307.0 bottom=331.0
+x=331.4 top=367.0 bottom=391.0
+x=443.5 top=247.0 bottom=271.0
+x=443.5 top=307.0 bottom=331.0
+x=443.5 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=227.7 top=422.0 bottom=446.0
+x=227.7 top=482.0 bottom=506.0
+x=227.7 top=542.0 bottom=566.0
+x=341.1 top=422.0 bottom=446.0
+x=341.1 top=482.0 bottom=506.0
+x=341.1 top=542.0 bottom=566.0
+x=442.1 top=422.0 bottom=446.0
+x=442.1 top=482.0 bottom=506.0
+x=442.1 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
+x=238.2 top=72.0 bottom=96.0
+x=238.2 top=132.0 bottom=156.0
+x=238.2 top=192.0 bottom=216.0
+x=357.1 top=72.0 bottom=96.0
+x=357.1 top=132.0 bottom=156.0
+x=357.1 top=192.0 bottom=216.0
+x=458.8 top=72.0 bottom=96.0
+x=458.8 top=132.0 bottom=156.0
+x=458.8 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
+x=234.9 top=247.0 bottom=271.0
+x=234.9 top=307.0 bottom=331.0
+x=234.9 top=367.0 bottom=391.0
+x=343.4 top=247.0 bottom=271.0
+x=343.4 top=307.0 bottom=331.0
+x=343.4 top=367.0 bottom=391.0
+x=449.4 top=247.0 bottom=271.0
+x=449.4 top=307.0 bottom=331.0
+x=449.4 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
 
 === BEAMS ===
-x=[145.8..155.0] y=[1698.0..1699.0] slope=0.108 thick=3.00
-x=[164.2..191.9] y=[1691.3..1690.4] slope=-0.034 thick=3.00
-x=[201.2..228.9] y=[1688.7..1687.7] slope=-0.036 thick=3.00
-x=[238.2..265.9] y=[1691.0..1690.0] slope=-0.036 thick=3.00
-x=[275.1..302.8] y=[1688.3..1687.4] slope=-0.034 thick=3.00
-x=[312.1..339.8] y=[1685.7..1684.7] slope=-0.036 thick=3.00
-x=[367.5..376.8] y=[1686.0..1687.0] slope=0.108 thick=3.00
-x=[349.1..376.8] y=[1692.0..1693.0] slope=0.036 thick=3.00
-x=[386.0..395.2] y=[1682.0..1681.0] slope=-0.108 thick=3.00
-x=[386.0..395.2] y=[1688.0..1687.0] slope=-0.108 thick=3.00
-x=[404.5..413.7] y=[1656.0..1657.0] slope=0.109 thick=3.00
-x=[422.9..450.7] y=[1652.7..1651.7] slope=-0.036 thick=3.00
-x=[459.9..487.6] y=[1655.0..1654.0] slope=-0.036 thick=3.00
-x=[478.4..487.6] y=[1689.0..1690.0] slope=0.108 thick=3.00
-x=[496.9..506.1] y=[1685.0..1684.0] slope=-0.108 thick=3.00
-x=[496.9..524.6] y=[1652.3..1651.4] slope=-0.034 thick=3.00
-x=[533.8..561.6] y=[1649.7..1648.7] slope=-0.036 thick=3.00
-x=[132.2..159.6] y=[1828.3..1829.3] slope=0.037 thick=3.00
-x=[150.5..159.6] y=[1870.0..1871.0] slope=0.110 thick=3.00
-x=[168.8..177.9] y=[1831.0..1832.0] slope=0.110 thick=3.00
-x=[168.8..177.9] y=[1866.0..1865.0] slope=-0.110 thick=3.00
-x=[187.1..196.2] y=[1858.0..1859.0] slope=0.110 thick=3.00
-x=[205.4..232.8] y=[1854.7..1853.7] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[1858.3..1859.3] slope=0.037 thick=3.00
-x=[260.2..269.3] y=[1876.0..1877.0] slope=0.110 thick=3.00
-x=[278.5..287.6] y=[1872.0..1871.0] slope=-0.110 thick=3.00
-x=[278.5..305.9] y=[1861.0..1863.0] slope=0.073 thick=3.00
-x=[315.1..342.4] y=[1860.7..1859.7] slope=-0.037 thick=3.00
-x=[363.1..372.2] y=[1868.0..1869.0] slope=0.110 thick=3.00
-x=[351.6..379.0] y=[1863.0..1862.0] slope=-0.037 thick=3.00
-x=[388.2..397.3] y=[1867.0..1868.0] slope=0.110 thick=3.00
-x=[381.4..408.8] y=[1864.0..1863.0] slope=-0.037 thick=3.00
-x=[418.0..445.4] y=[1857.3..1856.4] slope=-0.034 thick=3.00
-x=[454.6..481.9] y=[1863.7..1862.7] slope=-0.037 thick=3.00
-x=[491.1..518.5] y=[1861.0..1860.0] slope=-0.037 thick=3.00
-x=[527.7..555.1] y=[1854.3..1853.4] slope=-0.034 thick=3.00
-x=[132.2..159.6] y=[2034.9..2033.9] slope=-0.037 thick=3.00
-x=[150.5..159.6] y=[1991.0..1992.0] slope=0.110 thick=3.00
-x=[168.8..177.9] y=[2028.9..2027.9] slope=-0.110 thick=3.00
-x=[168.8..196.2] y=[1984.3..1983.4] slope=-0.034 thick=3.00
-x=[205.4..232.8] y=[1981.7..1980.7] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[1999.0..1998.0] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[1984.0..1983.0] slope=-0.037 thick=3.00
-x=[278.5..305.9] y=[1981.3..1980.4] slope=-0.034 thick=3.00
-x=[315.1..342.4] y=[1978.7..1977.7] slope=-0.037 thick=3.00
-x=[363.1..372.2] y=[2027.0..2026.0] slope=-0.110 thick=3.00
-x=[351.6..379.0] y=[1981.0..1980.0] slope=-0.037 thick=3.00
-x=[388.2..397.3] y=[1979.0..1981.0] slope=0.219 thick=3.00
-x=[381.4..408.8] y=[2033.7..2034.6] slope=0.034 thick=3.00
-x=[418.0..445.4] y=[2041.0..2042.9] slope=0.071 thick=3.00
-x=[454.6..481.9] y=[2034.0..2035.0] slope=0.037 thick=3.00
-x=[479.6..488.7] y=[1988.0..1989.0] slope=0.110 thick=3.00
-x=[497.9..507.0] y=[1980.0..1978.1] slope=-0.212 thick=3.00
-x=[491.1..518.5] y=[2036.7..2037.6] slope=0.034 thick=3.00
-x=[527.7..555.1] y=[2044.0..2045.9] slope=0.071 thick=3.00
-x=[125.5..134.6] y=[2083.9..2082.9] slope=-0.110 thick=3.00
-x=[150.5..159.6] y=[2049.9..2048.9] slope=-0.110 thick=3.00
-x=[150.5..159.6] y=[2033.9..2032.0] slope=-0.212 thick=3.00
-x=[168.8..177.9] y=[2053.9..2054.9] slope=0.110 thick=3.00
-x=[168.8..177.9] y=[2038.9..2039.9] slope=0.110 thick=3.00
-x=[187.1..196.2] y=[2019.9..2018.9] slope=-0.110 thick=3.00
-x=[205.4..232.8] y=[2023.9..2025.9] slope=0.073 thick=3.00
-x=[241.9..269.3] y=[2018.2..2019.2] slope=0.037 thick=3.00
-x=[278.5..305.9] y=[2020.9..2021.9] slope=0.037 thick=3.00
-x=[315.1..342.4] y=[2026.9..2028.9] slope=0.073 thick=3.00
-x=[351.6..360.8] y=[2035.9..2039.9] slope=0.432 thick=3.00
-x=[369.9..379.0] y=[2025.9..2024.9] slope=-0.110 thick=3.00
-x=[388.2..415.6] y=[2029.9..2030.9] slope=0.037 thick=3.00
-x=[424.8..452.1] y=[2035.9..2037.9] slope=0.073 thick=3.00
-x=[461.3..488.7] y=[2030.2..2031.2] slope=0.037 thick=3.00
-x=[497.9..525.2] y=[2032.9..2033.9] slope=0.037 thick=3.00
-x=[534.4..561.8] y=[2038.9..2040.9] slope=0.073 thick=3.00
-x=[125.5..152.9] y=[2091.9..2093.9] slope=0.071 thick=3.00
-x=[162.1..189.4] y=[2086.9..2085.9] slope=-0.037 thick=3.00
-x=[198.6..226.0] y=[2080.2..2079.3] slope=-0.034 thick=3.00
-x=[235.2..262.6] y=[2086.6..2085.6] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[2022.9..2021.9] slope=-0.037 thick=3.00
-x=[271.8..280.9] y=[2083.9..2082.9] slope=-0.110 thick=3.00
-x=[278.5..305.9] y=[2020.2..2019.3] slope=-0.034 thick=3.00
-x=[315.1..342.4] y=[2017.6..2016.6] slope=-0.037 thick=3.00
-x=[351.6..379.0] y=[2019.9..2018.9] slope=-0.037 thick=3.00
-x=[399.7..408.8] y=[2078.9..2079.9] slope=0.110 thick=3.00
-x=[388.2..415.6] y=[2017.2..2016.3] slope=-0.034 thick=3.00
-x=[418.0..445.4] y=[2074.2..2073.3] slope=-0.034 thick=3.00
-x=[424.8..452.1] y=[2014.6..2013.6] slope=-0.037 thick=3.00
-x=[461.3..488.7] y=[2016.9..2015.9] slope=-0.037 thick=3.00
-x=[461.3..488.7] y=[2025.9..2024.9] slope=-0.037 thick=3.00
-x=[497.9..507.0] y=[2016.9..2015.9] slope=-0.110 thick=3.00
-x=[497.9..525.2] y=[2023.2..2022.3] slope=-0.034 thick=3.00
-x=[534.4..561.8] y=[2020.6..2019.6] slope=-0.037 thick=3.00
-x=[150.7..159.9] y=[2013.9..2012.9] slope=-0.108 thick=3.00
-x=[132.2..159.9] y=[2022.9..2021.9] slope=-0.036 thick=3.00
-x=[169.2..178.4] y=[2013.9..2012.9] slope=-0.108 thick=3.00
-x=[169.2..196.9] y=[2020.2..2019.3] slope=-0.034 thick=3.00
-x=[206.1..233.9] y=[2017.6..2016.6] slope=-0.036 thick=3.00
-x=[236.4..264.1] y=[2070.9..2072.9] slope=0.070 thick=3.00
-x=[273.3..301.0] y=[2074.6..2073.6] slope=-0.036 thick=3.00
-x=[326.2..344.8] y=[2010.0..2005.1] slope=-0.267 thick=3.00
-x=[367.5..376.8] y=[2047.9..2048.9] slope=0.108 thick=3.00
-x=[386.0..413.7] y=[2041.2..2040.3] slope=-0.034 thick=3.00
-x=[422.9..450.7] y=[2038.9..2038.9] slope=0.000 thick=3.00
-x=[459.9..487.6] y=[2034.9..2033.9] slope=-0.036 thick=3.00
-x=[496.9..524.6] y=[2032.2..2031.3] slope=-0.034 thick=3.00
-x=[533.8..561.6] y=[2029.6..2028.6] slope=-0.036 thick=3.00
-x=[132.2..159.6] y=[2022.9..2021.9] slope=-0.037 thick=3.00
-x=[168.8..196.2] y=[2026.9..2027.9] slope=0.037 thick=3.00
-x=[205.4..232.8] y=[2034.9..2033.9] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[2028.9..2027.9] slope=-0.037 thick=3.00
-x=[278.5..305.9] y=[2026.2..2025.3] slope=-0.034 thick=3.00
-x=[315.1..342.4] y=[2023.6..2022.6] slope=-0.037 thick=3.00
-x=[351.6..379.0] y=[2052.9..2051.9] slope=-0.037 thick=3.00
-x=[388.2..415.6] y=[2050.2..2049.3] slope=-0.034 thick=3.00
-x=[424.8..452.1] y=[2048.2..2049.2] slope=0.037 thick=3.00
-x=[461.3..488.7] y=[2052.9..2051.9] slope=-0.037 thick=3.00
-x=[479.6..488.7] y=[2022.9..2021.9] slope=-0.110 thick=3.00
-x=[497.9..525.2] y=[2026.9..2027.9] slope=0.037 thick=3.00
-x=[534.4..561.8] y=[2032.9..2033.9] slope=0.037 thick=3.00
-x=[132.2..159.9] y=[2049.9..2048.9] slope=-0.036 thick=3.00
-x=[132.2..159.9] y=[2015.0..2009.1] slope=-0.214 thick=3.00
-x=[169.2..196.9] y=[2023.9..2024.9] slope=0.036 thick=3.00
-x=[206.1..233.9] y=[2029.9..2030.9] slope=0.036 thick=3.00
-x=[243.1..270.8] y=[2033.2..2034.2] slope=0.036 thick=3.00
-x=[280.1..307.8] y=[2035.9..2036.9] slope=0.036 thick=3.00
-x=[317.0..344.8] y=[2041.9..2042.9] slope=0.036 thick=3.00
-x=[354.0..381.7] y=[2039.9..2038.0] slope=-0.070 thick=3.00
-x=[390.9..400.2] y=[2044.9..2045.9] slope=0.108 thick=3.00
-x=[422.9..450.7] y=[2046.9..2045.9] slope=-0.036 thick=3.00
-x=[459.9..487.6] y=[2040.9..2039.9] slope=-0.036 thick=3.00
-x=[496.9..524.6] y=[2038.2..2037.3] slope=-0.034 thick=3.00
-x=[533.8..561.6] y=[2036.2..2037.2] slope=0.036 thick=3.00
-x=[132.2..159.6] y=[2040.9..2039.9] slope=-0.037 thick=3.00
-x=[168.8..196.2] y=[2038.2..2037.3] slope=-0.034 thick=3.00
-x=[205.4..232.8] y=[2035.6..2034.6] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[2028.9..2027.9] slope=-0.037 thick=3.00
-x=[278.5..305.9] y=[2026.2..2025.3] slope=-0.034 thick=3.00
-x=[315.1..342.4] y=[2024.2..2025.2] slope=0.037 thick=3.00
-x=[363.1..372.2] y=[2074.9..2073.9] slope=-0.110 thick=3.00
-x=[351.6..379.0] y=[2028.9..2027.9] slope=-0.037 thick=3.00
-x=[381.4..408.8] y=[2081.6..2082.6] slope=0.034 thick=3.00
-x=[418.0..445.4] y=[2084.9..2085.9] slope=0.037 thick=3.00
-x=[472.8..481.9] y=[2077.9..2076.9] slope=-0.110 thick=3.00
-x=[461.3..488.7] y=[2032.9..2032.9] slope=0.000 thick=3.00
-x=[491.1..518.5] y=[2084.6..2085.6] slope=0.034 thick=3.00
-x=[527.7..555.1] y=[2087.9..2088.9] slope=0.037 thick=3.00
-x=[125.5..152.9] y=[2093.9..2094.9] slope=0.037 thick=3.00
-x=[162.1..171.2] y=[2097.9..2099.9] slope=0.212 thick=3.00
-x=[187.1..196.2] y=[2026.9..2027.9] slope=0.110 thick=3.00
-x=[205.4..232.8] y=[2024.2..2025.2] slope=0.037 thick=3.00
-x=[241.9..269.3] y=[2030.2..2031.2] slope=0.037 thick=3.00
-x=[278.5..305.9] y=[2032.9..2035.9] slope=0.110 thick=3.00
-x=[315.1..342.4] y=[2032.9..2032.9] slope=0.000 thick=3.00
-x=[351.6..379.0] y=[2047.9..2048.9] slope=0.037 thick=3.00
-x=[388.2..397.3] y=[2053.9..2054.9] slope=0.110 thick=3.00
-x=[406.4..415.6] y=[2019.9..2018.9] slope=-0.110 thick=3.00
-x=[424.8..452.1] y=[2023.9..2024.9] slope=0.037 thick=3.00
-x=[461.3..488.7] y=[2006.0..2000.1] slope=-0.217 thick=3.00
-x=[497.9..525.2] y=[2014.9..2015.9] slope=0.037 thick=3.00
-x=[534.4..561.8] y=[2020.9..2021.9] slope=0.037 thick=3.00
-x=[125.5..152.9] y=[2074.6..2073.6] slope=-0.037 thick=3.00
-x=[132.2..159.6] y=[2022.9..2021.9] slope=-0.037 thick=3.00
-x=[162.1..189.4] y=[2074.9..2073.9] slope=-0.037 thick=3.00
-x=[168.8..196.2] y=[2023.2..2022.3] slope=-0.034 thick=3.00
-x=[198.6..226.0] y=[2068.2..2067.3] slope=-0.034 thick=3.00
-x=[205.4..232.8] y=[2020.6..2019.6] slope=-0.037 thick=3.00
-x=[241.9..269.3] y=[2049.9..2048.9] slope=-0.037 thick=3.00
-x=[271.8..280.9] y=[2069.9..2070.9] slope=0.110 thick=3.00
-x=[278.5..305.9] y=[2047.2..2046.3] slope=-0.034 thick=3.00
-x=[317.4..335.7] y=[2073.9..2075.9] slope=0.106 thick=3.00
-x=[315.1..342.4] y=[2045.2..2046.2] slope=0.037 thick=3.00
-x=[351.6..379.0] y=[2051.2..2052.2] slope=0.037 thick=3.00
-x=[388.2..397.3] y=[2053.9..2054.9] slope=0.110 thick=3.00
-x=[406.4..415.6] y=[2019.9..2018.9] slope=-0.110 thick=3.00
-x=[424.8..452.1] y=[2023.9..2024.9] slope=0.037 thick=3.00
-x=[461.3..488.7] y=[2027.2..2028.2] slope=0.037 thick=3.00
-x=[497.9..525.2] y=[2029.9..2030.9] slope=0.037 thick=3.00
-x=[534.4..561.8] y=[2035.9..2036.9] slope=0.037 thick=3.00
-x=[132.2..157.1] y=[2029.9..2031.9] slope=0.080 thick=3.00
-x=[208.6..216.9] y=[2048.9..2047.0] slope=-0.233 thick=3.00
-x=[225.2..250.1] y=[2017.0..2010.1] slope=-0.279 thick=3.00
-x=[258.3..288.8] y=[2024.5..2026.4] slope=0.064 thick=3.00
-x=[283.2..288.8] y=[2030.6..2030.9] slope=0.056 thick=3.00
-x=[294.2..321.9] y=[2026.6..2025.6] slope=-0.036 thick=3.00
-x=[294.2..299.8] y=[2031.1..2030.8] slope=-0.045 thick=3.00
-x=[330.2..355.1] y=[2032.9..2032.9] slope=0.000 thick=3.00
-x=[338.5..355.1] y=[2037.4..2037.4] slope=0.000 thick=3.00
-x=[368.9..399.4] y=[2048.5..2050.4] slope=0.064 thick=3.00
-x=[393.8..399.4] y=[2054.6..2054.9] slope=0.056 thick=3.00
-x=[404.9..432.6] y=[2050.6..2049.6] slope=-0.036 thick=3.00
-x=[404.9..410.4] y=[2055.1..2054.8] slope=-0.045 thick=3.00
-x=[440.9..471.2] y=[2051.9..2050.0] slope=-0.064 thick=3.00
-x=[449.1..465.8] y=[2055.9..2054.8] slope=-0.068 thick=3.00
-x=[471.2..476.8] y=[2032.9..2033.9] slope=0.180 thick=3.00
-x=[471.2..476.8] y=[2037.4..2038.4] slope=0.180 thick=3.00
-x=[482.3..504.4] y=[2023.0..2019.0] slope=-0.181 thick=3.00
-x=[482.3..498.9] y=[2027.5..2024.5] slope=-0.180 thick=3.00
-x=[504.4..521.1] y=[2056.9..2057.9] slope=0.060 thick=3.00
-x=[504.4..521.1] y=[2061.4..2062.4] slope=0.060 thick=3.00
-x=[526.6..537.6] y=[2048.9..2047.0] slope=-0.175 thick=3.00
-x=[526.6..532.1] y=[2053.4..2052.4] slope=-0.180 thick=3.00
-x=[537.6..565.3] y=[2025.9..2024.9] slope=-0.036 thick=3.00
-x=[537.6..565.3] y=[2030.4..2029.4] slope=-0.036 thick=3.00
-x=[132.2..159.3] y=[2048.3..2049.3] slope=0.037 thick=3.00
-x=[132.2..159.3] y=[2052.8..2053.8] slope=0.037 thick=3.00
-x=[172.8..180.9] y=[2052.9..2051.9] slope=-0.123 thick=3.00
-x=[189.1..197.2] y=[2029.9..2030.9] slope=0.123 thick=3.00
-x=[166.1..195.9] y=[2088.0..2090.0] slope=0.067 thick=3.00
-x=[190.4..195.9] y=[2085.1..2085.5] slope=0.069 thick=3.00
-x=[201.2..228.4] y=[2086.8..2085.8] slope=-0.037 thick=3.00
-x=[201.2..206.7] y=[2082.2..2082.1] slope=-0.034 thick=3.00
-x=[227.0..235.1] y=[2023.9..2024.9] slope=0.123 thick=3.00
-x=[236.5..260.8] y=[2089.9..2089.9] slope=0.000 thick=3.00
-x=[244.6..260.8] y=[2085.4..2085.4] slope=0.000 thick=3.00
-x=[243.2..273.0] y=[2032.9..2033.9] slope=0.034 thick=3.00
-x=[297.4..310.9] y=[2050.4..2049.4] slope=-0.074 thick=3.00
-x=[305.5..310.9] y=[2054.2..2053.9] slope=-0.069 thick=3.00
-x=[281.1..310.9] y=[2036.5..2038.4] slope=0.065 thick=3.00
-x=[305.5..310.9] y=[2042.6..2042.9] slope=0.057 thick=3.00
-x=[316.3..321.8] y=[2050.9..2052.9] slope=0.368 thick=3.00
-x=[316.3..321.8] y=[2055.4..2057.4] slope=0.368 thick=3.00
-x=[316.3..343.4] y=[2038.6..2037.6] slope=-0.037 thick=3.00
-x=[316.3..321.8] y=[2043.1..2042.8] slope=-0.046 thick=3.00
-x=[351.6..375.9] y=[2053.9..2053.9] slope=0.000 thick=3.00
-x=[359.6..375.9] y=[2058.4..2058.4] slope=0.000 thick=3.00
-x=[351.6..381.3] y=[2038.9..2036.0] slope=-0.099 thick=3.00
-x=[359.6..375.9] y=[2042.7..2041.1] slope=-0.100 thick=3.00
-x=[389.4..397.6] y=[2040.9..2039.9] slope=-0.123 thick=3.00
-x=[397.6..413.8] y=[2023.9..2024.9] slope=0.062 thick=3.00
-x=[430.1..446.3] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[454.4..473.4] y=[2026.9..2028.9] slope=0.106 thick=3.00
-x=[454.4..484.2] y=[2026.9..2024.0] slope=-0.099 thick=3.00
-x=[462.5..478.8] y=[2030.7..2029.1] slope=-0.100 thick=3.00
-x=[508.6..516.7] y=[2029.9..2030.9] slope=0.123 thick=3.00
-x=[492.3..522.1] y=[2030.5..2032.4] slope=0.065 thick=3.00
-x=[516.7..522.1] y=[2036.6..2036.9] slope=0.057 thick=3.00
-x=[527.5..532.9] y=[2035.9..2037.9] slope=0.368 thick=3.00
-x=[527.5..532.9] y=[2040.4..2042.4] slope=0.368 thick=3.00
-x=[527.5..565.4] y=[2027.9..2026.0] slope=-0.051 thick=3.00
-x=[538.4..565.4] y=[2031.9..2030.5] slope=-0.051 thick=3.00
-x=[132.2..147.4] y=[2022.9..2021.9] slope=-0.066 thick=3.00
-x=[132.2..147.4] y=[2027.4..2026.4] slope=-0.066 thick=3.00
-x=[152.5..167.7] y=[2050.2..2049.3] slope=-0.062 thick=3.00
-x=[152.5..167.7] y=[2054.8..2053.8] slope=-0.062 thick=3.00
-x=[172.8..188.0] y=[2038.9..2036.0] slope=-0.193 thick=3.00
-x=[172.8..188.0] y=[2043.4..2040.5] slope=-0.193 thick=3.00
-x=[191.4..201.5] y=[2083.9..2081.9] slope=-0.198 thick=3.00
-x=[191.4..201.5] y=[2079.4..2077.4] slope=-0.198 thick=3.00
-x=[206.6..211.7] y=[2074.9..2073.9] slope=-0.198 thick=3.00
-x=[206.6..211.7] y=[2070.4..2069.4] slope=-0.198 thick=3.00
-x=[228.6..238.7] y=[2050.9..2052.9] slope=0.198 thick=3.00
-x=[228.6..238.7] y=[2055.4..2057.4] slope=0.198 thick=3.00
-x=[243.8..248.8] y=[2023.9..2024.9] slope=0.198 thick=3.00
-x=[243.8..248.8] y=[2028.4..2029.4] slope=0.198 thick=3.00
-x=[253.9..289.4] y=[2020.1..2019.1] slope=-0.026 thick=3.00
-x=[253.9..289.4] y=[2024.6..2023.6] slope=-0.026 thick=3.00
-x=[294.5..299.6] y=[2019.9..2018.9] slope=-0.198 thick=3.00
-x=[294.5..299.6] y=[2024.4..2023.4] slope=-0.198 thick=3.00
-x=[287.8..318.2] y=[2071.9..2071.9] slope=0.000 thick=3.00
-x=[304.6..330.0] y=[2044.3..2043.4] slope=-0.037 thick=3.00
-x=[304.6..330.0] y=[2048.8..2047.9] slope=-0.037 thick=3.00
-x=[335.1..340.1] y=[2053.9..2054.9] slope=0.198 thick=3.00
-x=[335.1..340.1] y=[2058.4..2059.4] slope=0.198 thick=3.00
-x=[328.3..353.7] y=[2077.9..2077.9] slope=0.000 thick=3.00
-x=[361.3..384.1] y=[2086.9..2083.0] slope=-0.173 thick=3.00
-x=[368.9..384.1] y=[2081.1..2078.5] slope=-0.172 thick=3.00
-x=[368.1..395.9] y=[2020.9..2020.9] slope=0.000 thick=3.00
-x=[403.6..431.4] y=[2021.5..2023.4] slope=0.070 thick=3.00
-x=[426.4..431.4] y=[2027.6..2027.9] slope=0.062 thick=3.00
-x=[436.5..461.9] y=[2023.6..2022.6] slope=-0.039 thick=3.00
-x=[436.5..441.6] y=[2028.1..2027.9] slope=-0.037 thick=3.00
-x=[469.5..492.3] y=[2029.9..2029.9] slope=0.000 thick=3.00
-x=[477.1..492.3] y=[2034.4..2034.4] slope=0.000 thick=3.00
-x=[505.0..512.6] y=[2025.9..2024.9] slope=-0.132 thick=3.00
-x=[498.2..526.1] y=[2085.0..2087.0] slope=0.072 thick=3.00
-x=[521.1..526.1] y=[2082.1..2082.5] slope=0.074 thick=3.00
-x=[537.9..563.3] y=[2029.6..2028.6] slope=-0.039 thick=3.00
-x=[531.2..556.6] y=[2083.8..2082.8] slope=-0.039 thick=3.00
-x=[531.2..536.2] y=[2079.2..2079.1] slope=-0.037 thick=3.00
-x=[132.2..153.6] y=[2038.9..2038.9] slope=0.000 thick=3.00
-x=[139.3..153.6] y=[2043.4..2043.4] slope=0.000 thick=3.00
-x=[151.6..156.3] y=[2074.9..2073.9] slope=-0.211 thick=3.00
-x=[151.6..156.3] y=[2070.4..2069.4] slope=-0.211 thick=3.00
-x=[161.1..194.2] y=[2082.6..2085.6] slope=0.090 thick=3.00
-x=[161.1..194.2] y=[2078.1..2081.1] slope=0.090 thick=3.00
-x=[167.8..201.0] y=[2048.5..2050.5] slope=0.060 thick=3.00
-x=[196.2..201.0] y=[2054.7..2055.0] slope=0.066 thick=3.00
-x=[205.8..234.2] y=[2050.6..2049.6] slope=-0.035 thick=3.00
-x=[205.8..210.4] y=[2055.1..2054.9] slope=-0.040 thick=3.00
-x=[199.0..232.2] y=[2082.9..2084.9] slope=0.058 thick=3.00
-x=[199.0..232.2] y=[2078.4..2080.4] slope=0.058 thick=3.00
-x=[236.9..265.4] y=[2083.1..2082.1] slope=-0.035 thick=3.00
-x=[236.9..260.6] y=[2078.6..2077.8] slope=-0.034 thick=3.00
-x=[272.1..276.9] y=[2017.9..2024.9] slope=1.461 thick=3.00
-x=[272.1..276.9] y=[2022.4..2029.4] slope=1.461 thick=3.00
-x=[281.6..295.8] y=[2023.9..2021.0] slope=-0.206 thick=3.00
-x=[281.6..295.8] y=[2028.4..2025.5] slope=-0.206 thick=3.00
-x=[281.6..312.4] y=[2033.6..2035.5] slope=0.063 thick=3.00
-x=[307.7..312.4] y=[2039.8..2040.0] slope=0.053 thick=3.00
-x=[317.2..345.6] y=[2035.6..2034.6] slope=-0.035 thick=3.00
-x=[317.2..321.9] y=[2040.1..2039.9] slope=-0.040 thick=3.00
-x=[326.6..350.4] y=[2023.9..2025.9] slope=0.084 thick=3.00
-x=[326.6..350.4] y=[2028.4..2030.4] slope=0.084 thick=3.00
-x=[355.1..383.6] y=[2035.9..2033.0] slope=-0.103 thick=3.00
-x=[364.6..378.8] y=[2039.5..2038.0] slope=-0.105 thick=3.00
-x=[355.1..388.3] y=[2020.4..2018.4] slope=-0.060 thick=3.00
-x=[355.1..388.3] y=[2024.9..2022.9] slope=-0.060 thick=3.00
-x=[393.0..407.2] y=[2017.9..2019.9] slope=0.140 thick=3.00
-x=[393.0..407.2] y=[2022.4..2024.4] slope=0.140 thick=3.00
-x=[393.0..423.9] y=[2039.6..2041.5] slope=0.063 thick=3.00
-x=[419.1..423.9] y=[2045.8..2046.0] slope=0.053 thick=3.00
-x=[428.6..452.3] y=[2041.6..2040.6] slope=-0.042 thick=3.00
-x=[428.6..433.3] y=[2046.1..2045.8] slope=-0.053 thick=3.00
-x=[452.7..459.8] y=[2075.9..2076.9] slope=0.142 thick=3.00
-x=[459.4..490.2] y=[2036.4..2033.4] slope=-0.097 thick=3.00
-x=[466.5..490.2] y=[2040.2..2037.9] slope=-0.097 thick=3.00
-x=[513.9..523.4] y=[2021.9..2020.0] slope=-0.204 thick=3.00
-x=[495.0..528.2] y=[2022.0..2017.1] slope=-0.149 thick=3.00
-x=[495.0..528.2] y=[2026.5..2021.6] slope=-0.149 thick=3.00
-x=[532.9..561.4] y=[2050.9..2050.9] slope=0.000 thick=3.00
-x=[532.9..566.1] y=[2018.8..2020.8] slope=0.058 thick=3.00
-x=[532.9..566.1] y=[2023.3..2025.2] slope=0.058 thick=3.00
-x=[132.2..157.4] y=[2027.3..2029.3] slope=0.079 thick=3.00
-x=[132.2..157.4] y=[2031.8..2033.8] slope=0.079 thick=3.00
-x=[170.1..197.8] y=[2021.5..2023.4] slope=0.070 thick=3.00
-x=[192.8..197.8] y=[2027.6..2027.9] slope=0.062 thick=3.00
-x=[202.8..228.0] y=[2023.6..2022.6] slope=-0.040 thick=3.00
-x=[202.8..207.9] y=[2028.1..2027.8] slope=-0.049 thick=3.00
-x=[235.6..263.3] y=[2023.9..2021.0] slope=-0.106 thick=3.00
-x=[243.1..258.2] y=[2027.7..2026.1] slope=-0.107 thick=3.00
-x=[270.9..298.6] y=[2027.5..2029.4] slope=0.070 thick=3.00
-x=[293.6..298.6] y=[2033.6..2033.9] slope=0.062 thick=3.00
-x=[303.6..328.9] y=[2029.6..2028.6] slope=-0.040 thick=3.00
-x=[303.6..308.7] y=[2034.1..2033.8] slope=-0.049 thick=3.00
-x=[336.4..369.2] y=[2018.0..2012.1] slope=-0.181 thick=3.00
-x=[344.0..369.2] y=[2021.1..2016.6] slope=-0.181 thick=3.00
-x=[374.2..409.5] y=[2026.9..2028.9] slope=0.057 thick=3.00
-x=[374.2..409.5] y=[2031.4..2033.4] slope=0.057 thick=3.00
-x=[414.6..449.9] y=[2017.9..2015.0] slope=-0.083 thick=3.00
-x=[414.6..449.9] y=[2022.4..2019.5] slope=-0.083 thick=3.00
-x=[454.9..487.7] y=[2018.0..2012.1] slope=-0.181 thick=3.00
-x=[462.4..487.7] y=[2021.1..2016.6] slope=-0.181 thick=3.00
-x=[492.7..525.5] y=[2026.9..2028.9] slope=0.061 thick=3.00
-x=[492.7..507.8] y=[2031.4..2032.4] slope=0.062 thick=3.00
-x=[520.4..525.5] y=[2033.1..2033.4] slope=0.062 thick=3.00
-x=[530.5..565.8] y=[2024.8..2027.8] slope=0.083 thick=3.00
-x=[530.5..565.8] y=[2029.3..2032.2] slope=0.083 thick=3.00
-x=[132.2..156.1] y=[2036.3..2038.3] slope=0.084 thick=3.00
-x=[132.2..156.1] y=[2040.8..2042.8] slope=0.084 thick=3.00
-x=[175.6..187.4] y=[2086.9..2085.9] slope=-0.084 thick=3.00
-x=[182.7..187.4] y=[2081.8..2081.4] slope=-0.079 thick=3.00
-x=[168.0..194.2] y=[2030.5..2032.4] slope=0.074 thick=3.00
-x=[189.4..194.2] y=[2036.6..2036.9] slope=0.066 thick=3.00
-x=[192.2..201.8] y=[2096.9..2100.9] slope=0.421 thick=3.00
-x=[192.2..197.0] y=[2092.4..2094.4] slope=0.421 thick=3.00
-x=[199.0..222.8] y=[2032.6..2031.6] slope=-0.042 thick=3.00
-x=[199.0..203.8] y=[2037.1..2036.9] slope=-0.039 thick=3.00
-x=[234.8..249.1] y=[2020.9..2018.0] slope=-0.205 thick=3.00
-x=[234.8..249.1] y=[2025.4..2022.5] slope=-0.205 thick=3.00
-x=[253.8..263.4] y=[2053.9..2053.9] slope=0.000 thick=3.00
-x=[253.8..263.4] y=[2058.4..2058.4] slope=0.000 thick=3.00
-x=[258.6..263.4] y=[2038.9..2041.9] slope=0.623 thick=3.00
-x=[258.6..263.4] y=[2043.4..2046.4] slope=0.623 thick=3.00
-x=[268.1..282.4] y=[2032.9..2030.0] slope=-0.205 thick=3.00
-x=[268.1..282.4] y=[2037.4..2034.5] slope=-0.205 thick=3.00
-x=[268.1..301.5] y=[2042.8..2039.9] slope=-0.088 thick=3.00
-x=[268.1..301.5] y=[2047.3..2044.4] slope=-0.088 thick=3.00
-x=[306.2..325.3] y=[2053.9..2055.9] slope=0.105 thick=3.00
-x=[306.2..325.3] y=[2058.4..2060.4] slope=0.105 thick=3.00
-x=[315.8..334.9] y=[2032.9..2032.9] slope=0.000 thick=3.00
-x=[330.1..339.6] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[330.1..339.6] y=[2031.4..2031.4] slope=0.000 thick=3.00
-x=[351.6..361.1] y=[2052.9..2051.9] slope=-0.105 thick=3.00
-x=[344.4..375.4] y=[2034.2..2032.3] slope=-0.063 thick=3.00
-x=[351.6..375.4] y=[2038.3..2036.8] slope=-0.063 thick=3.00
-x=[380.2..394.5] y=[2033.2..2034.2] slope=0.070 thick=3.00
-x=[380.2..394.5] y=[2037.8..2038.8] slope=0.070 thick=3.00
-x=[399.2..413.6] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[399.2..413.6] y=[2031.4..2031.4] slope=0.000 thick=3.00
-x=[418.3..423.1] y=[2019.9..2018.9] slope=-0.211 thick=3.00
-x=[418.3..423.1] y=[2024.4..2023.4] slope=-0.211 thick=3.00
-x=[432.6..451.7] y=[2026.0..2022.0] slope=-0.210 thick=3.00
-x=[432.6..451.7] y=[2030.5..2026.5] slope=-0.210 thick=3.00
-x=[456.5..480.3] y=[2045.9..2044.0] slope=-0.081 thick=3.00
-x=[456.5..480.3] y=[2050.4..2048.5] slope=-0.081 thick=3.00
-x=[485.1..489.9] y=[2018.9..2017.0] slope=-0.403 thick=3.00
-x=[485.1..489.9] y=[2023.4..2021.5] slope=-0.403 thick=3.00
-x=[494.6..528.0] y=[2023.9..2025.9] slope=0.060 thick=3.00
-x=[494.6..528.0] y=[2028.4..2030.4] slope=0.060 thick=3.00
-x=[535.6..554.6] y=[2065.9..2065.9] slope=0.000 thick=3.00
-x=[532.8..566.1] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[532.8..566.1] y=[2031.4..2031.4] slope=0.000 thick=3.00
-x=[125.5..152.6] y=[2072.5..2069.6] slope=-0.109 thick=3.00
-x=[132.9..147.6] y=[2067.2..2065.6] slope=-0.110 thick=3.00
-x=[160.0..189.6] y=[2078.9..2080.9] slope=0.066 thick=3.00
-x=[184.6..189.6] y=[2076.1..2076.4] slope=0.063 thick=3.00
-x=[181.5..196.3] y=[2020.2..2019.3] slope=-0.063 thick=3.00
-x=[181.5..196.3] y=[2024.8..2023.8] slope=-0.063 thick=3.00
-x=[201.2..206.1] y=[2020.9..2022.9] slope=0.410 thick=3.00
-x=[201.2..206.1] y=[2025.4..2027.4] slope=0.410 thick=3.00
-x=[211.1..230.8] y=[2023.9..2023.9] slope=0.000 thick=3.00
-x=[194.5..224.1] y=[2077.8..2076.8] slope=-0.032 thick=3.00
-x=[194.5..199.4] y=[2073.2..2073.1] slope=-0.026 thick=3.00
-x=[204.3..229.0] y=[2071.9..2071.9] slope=0.000 thick=3.00
-x=[204.3..229.0] y=[2067.4..2067.4] slope=0.000 thick=3.00
-x=[240.7..267.8] y=[2020.0..2016.0] slope=-0.148 thick=3.00
-x=[248.1..262.8] y=[2023.4..2021.2] slope=-0.144 thick=3.00
-x=[233.9..261.0] y=[2078.5..2075.6] slope=-0.109 thick=3.00
-x=[241.3..256.1] y=[2073.2..2071.6] slope=-0.110 thick=3.00
-x=[261.0..265.9] y=[2069.9..2070.9] slope=0.203 thick=3.00
-x=[261.0..265.9] y=[2065.4..2066.4] slope=0.203 thick=3.00
-x=[270.9..285.7] y=[2065.2..2064.3] slope=-0.063 thick=3.00
-x=[270.9..285.7] y=[2060.8..2059.8] slope=-0.063 thick=3.00
-x=[277.6..309.7] y=[2027.6..2029.5] slope=0.060 thick=3.00
-x=[304.8..309.7] y=[2033.8..2034.0] slope=0.051 thick=3.00
-x=[270.9..302.9] y=[2085.1..2087.1] slope=0.062 thick=3.00
-x=[298.0..302.9] y=[2082.3..2082.6] slope=0.063 thick=3.00
-x=[314.6..344.2] y=[2029.6..2028.6] slope=-0.034 thick=3.00
-x=[314.6..319.5] y=[2034.1..2033.9] slope=-0.038 thick=3.00
-x=[307.9..337.4] y=[2083.8..2082.8] slope=-0.032 thick=3.00
-x=[307.9..312.8] y=[2079.2..2079.1] slope=-0.026 thick=3.00
-x=[317.7..342.4] y=[2071.8..2070.8] slope=-0.041 thick=3.00
-x=[317.7..342.4] y=[2067.2..2066.2] slope=-0.041 thick=3.00
-x=[354.1..373.8] y=[2027.9..2026.0] slope=-0.098 thick=3.00
-x=[347.3..376.8] y=[2079.9..2081.9] slope=0.066 thick=3.00
-x=[347.3..371.9] y=[2075.4..2077.1] slope=0.066 thick=3.00
-x=[384.2..391.6] y=[2080.9..2079.9] slope=-0.136 thick=3.00
-x=[391.0..418.1] y=[2027.5..2029.4] slope=0.072 thick=3.00
-x=[413.1..418.1] y=[2033.6..2033.9] slope=0.063 thick=3.00
-x=[426.1..440.9] y=[2083.9..2083.9] slope=0.000 thick=3.00
-x=[423.0..447.6] y=[2029.6..2028.6] slope=-0.041 thick=3.00
-x=[423.0..427.9] y=[2034.1..2033.8] slope=-0.051 thick=3.00
-x=[455.1..482.1] y=[2029.9..2027.0] slope=-0.109 thick=3.00
-x=[462.4..477.2] y=[2033.7..2032.1] slope=-0.110 thick=3.00
-x=[482.1..487.1] y=[2032.9..2034.9] slope=0.405 thick=3.00
-x=[482.1..487.1] y=[2037.4..2039.4] slope=0.405 thick=3.00
-x=[492.0..506.8] y=[2023.9..2021.0] slope=-0.199 thick=3.00
-x=[492.0..506.8] y=[2028.4..2025.5] slope=-0.199 thick=3.00
-x=[504.9..519.8] y=[2077.9..2077.9] slope=0.000 thick=3.00
-x=[504.9..519.8] y=[2073.4..2073.4] slope=0.000 thick=3.00
-x=[524.7..529.6] y=[2084.9..2085.9] slope=0.203 thick=3.00
-x=[524.7..529.6] y=[2080.4..2081.4] slope=0.203 thick=3.00
-x=[541.2..565.9] y=[2021.6..2024.5] slope=0.119 thick=3.00
-x=[541.2..565.9] y=[2026.1..2029.0] slope=0.119 thick=3.00
-x=[132.2..166.9] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[132.2..166.9] y=[2031.4..2031.4] slope=0.000 thick=3.00
-x=[171.9..186.8] y=[2032.9..2035.9] slope=0.202 thick=3.00
-x=[171.9..186.8] y=[2037.4..2040.4] slope=0.202 thick=3.00
-x=[189.9..199.8] y=[2073.9..2075.9] slope=0.195 thick=3.00
-x=[189.9..199.8] y=[2069.4..2071.4] slope=0.195 thick=3.00
-x=[204.8..209.7] y=[2078.9..2079.9] slope=0.203 thick=3.00
-x=[204.8..209.7] y=[2074.4..2075.4] slope=0.203 thick=3.00
-x=[226.4..246.2] y=[2041.9..2045.9] slope=0.199 thick=3.00
-x=[226.4..246.2] y=[2046.4..2050.4] slope=0.199 thick=3.00
-x=[256.1..266.0] y=[2047.9..2049.9] slope=0.203 thick=3.00
-x=[256.1..266.0] y=[2052.4..2054.4] slope=0.203 thick=3.00
-x=[271.0..275.9] y=[2020.9..2021.9] slope=0.203 thick=3.00
-x=[271.0..275.9] y=[2025.4..2026.4] slope=0.203 thick=3.00
-x=[284.1..298.9] y=[2074.9..2077.9] slope=0.197 thick=3.00
-x=[284.1..298.9] y=[2070.4..2073.4] slope=0.197 thick=3.00
-x=[315.6..325.5] y=[2035.9..2037.9] slope=0.201 thick=3.00
-x=[315.6..325.5] y=[2040.4..2042.4] slope=0.201 thick=3.00
-x=[330.4..335.4] y=[2044.9..2045.9] slope=0.203 thick=3.00
-x=[330.4..335.4] y=[2049.4..2050.4] slope=0.203 thick=3.00
-x=[345.3..365.1] y=[2047.9..2051.9] slope=0.199 thick=3.00
-x=[345.3..365.1] y=[2052.4..2056.4] slope=0.199 thick=3.00
-x=[363.4..393.1] y=[2077.4..2074.5] slope=-0.099 thick=3.00
-x=[363.4..388.1] y=[2072.9..2070.4] slope=-0.101 thick=3.00
-x=[400.5..427.8] y=[2076.0..2078.0] slope=0.073 thick=3.00
-x=[422.8..427.8] y=[2073.1..2073.5] slope=0.075 thick=3.00
-x=[432.8..457.6] y=[2074.8..2073.8] slope=-0.040 thick=3.00
-x=[432.8..437.7] y=[2070.2..2070.1] slope=-0.038 thick=3.00
-x=[465.0..487.2] y=[2077.9..2077.9] slope=0.000 thick=3.00
-x=[472.4..487.2] y=[2073.4..2073.4] slope=0.000 thick=3.00
-x=[506.4..533.7] y=[2039.5..2041.4] slope=0.071 thick=3.00
-x=[528.7..533.7] y=[2045.6..2045.9] slope=0.062 thick=3.00
-x=[538.6..563.4] y=[2041.6..2040.6] slope=-0.040 thick=3.00
-x=[538.6..543.6] y=[2046.1..2045.9] slope=-0.038 thick=3.00
-x=[125.5..149.6] y=[2070.8..2068.8] slope=-0.083 thick=3.00
-x=[125.5..149.6] y=[2066.2..2064.2] slope=-0.083 thick=3.00
-x=[132.2..156.3] y=[2047.9..2047.9] slope=0.000 thick=3.00
-x=[141.9..156.3] y=[2052.4..2052.4] slope=0.000 thick=3.00
-x=[161.1..165.9] y=[2018.9..2017.0] slope=-0.403 thick=3.00
-x=[161.1..165.9] y=[2023.4..2021.5] slope=-0.403 thick=3.00
-x=[170.8..204.5] y=[2015.5..2017.5] slope=0.059 thick=3.00
-x=[199.7..204.5] y=[2021.7..2022.0] slope=0.065 thick=3.00
-x=[170.8..204.5] y=[2023.9..2026.9] slope=0.089 thick=3.00
-x=[170.8..204.5] y=[2028.4..2031.4] slope=0.089 thick=3.00
-x=[209.4..238.2] y=[2017.6..2016.6] slope=-0.035 thick=3.00
-x=[209.4..214.2] y=[2022.1..2021.9] slope=-0.039 thick=3.00
-x=[209.4..243.1] y=[2024.8..2026.8] slope=0.058 thick=3.00
-x=[209.4..243.1] y=[2029.3..2031.2] slope=0.058 thick=3.00
-x=[247.9..281.6] y=[2023.0..2019.0] slope=-0.119 thick=3.00
-x=[247.9..281.6] y=[2027.5..2023.5] slope=-0.119 thick=3.00
-x=[296.1..320.2] y=[2050.9..2050.9] slope=0.000 thick=3.00
-x=[305.8..320.2] y=[2055.4..2055.4] slope=0.000 thick=3.00
-x=[286.4..320.2] y=[2029.9..2032.9] slope=0.089 thick=3.00
-x=[286.4..320.2] y=[2034.4..2037.4] slope=0.089 thick=3.00
-x=[325.0..329.8] y=[2050.9..2052.9] slope=0.416 thick=3.00
-x=[325.0..329.8] y=[2055.4..2057.4] slope=0.416 thick=3.00
-x=[325.0..329.8] y=[2035.9..2037.9] slope=0.416 thick=3.00
-x=[325.0..329.8] y=[2040.4..2042.4] slope=0.416 thick=3.00
-x=[334.7..349.1] y=[2026.9..2026.9] slope=0.000 thick=3.00
-x=[356.4..382.9] y=[2026.9..2024.0] slope=-0.111 thick=3.00
-x=[363.6..378.1] y=[2030.7..2029.1] slope=-0.112 thick=3.00
-x=[390.1..419.0] y=[2030.7..2033.6] slope=0.102 thick=3.00
-x=[404.6..419.0] y=[2036.7..2038.1] slope=0.100 thick=3.00
-x=[423.8..457.6] y=[2023.0..2019.0] slope=-0.119 thick=3.00
-x=[423.8..457.6] y=[2027.5..2023.5] slope=-0.119 thick=3.00
-x=[462.4..496.1] y=[2008.0..2004.0] slope=-0.119 thick=3.00
-x=[462.4..496.1] y=[2012.5..2008.5] slope=-0.119 thick=3.00
-x=[500.9..515.4] y=[2014.9..2017.9] slope=0.207 thick=3.00
-x=[500.9..515.4] y=[2019.4..2022.4] slope=0.207 thick=3.00
-x=[513.5..523.1] y=[2069.9..2070.9] slope=0.104 thick=3.00
-x=[520.2..529.9] y=[2023.9..2024.9] slope=0.104 thick=3.00
-x=[520.2..534.7] y=[2041.9..2044.9] slope=0.208 thick=3.00
-x=[520.2..534.7] y=[2046.4..2049.4] slope=0.208 thick=3.00
-x=[532.8..556.9] y=[2075.9..2076.9] slope=0.041 thick=3.00
-x=[539.5..563.6] y=[2044.8..2043.8] slope=-0.041 thick=3.00
-x=[539.5..544.3] y=[2049.2..2049.1] slope=-0.039 thick=3.00
-x=[532.8..556.9] y=[2074.9..2072.9] slope=-0.083 thick=3.00
-x=[539.5..563.6] y=[2029.9..2029.9] slope=0.000 thick=3.00
-x=[132.2..250.8] y=[2017.9..2021.9] slope=0.033 thick=3.00
+x=[145.8..155.0] y=[123.0..124.0] slope=0.108 thick=3.00
+x=[164.2..191.9] y=[116.3..115.4] slope=-0.034 thick=3.00
+x=[201.2..228.9] y=[113.7..112.7] slope=-0.036 thick=3.00
+x=[238.2..265.9] y=[116.0..115.0] slope=-0.036 thick=3.00
+x=[275.1..302.8] y=[113.3..112.4] slope=-0.034 thick=3.00
+x=[312.1..339.8] y=[110.7..109.7] slope=-0.036 thick=3.00
+x=[367.5..376.8] y=[111.0..112.0] slope=0.108 thick=3.00
+x=[349.1..376.8] y=[117.0..118.0] slope=0.036 thick=3.00
+x=[386.0..395.2] y=[107.0..106.0] slope=-0.108 thick=3.00
+x=[386.0..395.2] y=[113.0..112.0] slope=-0.108 thick=3.00
+x=[404.5..413.7] y=[81.0..82.0] slope=0.109 thick=3.00
+x=[422.9..450.7] y=[77.7..76.7] slope=-0.036 thick=3.00
+x=[459.9..487.6] y=[80.0..79.0] slope=-0.036 thick=3.00
+x=[478.4..487.6] y=[114.0..115.0] slope=0.108 thick=3.00
+x=[496.9..506.1] y=[110.0..109.0] slope=-0.108 thick=3.00
+x=[496.9..524.6] y=[77.3..76.4] slope=-0.034 thick=3.00
+x=[533.8..561.6] y=[74.7..73.7] slope=-0.036 thick=3.00
+x=[132.2..159.6] y=[253.3..254.3] slope=0.037 thick=3.00
+x=[150.5..159.6] y=[295.0..296.0] slope=0.110 thick=3.00
+x=[168.8..177.9] y=[256.0..257.0] slope=0.110 thick=3.00
+x=[168.8..177.9] y=[291.0..290.0] slope=-0.110 thick=3.00
+x=[187.1..196.2] y=[283.0..284.0] slope=0.110 thick=3.00
+x=[205.4..232.8] y=[279.7..278.7] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[283.3..284.3] slope=0.037 thick=3.00
+x=[260.2..269.3] y=[301.0..302.0] slope=0.110 thick=3.00
+x=[278.5..287.6] y=[297.0..296.0] slope=-0.110 thick=3.00
+x=[278.5..305.9] y=[286.0..288.0] slope=0.073 thick=3.00
+x=[315.1..342.4] y=[285.7..284.7] slope=-0.037 thick=3.00
+x=[363.1..372.2] y=[293.0..294.0] slope=0.110 thick=3.00
+x=[351.6..379.0] y=[288.0..287.0] slope=-0.037 thick=3.00
+x=[388.2..397.3] y=[292.0..293.0] slope=0.110 thick=3.00
+x=[381.4..408.8] y=[289.0..288.0] slope=-0.037 thick=3.00
+x=[418.0..445.4] y=[282.3..281.4] slope=-0.034 thick=3.00
+x=[454.6..481.9] y=[288.7..287.7] slope=-0.037 thick=3.00
+x=[491.1..518.5] y=[286.0..285.0] slope=-0.037 thick=3.00
+x=[527.7..555.1] y=[279.3..278.4] slope=-0.034 thick=3.00
+x=[132.2..159.6] y=[469.0..468.0] slope=-0.037 thick=3.00
+x=[150.5..159.6] y=[416.0..417.0] slope=0.110 thick=3.00
+x=[168.8..177.9] y=[463.0..462.0] slope=-0.110 thick=3.00
+x=[168.8..196.2] y=[409.3..408.4] slope=-0.034 thick=3.00
+x=[205.4..232.8] y=[406.7..405.7] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[424.0..423.0] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[409.0..408.0] slope=-0.037 thick=3.00
+x=[278.5..305.9] y=[406.3..405.4] slope=-0.034 thick=3.00
+x=[315.1..342.4] y=[403.7..402.7] slope=-0.037 thick=3.00
+x=[363.1..372.2] y=[452.0..451.0] slope=-0.110 thick=3.00
+x=[351.6..379.0] y=[406.0..405.0] slope=-0.037 thick=3.00
+x=[388.2..397.3] y=[404.0..406.0] slope=0.219 thick=3.00
+x=[381.4..408.8] y=[458.7..459.6] slope=0.034 thick=3.00
+x=[418.0..445.4] y=[466.0..467.9] slope=0.071 thick=3.00
+x=[454.6..481.9] y=[459.0..460.0] slope=0.037 thick=3.00
+x=[479.6..488.7] y=[413.0..414.0] slope=0.110 thick=3.00
+x=[497.9..507.0] y=[405.0..403.1] slope=-0.212 thick=3.00
+x=[491.1..518.5] y=[461.7..462.6] slope=0.034 thick=3.00
+x=[527.7..555.1] y=[469.0..470.9] slope=0.071 thick=3.00
+x=[125.5..134.6] y=[108.0..107.0] slope=-0.110 thick=3.00
+x=[150.5..159.6] y=[74.0..73.0] slope=-0.110 thick=3.00
+x=[150.5..159.6] y=[58.0..56.1] slope=-0.212 thick=3.00
+x=[168.8..177.9] y=[78.0..79.0] slope=0.110 thick=3.00
+x=[168.8..177.9] y=[63.0..64.0] slope=0.110 thick=3.00
+x=[187.1..196.2] y=[104.0..103.0] slope=-0.110 thick=3.00
+x=[205.4..232.8] y=[108.0..110.0] slope=0.073 thick=3.00
+x=[241.9..269.3] y=[102.3..103.3] slope=0.037 thick=3.00
+x=[278.5..305.9] y=[105.0..106.0] slope=0.037 thick=3.00
+x=[315.1..342.4] y=[111.0..113.0] slope=0.073 thick=3.00
+x=[351.6..360.8] y=[60.0..63.9] slope=0.432 thick=3.00
+x=[369.9..379.0] y=[110.0..109.0] slope=-0.110 thick=3.00
+x=[388.2..415.6] y=[114.0..115.0] slope=0.037 thick=3.00
+x=[424.8..452.1] y=[120.0..122.0] slope=0.073 thick=3.00
+x=[461.3..488.7] y=[114.3..115.3] slope=0.037 thick=3.00
+x=[497.9..525.2] y=[117.0..118.0] slope=0.037 thick=3.00
+x=[534.4..561.8] y=[123.0..125.0] slope=0.073 thick=3.00
+x=[125.5..152.9] y=[291.0..292.9] slope=0.071 thick=3.00
+x=[162.1..189.4] y=[286.0..285.0] slope=-0.037 thick=3.00
+x=[198.6..226.0] y=[279.3..278.4] slope=-0.034 thick=3.00
+x=[235.2..262.6] y=[285.7..284.7] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[282.0..281.0] slope=-0.037 thick=3.00
+x=[271.8..280.9] y=[283.0..282.0] slope=-0.110 thick=3.00
+x=[278.5..305.9] y=[279.3..278.4] slope=-0.034 thick=3.00
+x=[315.1..342.4] y=[276.7..275.7] slope=-0.037 thick=3.00
+x=[351.6..379.0] y=[279.0..278.0] slope=-0.037 thick=3.00
+x=[399.7..408.8] y=[278.0..279.0] slope=0.110 thick=3.00
+x=[388.2..415.6] y=[276.3..275.4] slope=-0.034 thick=3.00
+x=[418.0..445.4] y=[273.3..272.4] slope=-0.034 thick=3.00
+x=[424.8..452.1] y=[273.7..272.7] slope=-0.037 thick=3.00
+x=[461.3..488.7] y=[276.0..275.0] slope=-0.037 thick=3.00
+x=[461.3..488.7] y=[225.0..224.0] slope=-0.037 thick=3.00
+x=[497.9..507.0] y=[276.0..275.0] slope=-0.110 thick=3.00
+x=[497.9..525.2] y=[222.3..221.4] slope=-0.034 thick=3.00
+x=[534.4..561.8] y=[219.7..218.7] slope=-0.037 thick=3.00
+x=[150.7..159.9] y=[448.0..447.0] slope=-0.108 thick=3.00
+x=[132.2..159.9] y=[397.0..396.0] slope=-0.036 thick=3.00
+x=[169.2..178.4] y=[448.0..447.0] slope=-0.108 thick=3.00
+x=[169.2..196.9] y=[394.3..393.4] slope=-0.034 thick=3.00
+x=[206.1..233.9] y=[391.7..390.7] slope=-0.036 thick=3.00
+x=[236.4..264.1] y=[445.0..446.9] slope=0.070 thick=3.00
+x=[273.3..301.0] y=[448.7..447.7] slope=-0.036 thick=3.00
+x=[326.2..344.8] y=[444.1..439.1] slope=-0.267 thick=3.00
+x=[367.5..376.8] y=[482.0..483.0] slope=0.108 thick=3.00
+x=[386.0..413.7] y=[475.3..474.4] slope=-0.034 thick=3.00
+x=[422.9..450.7] y=[473.0..473.0] slope=0.000 thick=3.00
+x=[459.9..487.6] y=[469.0..468.0] slope=-0.036 thick=3.00
+x=[496.9..524.6] y=[466.3..465.4] slope=-0.034 thick=3.00
+x=[533.8..561.6] y=[463.7..462.7] slope=-0.036 thick=3.00
+x=[132.2..159.6] y=[107.0..106.0] slope=-0.037 thick=3.00
+x=[168.8..196.2] y=[111.0..112.0] slope=0.037 thick=3.00
+x=[205.4..232.8] y=[119.0..118.0] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[113.0..112.0] slope=-0.037 thick=3.00
+x=[278.5..305.9] y=[110.3..109.4] slope=-0.034 thick=3.00
+x=[315.1..342.4] y=[107.7..106.7] slope=-0.037 thick=3.00
+x=[351.6..379.0] y=[77.0..76.0] slope=-0.037 thick=3.00
+x=[388.2..415.6] y=[74.3..73.4] slope=-0.034 thick=3.00
+x=[424.8..452.1] y=[72.3..73.3] slope=0.037 thick=3.00
+x=[461.3..488.7] y=[77.0..76.0] slope=-0.037 thick=3.00
+x=[479.6..488.7] y=[107.0..106.0] slope=-0.110 thick=3.00
+x=[497.9..525.2] y=[111.0..112.0] slope=0.037 thick=3.00
+x=[534.4..561.8] y=[117.0..118.0] slope=0.037 thick=3.00
+x=[132.2..159.9] y=[249.0..248.0] slope=-0.036 thick=3.00
+x=[132.2..159.9] y=[274.1..268.1] slope=-0.214 thick=3.00
+x=[169.2..196.9] y=[283.0..284.0] slope=0.036 thick=3.00
+x=[206.1..233.9] y=[289.0..290.0] slope=0.036 thick=3.00
+x=[243.1..270.8] y=[292.3..293.3] slope=0.036 thick=3.00
+x=[280.1..307.8] y=[295.0..296.0] slope=0.036 thick=3.00
+x=[317.0..344.8] y=[301.0..302.0] slope=0.036 thick=3.00
+x=[354.0..381.7] y=[299.0..297.1] slope=-0.070 thick=3.00
+x=[390.9..400.2] y=[304.0..305.0] slope=0.108 thick=3.00
+x=[422.9..450.7] y=[246.0..245.0] slope=-0.036 thick=3.00
+x=[459.9..487.6] y=[240.0..239.0] slope=-0.036 thick=3.00
+x=[496.9..524.6] y=[237.3..236.4] slope=-0.034 thick=3.00
+x=[533.8..561.6] y=[235.3..236.3] slope=0.036 thick=3.00
+x=[132.2..159.6] y=[415.0..414.0] slope=-0.037 thick=3.00
+x=[168.8..196.2] y=[412.3..411.4] slope=-0.034 thick=3.00
+x=[205.4..232.8] y=[409.7..408.7] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[403.0..402.0] slope=-0.037 thick=3.00
+x=[278.5..305.9] y=[400.3..399.4] slope=-0.034 thick=3.00
+x=[315.1..342.4] y=[398.3..399.3] slope=0.037 thick=3.00
+x=[363.1..372.2] y=[449.0..448.0] slope=-0.110 thick=3.00
+x=[351.6..379.0] y=[403.0..402.0] slope=-0.037 thick=3.00
+x=[381.4..408.8] y=[455.7..456.6] slope=0.034 thick=3.00
+x=[418.0..445.4] y=[459.0..460.0] slope=0.037 thick=3.00
+x=[472.8..481.9] y=[452.0..451.0] slope=-0.110 thick=3.00
+x=[461.3..488.7] y=[407.0..407.0] slope=0.000 thick=3.00
+x=[491.1..518.5] y=[458.7..459.6] slope=0.034 thick=3.00
+x=[527.7..555.1] y=[462.0..463.0] slope=0.037 thick=3.00
+x=[125.5..152.9] y=[118.0..119.0] slope=0.037 thick=3.00
+x=[162.1..171.2] y=[122.0..123.9] slope=0.212 thick=3.00
+x=[187.1..196.2] y=[51.0..52.0] slope=0.110 thick=3.00
+x=[205.4..232.8] y=[48.3..49.3] slope=0.037 thick=3.00
+x=[241.9..269.3] y=[54.3..55.3] slope=0.037 thick=3.00
+x=[278.5..305.9] y=[57.0..60.0] slope=0.110 thick=3.00
+x=[315.1..342.4] y=[57.0..57.0] slope=0.000 thick=3.00
+x=[351.6..379.0] y=[72.0..73.0] slope=0.037 thick=3.00
+x=[388.2..397.3] y=[78.0..79.0] slope=0.110 thick=3.00
+x=[406.4..415.6] y=[104.0..103.0] slope=-0.110 thick=3.00
+x=[424.8..452.1] y=[108.0..109.0] slope=0.037 thick=3.00
+x=[461.3..488.7] y=[90.1..84.1] slope=-0.217 thick=3.00
+x=[497.9..525.2] y=[99.0..100.0] slope=0.037 thick=3.00
+x=[534.4..561.8] y=[105.0..106.0] slope=0.037 thick=3.00
+x=[125.5..152.9] y=[273.7..272.7] slope=-0.037 thick=3.00
+x=[132.2..159.6] y=[282.0..281.0] slope=-0.037 thick=3.00
+x=[162.1..189.4] y=[274.0..273.0] slope=-0.037 thick=3.00
+x=[168.8..196.2] y=[282.3..281.4] slope=-0.034 thick=3.00
+x=[198.6..226.0] y=[267.3..266.4] slope=-0.034 thick=3.00
+x=[205.4..232.8] y=[279.7..278.7] slope=-0.037 thick=3.00
+x=[241.9..269.3] y=[249.0..248.0] slope=-0.037 thick=3.00
+x=[271.8..280.9] y=[269.0..270.0] slope=0.110 thick=3.00
+x=[278.5..305.9] y=[246.3..245.4] slope=-0.034 thick=3.00
+x=[317.4..335.7] y=[273.0..274.9] slope=0.106 thick=3.00
+x=[315.1..342.4] y=[244.3..245.3] slope=0.037 thick=3.00
+x=[351.6..379.0] y=[250.3..251.3] slope=0.037 thick=3.00
+x=[388.2..397.3] y=[253.0..254.0] slope=0.110 thick=3.00
+x=[406.4..415.6] y=[279.0..278.0] slope=-0.110 thick=3.00
+x=[424.8..452.1] y=[283.0..284.0] slope=0.037 thick=3.00
+x=[461.3..488.7] y=[286.3..287.3] slope=0.037 thick=3.00
+x=[497.9..525.2] y=[289.0..290.0] slope=0.037 thick=3.00
+x=[534.4..561.8] y=[295.0..296.0] slope=0.037 thick=3.00
+x=[132.2..157.1] y=[404.0..406.0] slope=0.080 thick=3.00
+x=[208.6..216.9] y=[423.0..421.1] slope=-0.233 thick=3.00
+x=[225.2..250.1] y=[451.1..444.1] slope=-0.279 thick=3.00
+x=[258.3..288.8] y=[458.6..460.5] slope=0.064 thick=3.00
+x=[283.2..288.8] y=[464.7..465.0] slope=0.056 thick=3.00
+x=[294.2..321.9] y=[460.6..459.6] slope=-0.036 thick=3.00
+x=[294.2..299.8] y=[465.1..464.9] slope=-0.045 thick=3.00
+x=[330.2..355.1] y=[467.0..467.0] slope=0.000 thick=3.00
+x=[338.5..355.1] y=[471.5..471.5] slope=0.000 thick=3.00
+x=[368.9..399.4] y=[422.6..424.5] slope=0.064 thick=3.00
+x=[393.8..399.4] y=[428.7..429.0] slope=0.056 thick=3.00
+x=[404.9..432.6] y=[424.6..423.6] slope=-0.036 thick=3.00
+x=[404.9..410.4] y=[429.1..428.9] slope=-0.045 thick=3.00
+x=[440.9..471.2] y=[426.0..424.1] slope=-0.064 thick=3.00
+x=[449.1..465.8] y=[430.0..428.9] slope=-0.068 thick=3.00
+x=[471.2..476.8] y=[467.0..468.0] slope=0.180 thick=3.00
+x=[471.2..476.8] y=[471.5..472.5] slope=0.180 thick=3.00
+x=[482.3..504.4] y=[457.1..453.1] slope=-0.181 thick=3.00
+x=[482.3..498.9] y=[461.6..458.6] slope=-0.180 thick=3.00
+x=[504.4..521.1] y=[431.0..432.0] slope=0.060 thick=3.00
+x=[504.4..521.1] y=[435.5..436.5] slope=0.060 thick=3.00
+x=[526.6..537.6] y=[423.0..421.1] slope=-0.175 thick=3.00
+x=[526.6..532.1] y=[427.5..426.5] slope=-0.180 thick=3.00
+x=[537.6..565.3] y=[460.0..459.0] slope=-0.036 thick=3.00
+x=[537.6..565.3] y=[464.5..463.5] slope=-0.036 thick=3.00
+x=[132.2..159.3] y=[72.4..73.4] slope=0.037 thick=3.00
+x=[132.2..159.3] y=[76.9..77.9] slope=0.037 thick=3.00
+x=[172.8..180.9] y=[77.0..76.0] slope=-0.123 thick=3.00
+x=[189.1..197.2] y=[114.0..115.0] slope=0.123 thick=3.00
+x=[166.1..195.9] y=[112.1..114.1] slope=0.067 thick=3.00
+x=[190.4..195.9] y=[109.2..109.6] slope=0.069 thick=3.00
+x=[201.2..228.4] y=[110.8..109.8] slope=-0.037 thick=3.00
+x=[201.2..206.7] y=[106.3..106.1] slope=-0.034 thick=3.00
+x=[227.0..235.1] y=[108.0..109.0] slope=0.123 thick=3.00
+x=[236.5..260.8] y=[114.0..114.0] slope=0.000 thick=3.00
+x=[244.6..260.8] y=[109.5..109.5] slope=0.000 thick=3.00
+x=[243.2..273.0] y=[117.0..118.0] slope=0.034 thick=3.00
+x=[297.4..310.9] y=[74.4..73.4] slope=-0.074 thick=3.00
+x=[305.5..310.9] y=[78.3..77.9] slope=-0.069 thick=3.00
+x=[281.1..310.9] y=[120.6..122.5] slope=0.065 thick=3.00
+x=[305.5..310.9] y=[126.7..127.0] slope=0.057 thick=3.00
+x=[316.3..321.8] y=[75.0..77.0] slope=0.368 thick=3.00
+x=[316.3..321.8] y=[79.5..81.5] slope=0.368 thick=3.00
+x=[316.3..343.4] y=[122.6..121.6] slope=-0.037 thick=3.00
+x=[316.3..321.8] y=[127.1..126.9] slope=-0.046 thick=3.00
+x=[351.6..375.9] y=[78.0..78.0] slope=0.000 thick=3.00
+x=[359.6..375.9] y=[82.5..82.5] slope=0.000 thick=3.00
+x=[351.6..381.3] y=[123.0..120.1] slope=-0.099 thick=3.00
+x=[359.6..375.9] y=[126.8..125.1] slope=-0.100 thick=3.00
+x=[389.4..397.6] y=[125.0..124.0] slope=-0.123 thick=3.00
+x=[397.6..413.8] y=[108.0..109.0] slope=0.062 thick=3.00
+x=[430.1..446.3] y=[51.0..51.0] slope=0.000 thick=3.00
+x=[454.4..473.4] y=[111.0..113.0] slope=0.106 thick=3.00
+x=[454.4..484.2] y=[51.0..48.1] slope=-0.099 thick=3.00
+x=[462.5..478.8] y=[54.8..53.1] slope=-0.100 thick=3.00
+x=[508.6..516.7] y=[114.0..115.0] slope=0.123 thick=3.00
+x=[492.3..522.1] y=[54.6..56.5] slope=0.065 thick=3.00
+x=[516.7..522.1] y=[60.7..61.0] slope=0.057 thick=3.00
+x=[527.5..532.9] y=[60.0..62.0] slope=0.368 thick=3.00
+x=[527.5..532.9] y=[64.5..66.5] slope=0.368 thick=3.00
+x=[527.5..565.4] y=[112.0..110.1] slope=-0.051 thick=3.00
+x=[538.4..565.4] y=[115.9..114.6] slope=-0.051 thick=3.00
+x=[132.2..147.4] y=[282.0..281.0] slope=-0.066 thick=3.00
+x=[132.2..147.4] y=[286.5..285.5] slope=-0.066 thick=3.00
+x=[152.5..167.7] y=[249.3..248.4] slope=-0.062 thick=3.00
+x=[152.5..167.7] y=[253.8..252.9] slope=-0.062 thick=3.00
+x=[172.8..188.0] y=[238.0..235.1] slope=-0.193 thick=3.00
+x=[172.8..188.0] y=[242.5..239.6] slope=-0.193 thick=3.00
+x=[191.4..201.5] y=[283.0..281.0] slope=-0.198 thick=3.00
+x=[191.4..201.5] y=[278.5..276.5] slope=-0.198 thick=3.00
+x=[206.6..211.7] y=[274.0..273.0] slope=-0.198 thick=3.00
+x=[206.6..211.7] y=[269.5..268.5] slope=-0.198 thick=3.00
+x=[228.6..238.7] y=[250.0..252.0] slope=0.198 thick=3.00
+x=[228.6..238.7] y=[254.5..256.5] slope=0.198 thick=3.00
+x=[243.8..248.8] y=[283.0..284.0] slope=0.198 thick=3.00
+x=[243.8..248.8] y=[287.5..288.5] slope=0.198 thick=3.00
+x=[253.9..289.4] y=[279.1..278.2] slope=-0.026 thick=3.00
+x=[253.9..289.4] y=[283.6..282.7] slope=-0.026 thick=3.00
+x=[294.5..299.6] y=[279.0..278.0] slope=-0.198 thick=3.00
+x=[294.5..299.6] y=[283.5..282.5] slope=-0.198 thick=3.00
+x=[287.8..318.2] y=[271.0..271.0] slope=0.000 thick=3.00
+x=[304.6..330.0] y=[243.4..242.4] slope=-0.037 thick=3.00
+x=[304.6..330.0] y=[247.9..246.9] slope=-0.037 thick=3.00
+x=[335.1..340.1] y=[253.0..254.0] slope=0.198 thick=3.00
+x=[335.1..340.1] y=[257.5..258.5] slope=0.198 thick=3.00
+x=[328.3..353.7] y=[277.0..277.0] slope=0.000 thick=3.00
+x=[361.3..384.1] y=[286.0..282.1] slope=-0.173 thick=3.00
+x=[368.9..384.1] y=[280.2..277.6] slope=-0.172 thick=3.00
+x=[368.1..395.9] y=[220.0..220.0] slope=0.000 thick=3.00
+x=[403.6..431.4] y=[220.6..222.5] slope=0.070 thick=3.00
+x=[426.4..431.4] y=[226.7..227.0] slope=0.062 thick=3.00
+x=[436.5..461.9] y=[222.6..221.6] slope=-0.039 thick=3.00
+x=[436.5..441.6] y=[227.1..226.9] slope=-0.037 thick=3.00
+x=[469.5..492.3] y=[229.0..229.0] slope=0.000 thick=3.00
+x=[477.1..492.3] y=[233.5..233.5] slope=0.000 thick=3.00
+x=[505.0..512.6] y=[285.0..284.0] slope=-0.132 thick=3.00
+x=[498.2..526.1] y=[404.1..406.1] slope=0.072 thick=3.00
+x=[521.1..526.1] y=[401.2..401.6] slope=0.074 thick=3.00
+x=[537.9..563.3] y=[288.6..287.6] slope=-0.039 thick=3.00
+x=[531.2..556.6] y=[402.8..401.8] slope=-0.039 thick=3.00
+x=[531.2..536.2] y=[398.3..398.1] slope=-0.037 thick=3.00
+x=[132.2..153.6] y=[533.0..533.0] slope=0.000 thick=3.00
+x=[139.3..153.6] y=[537.5..537.5] slope=0.000 thick=3.00
+x=[151.6..156.3] y=[449.0..448.0] slope=-0.211 thick=3.00
+x=[151.6..156.3] y=[444.5..443.5] slope=-0.211 thick=3.00
+x=[161.1..194.2] y=[456.7..459.7] slope=0.090 thick=3.00
+x=[161.1..194.2] y=[452.2..455.2] slope=0.090 thick=3.00
+x=[167.8..201.0] y=[422.6..424.6] slope=0.060 thick=3.00
+x=[196.2..201.0] y=[428.8..429.1] slope=0.066 thick=3.00
+x=[205.8..234.2] y=[424.7..423.7] slope=-0.035 thick=3.00
+x=[205.8..210.4] y=[429.2..429.0] slope=-0.040 thick=3.00
+x=[199.0..232.2] y=[457.0..458.9] slope=0.058 thick=3.00
+x=[199.0..232.2] y=[452.5..454.4] slope=0.058 thick=3.00
+x=[236.9..265.4] y=[457.2..456.2] slope=-0.035 thick=3.00
+x=[236.9..260.6] y=[452.7..451.9] slope=-0.034 thick=3.00
+x=[272.1..276.9] y=[452.0..458.9] slope=1.461 thick=3.00
+x=[272.1..276.9] y=[456.5..463.4] slope=1.461 thick=3.00
+x=[281.6..295.8] y=[458.0..455.1] slope=-0.206 thick=3.00
+x=[281.6..295.8] y=[462.5..459.6] slope=-0.206 thick=3.00
+x=[281.6..312.4] y=[407.6..409.6] slope=0.063 thick=3.00
+x=[307.7..312.4] y=[413.8..414.1] slope=0.053 thick=3.00
+x=[317.2..345.6] y=[409.7..408.7] slope=-0.035 thick=3.00
+x=[317.2..321.9] y=[414.2..414.0] slope=-0.040 thick=3.00
+x=[326.6..350.4] y=[458.0..460.0] slope=0.084 thick=3.00
+x=[326.6..350.4] y=[462.5..464.5] slope=0.084 thick=3.00
+x=[355.1..383.6] y=[410.0..407.1] slope=-0.103 thick=3.00
+x=[364.6..378.8] y=[413.6..412.1] slope=-0.105 thick=3.00
+x=[355.1..388.3] y=[454.4..452.4] slope=-0.060 thick=3.00
+x=[355.1..388.3] y=[458.9..456.9] slope=-0.060 thick=3.00
+x=[393.0..407.2] y=[452.0..454.0] slope=0.140 thick=3.00
+x=[393.0..407.2] y=[456.5..458.5] slope=0.140 thick=3.00
+x=[393.0..423.9] y=[413.6..415.6] slope=0.063 thick=3.00
+x=[419.1..423.9] y=[419.8..420.1] slope=0.053 thick=3.00
+x=[428.6..452.3] y=[415.6..414.6] slope=-0.042 thick=3.00
+x=[428.6..433.3] y=[420.1..419.9] slope=-0.053 thick=3.00
+x=[452.7..459.8] y=[450.0..451.0] slope=0.142 thick=3.00
+x=[459.4..490.2] y=[410.5..407.5] slope=-0.097 thick=3.00
+x=[466.5..490.2] y=[414.3..412.0] slope=-0.097 thick=3.00
+x=[513.9..523.4] y=[456.0..454.1] slope=-0.204 thick=3.00
+x=[495.0..528.2] y=[396.1..391.1] slope=-0.149 thick=3.00
+x=[495.0..528.2] y=[400.6..395.6] slope=-0.149 thick=3.00
+x=[532.9..561.4] y=[425.0..425.0] slope=0.000 thick=3.00
+x=[532.9..566.1] y=[392.9..394.8] slope=0.058 thick=3.00
+x=[532.9..566.1] y=[397.4..399.3] slope=0.058 thick=3.00
+x=[132.2..157.4] y=[51.4..53.4] slope=0.079 thick=3.00
+x=[132.2..157.4] y=[55.9..57.9] slope=0.079 thick=3.00
+x=[170.1..197.8] y=[105.6..107.5] slope=0.070 thick=3.00
+x=[192.8..197.8] y=[111.7..112.0] slope=0.062 thick=3.00
+x=[202.8..228.0] y=[107.6..106.6] slope=-0.040 thick=3.00
+x=[202.8..207.9] y=[112.1..111.9] slope=-0.049 thick=3.00
+x=[235.6..263.3] y=[108.0..105.1] slope=-0.106 thick=3.00
+x=[243.1..258.2] y=[111.8..110.1] slope=-0.107 thick=3.00
+x=[270.9..298.6] y=[111.6..113.5] slope=0.070 thick=3.00
+x=[293.6..298.6] y=[117.7..118.0] slope=0.062 thick=3.00
+x=[303.6..328.9] y=[113.6..112.6] slope=-0.040 thick=3.00
+x=[303.6..308.7] y=[118.1..117.9] slope=-0.049 thick=3.00
+x=[336.4..369.2] y=[102.1..96.1] slope=-0.181 thick=3.00
+x=[344.0..369.2] y=[105.2..100.6] slope=-0.181 thick=3.00
+x=[374.2..409.5] y=[111.0..113.0] slope=0.057 thick=3.00
+x=[374.2..409.5] y=[115.5..117.5] slope=0.057 thick=3.00
+x=[414.6..449.9] y=[102.0..99.1] slope=-0.083 thick=3.00
+x=[414.6..449.9] y=[106.5..103.6] slope=-0.083 thick=3.00
+x=[454.9..487.7] y=[42.1..36.1] slope=-0.181 thick=3.00
+x=[462.4..487.7] y=[45.2..40.6] slope=-0.181 thick=3.00
+x=[492.7..525.5] y=[51.0..53.0] slope=0.061 thick=3.00
+x=[492.7..507.8] y=[55.5..56.4] slope=0.062 thick=3.00
+x=[520.4..525.5] y=[57.2..57.5] slope=0.062 thick=3.00
+x=[530.5..565.8] y=[48.9..51.8] slope=0.083 thick=3.00
+x=[530.5..565.8] y=[53.4..56.3] slope=0.083 thick=3.00
+x=[132.2..156.1] y=[235.4..237.4] slope=0.084 thick=3.00
+x=[132.2..156.1] y=[239.9..241.9] slope=0.084 thick=3.00
+x=[175.6..187.4] y=[286.0..285.0] slope=-0.084 thick=3.00
+x=[182.7..187.4] y=[280.9..280.5] slope=-0.079 thick=3.00
+x=[168.0..194.2] y=[289.6..291.5] slope=0.074 thick=3.00
+x=[189.4..194.2] y=[295.7..296.0] slope=0.066 thick=3.00
+x=[192.2..201.8] y=[295.9..299.9] slope=0.421 thick=3.00
+x=[192.2..197.0] y=[291.4..293.4] slope=0.421 thick=3.00
+x=[199.0..222.8] y=[291.6..290.6] slope=-0.042 thick=3.00
+x=[199.0..203.8] y=[296.1..295.9] slope=-0.039 thick=3.00
+x=[234.8..249.1] y=[280.0..277.1] slope=-0.205 thick=3.00
+x=[234.8..249.1] y=[284.5..281.6] slope=-0.205 thick=3.00
+x=[253.8..263.4] y=[253.0..253.0] slope=0.000 thick=3.00
+x=[253.8..263.4] y=[257.5..257.5] slope=0.000 thick=3.00
+x=[258.6..263.4] y=[238.0..241.0] slope=0.623 thick=3.00
+x=[258.6..263.4] y=[242.5..245.5] slope=0.623 thick=3.00
+x=[268.1..282.4] y=[232.0..229.1] slope=-0.205 thick=3.00
+x=[268.1..282.4] y=[236.5..233.6] slope=-0.205 thick=3.00
+x=[268.1..301.5] y=[241.9..238.9] slope=-0.088 thick=3.00
+x=[268.1..301.5] y=[246.4..243.4] slope=-0.088 thick=3.00
+x=[306.2..325.3] y=[253.0..255.0] slope=0.105 thick=3.00
+x=[306.2..325.3] y=[257.5..259.5] slope=0.105 thick=3.00
+x=[315.8..334.9] y=[232.0..232.0] slope=0.000 thick=3.00
+x=[330.1..339.6] y=[286.0..286.0] slope=0.000 thick=3.00
+x=[330.1..339.6] y=[290.5..290.5] slope=0.000 thick=3.00
+x=[351.6..361.1] y=[252.0..251.0] slope=-0.105 thick=3.00
+x=[344.4..375.4] y=[233.3..231.4] slope=-0.063 thick=3.00
+x=[351.6..375.4] y=[237.4..235.9] slope=-0.063 thick=3.00
+x=[380.2..394.5] y=[232.3..233.3] slope=0.070 thick=3.00
+x=[380.2..394.5] y=[236.8..237.8] slope=0.070 thick=3.00
+x=[399.2..413.6] y=[286.0..286.0] slope=0.000 thick=3.00
+x=[399.2..413.6] y=[290.5..290.5] slope=0.000 thick=3.00
+x=[418.3..423.1] y=[279.0..278.0] slope=-0.211 thick=3.00
+x=[418.3..423.1] y=[283.5..282.5] slope=-0.211 thick=3.00
+x=[432.6..451.7] y=[225.1..221.1] slope=-0.210 thick=3.00
+x=[432.6..451.7] y=[229.6..225.6] slope=-0.210 thick=3.00
+x=[456.5..480.3] y=[245.0..243.1] slope=-0.081 thick=3.00
+x=[456.5..480.3] y=[249.5..247.6] slope=-0.081 thick=3.00
+x=[485.1..489.9] y=[218.0..216.1] slope=-0.403 thick=3.00
+x=[485.1..489.9] y=[222.5..220.6] slope=-0.403 thick=3.00
+x=[494.6..528.0] y=[223.0..225.0] slope=0.060 thick=3.00
+x=[494.6..528.0] y=[227.5..229.5] slope=0.060 thick=3.00
+x=[535.6..554.6] y=[385.0..385.0] slope=0.000 thick=3.00
+x=[532.8..566.1] y=[226.0..226.0] slope=0.000 thick=3.00
+x=[532.8..566.1] y=[230.5..230.5] slope=0.000 thick=3.00
+x=[125.5..152.6] y=[566.6..563.6] slope=-0.109 thick=3.00
+x=[132.9..147.6] y=[561.2..559.6] slope=-0.110 thick=3.00
+x=[160.0..189.6] y=[573.0..574.9] slope=0.066 thick=3.00
+x=[184.6..189.6] y=[570.1..570.4] slope=0.063 thick=3.00
+x=[181.5..196.3] y=[394.3..393.4] slope=-0.063 thick=3.00
+x=[181.5..196.3] y=[398.8..397.9] slope=-0.063 thick=3.00
+x=[201.2..206.1] y=[395.0..397.0] slope=0.410 thick=3.00
+x=[201.2..206.1] y=[399.5..401.5] slope=0.410 thick=3.00
+x=[211.1..230.8] y=[458.0..458.0] slope=0.000 thick=3.00
+x=[194.5..224.1] y=[571.8..570.9] slope=-0.032 thick=3.00
+x=[194.5..199.4] y=[567.3..567.2] slope=-0.026 thick=3.00
+x=[204.3..229.0] y=[446.0..446.0] slope=0.000 thick=3.00
+x=[204.3..229.0] y=[441.5..441.5] slope=0.000 thick=3.00
+x=[240.7..267.8] y=[454.1..450.1] slope=-0.148 thick=3.00
+x=[248.1..262.8] y=[457.4..455.3] slope=-0.144 thick=3.00
+x=[233.9..261.0] y=[572.6..569.6] slope=-0.109 thick=3.00
+x=[241.3..256.1] y=[567.2..565.6] slope=-0.110 thick=3.00
+x=[261.0..265.9] y=[444.0..445.0] slope=0.203 thick=3.00
+x=[261.0..265.9] y=[439.5..440.5] slope=0.203 thick=3.00
+x=[270.9..285.7] y=[439.3..438.4] slope=-0.063 thick=3.00
+x=[270.9..285.7] y=[434.8..433.9] slope=-0.063 thick=3.00
+x=[277.6..309.7] y=[461.6..463.6] slope=0.060 thick=3.00
+x=[304.8..309.7] y=[467.8..468.1] slope=0.051 thick=3.00
+x=[270.9..302.9] y=[579.2..581.2] slope=0.062 thick=3.00
+x=[298.0..302.9] y=[576.4..576.7] slope=0.063 thick=3.00
+x=[314.6..344.2] y=[463.7..462.7] slope=-0.034 thick=3.00
+x=[314.6..319.5] y=[468.2..468.0] slope=-0.038 thick=3.00
+x=[307.9..337.4] y=[577.8..576.9] slope=-0.032 thick=3.00
+x=[307.9..312.8] y=[573.3..573.2] slope=-0.026 thick=3.00
+x=[317.7..342.4] y=[445.8..444.8] slope=-0.041 thick=3.00
+x=[317.7..342.4] y=[441.3..440.3] slope=-0.041 thick=3.00
+x=[354.1..373.8] y=[462.0..460.1] slope=-0.098 thick=3.00
+x=[347.3..376.8] y=[454.0..455.9] slope=0.066 thick=3.00
+x=[347.3..371.9] y=[449.5..451.1] slope=0.066 thick=3.00
+x=[384.2..391.6] y=[455.0..454.0] slope=-0.136 thick=3.00
+x=[391.0..418.1] y=[401.6..403.5] slope=0.072 thick=3.00
+x=[413.1..418.1] y=[407.7..408.0] slope=0.063 thick=3.00
+x=[426.1..440.9] y=[458.0..458.0] slope=0.000 thick=3.00
+x=[423.0..447.6] y=[403.6..402.6] slope=-0.041 thick=3.00
+x=[423.0..427.9] y=[408.1..407.9] slope=-0.051 thick=3.00
+x=[455.1..482.1] y=[404.0..401.1] slope=-0.109 thick=3.00
+x=[462.4..477.2] y=[407.8..406.1] slope=-0.110 thick=3.00
+x=[482.1..487.1] y=[467.0..469.0] slope=0.405 thick=3.00
+x=[482.1..487.1] y=[471.5..473.5] slope=0.405 thick=3.00
+x=[492.0..506.8] y=[458.0..455.1] slope=-0.199 thick=3.00
+x=[492.0..506.8] y=[462.5..459.6] slope=-0.199 thick=3.00
+x=[504.9..519.8] y=[452.0..452.0] slope=0.000 thick=3.00
+x=[504.9..519.8] y=[447.5..447.5] slope=0.000 thick=3.00
+x=[524.7..529.6] y=[459.0..460.0] slope=0.203 thick=3.00
+x=[524.7..529.6] y=[454.5..455.5] slope=0.203 thick=3.00
+x=[541.2..565.9] y=[455.6..458.6] slope=0.119 thick=3.00
+x=[541.2..565.9] y=[460.1..463.1] slope=0.119 thick=3.00
+x=[132.2..166.9] y=[111.0..111.0] slope=0.000 thick=3.00
+x=[132.2..166.9] y=[115.5..115.5] slope=0.000 thick=3.00
+x=[171.9..186.8] y=[117.0..120.0] slope=0.202 thick=3.00
+x=[171.9..186.8] y=[121.5..124.5] slope=0.202 thick=3.00
+x=[189.9..199.8] y=[98.0..99.9] slope=0.195 thick=3.00
+x=[189.9..199.8] y=[93.5..95.4] slope=0.195 thick=3.00
+x=[204.8..209.7] y=[103.0..104.0] slope=0.203 thick=3.00
+x=[204.8..209.7] y=[98.5..99.5] slope=0.203 thick=3.00
+x=[226.4..246.2] y=[66.0..69.9] slope=0.199 thick=3.00
+x=[226.4..246.2] y=[70.5..74.4] slope=0.199 thick=3.00
+x=[256.1..266.0] y=[72.0..74.0] slope=0.203 thick=3.00
+x=[256.1..266.0] y=[76.5..78.5] slope=0.203 thick=3.00
+x=[271.0..275.9] y=[105.0..106.0] slope=0.203 thick=3.00
+x=[271.0..275.9] y=[109.5..110.5] slope=0.203 thick=3.00
+x=[284.1..298.9] y=[99.0..101.9] slope=0.197 thick=3.00
+x=[284.1..298.9] y=[94.5..97.4] slope=0.197 thick=3.00
+x=[315.6..325.5] y=[60.0..62.0] slope=0.201 thick=3.00
+x=[315.6..325.5] y=[64.5..66.5] slope=0.201 thick=3.00
+x=[330.4..335.4] y=[69.0..70.0] slope=0.203 thick=3.00
+x=[330.4..335.4] y=[73.5..74.5] slope=0.203 thick=3.00
+x=[345.3..365.1] y=[72.0..75.9] slope=0.199 thick=3.00
+x=[345.3..365.1] y=[76.5..80.4] slope=0.199 thick=3.00
+x=[363.4..393.1] y=[101.5..98.6] slope=-0.099 thick=3.00
+x=[363.4..388.1] y=[97.0..94.5] slope=-0.101 thick=3.00
+x=[400.5..427.8] y=[100.1..102.1] slope=0.073 thick=3.00
+x=[422.8..427.8] y=[97.2..97.6] slope=0.075 thick=3.00
+x=[432.8..457.6] y=[98.8..97.8] slope=-0.040 thick=3.00
+x=[432.8..437.7] y=[94.3..94.1] slope=-0.038 thick=3.00
+x=[465.0..487.2] y=[102.0..102.0] slope=0.000 thick=3.00
+x=[472.4..487.2] y=[97.5..97.5] slope=0.000 thick=3.00
+x=[506.4..533.7] y=[63.6..65.5] slope=0.071 thick=3.00
+x=[528.7..533.7] y=[69.7..70.0] slope=0.062 thick=3.00
+x=[538.6..563.4] y=[65.6..64.6] slope=-0.040 thick=3.00
+x=[538.6..543.6] y=[70.1..69.9] slope=-0.038 thick=3.00
+x=[125.5..149.6] y=[269.8..267.8] slope=-0.083 thick=3.00
+x=[125.5..149.6] y=[265.3..263.3] slope=-0.083 thick=3.00
+x=[132.2..156.3] y=[247.0..247.0] slope=0.000 thick=3.00
+x=[141.9..156.3] y=[251.5..251.5] slope=0.000 thick=3.00
+x=[161.1..165.9] y=[218.0..216.1] slope=-0.403 thick=3.00
+x=[161.1..165.9] y=[222.5..220.6] slope=-0.403 thick=3.00
+x=[170.8..204.5] y=[274.6..276.6] slope=0.059 thick=3.00
+x=[199.7..204.5] y=[280.8..281.1] slope=0.065 thick=3.00
+x=[170.8..204.5] y=[223.0..226.0] slope=0.089 thick=3.00
+x=[170.8..204.5] y=[227.5..230.5] slope=0.089 thick=3.00
+x=[209.4..238.2] y=[276.7..275.7] slope=-0.035 thick=3.00
+x=[209.4..214.2] y=[281.2..281.0] slope=-0.039 thick=3.00
+x=[209.4..243.1] y=[223.9..225.8] slope=0.058 thick=3.00
+x=[209.4..243.1] y=[228.4..230.3] slope=0.058 thick=3.00
+x=[247.9..281.6] y=[222.1..218.1] slope=-0.119 thick=3.00
+x=[247.9..281.6] y=[226.6..222.6] slope=-0.119 thick=3.00
+x=[296.1..320.2] y=[250.0..250.0] slope=0.000 thick=3.00
+x=[305.8..320.2] y=[254.5..254.5] slope=0.000 thick=3.00
+x=[286.4..320.2] y=[229.0..232.0] slope=0.089 thick=3.00
+x=[286.4..320.2] y=[233.5..236.5] slope=0.089 thick=3.00
+x=[325.0..329.8] y=[250.0..252.0] slope=0.416 thick=3.00
+x=[325.0..329.8] y=[254.5..256.5] slope=0.416 thick=3.00
+x=[325.0..329.8] y=[235.0..237.0] slope=0.416 thick=3.00
+x=[325.0..329.8] y=[239.5..241.5] slope=0.416 thick=3.00
+x=[334.7..349.1] y=[286.0..286.0] slope=0.000 thick=3.00
+x=[356.4..382.9] y=[286.0..283.1] slope=-0.111 thick=3.00
+x=[363.6..378.1] y=[289.8..288.1] slope=-0.112 thick=3.00
+x=[390.1..419.0] y=[289.8..292.7] slope=0.102 thick=3.00
+x=[404.6..419.0] y=[295.8..297.2] slope=0.100 thick=3.00
+x=[423.8..457.6] y=[282.1..278.1] slope=-0.119 thick=3.00
+x=[423.8..457.6] y=[286.6..282.6] slope=-0.119 thick=3.00
+x=[462.4..496.1] y=[267.1..263.1] slope=-0.119 thick=3.00
+x=[462.4..496.1] y=[271.6..267.6] slope=-0.119 thick=3.00
+x=[500.9..515.4] y=[274.0..277.0] slope=0.207 thick=3.00
+x=[500.9..515.4] y=[278.5..281.5] slope=0.207 thick=3.00
+x=[513.5..523.1] y=[269.0..270.0] slope=0.104 thick=3.00
+x=[520.2..529.9] y=[223.0..224.0] slope=0.104 thick=3.00
+x=[520.2..534.7] y=[241.0..244.0] slope=0.208 thick=3.00
+x=[520.2..534.7] y=[245.5..248.5] slope=0.208 thick=3.00
+x=[532.8..556.9] y=[275.0..276.0] slope=0.041 thick=3.00
+x=[539.5..563.6] y=[243.8..242.8] slope=-0.041 thick=3.00
+x=[539.5..544.3] y=[248.3..248.1] slope=-0.039 thick=3.00
+x=[532.8..556.9] y=[394.0..392.0] slope=-0.083 thick=3.00
+x=[539.5..563.6] y=[229.0..229.0] slope=0.000 thick=3.00
+x=[132.2..250.8] y=[452.0..455.9] slope=0.033 thick=3.00
 
 === STEMS: 2709 total ===
 
