@@ -269,6 +269,10 @@ fn read_heap<R: Read>(reader: &mut R, heap_index: u8, is_object_heap: bool) -> R
 /// String pool format: `02 <length_byte> <string_bytes>` entries, concatenated.
 /// Offset 0 is the canonical empty string.
 ///
+/// NGL files use Mac Roman encoding (the native encoding on classic Mac OS).
+/// Bytes 0x00-0x7F map to ASCII; bytes 0x80-0xFF map to specific Unicode
+/// code points via the MAC_ROMAN_HIGH table.
+///
 /// Source: StringPool.cp CAddrInPool() (line 551)
 pub fn decode_string(pool: &[u8], offset: i32) -> Option<String> {
     if offset <= 0 || (offset as usize) >= pool.len() {
@@ -295,8 +299,60 @@ pub fn decode_string(pool: &[u8], offset: i32) -> Option<String> {
     }
 
     let string_bytes = &pool[idx + 2..idx + 2 + len];
-    String::from_utf8(string_bytes.to_vec()).ok()
+    Some(mac_roman_to_string(string_bytes))
 }
+
+/// Convert a Mac Roman byte slice to a UTF-8 String.
+///
+/// Bytes 0x00-0x7F are ASCII-identical. Bytes 0x80-0xFF are mapped to their
+/// Unicode equivalents per Apple's Mac OS Roman encoding specification.
+fn mac_roman_to_string(bytes: &[u8]) -> String {
+    // Fast path: if all bytes are ASCII, just return as-is
+    if bytes.iter().all(|&b| b < 0x80) {
+        // SAFETY: all bytes < 0x80 are valid UTF-8
+        return String::from_utf8(bytes.to_vec()).unwrap();
+    }
+
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        if b < 0x80 {
+            s.push(b as char);
+        } else {
+            s.push(MAC_ROMAN_HIGH[(b - 0x80) as usize]);
+        }
+    }
+    s
+}
+
+/// Mac Roman high-byte (0x80-0xFF) to Unicode mapping.
+/// Source: Apple Mac OS Roman encoding specification.
+#[rustfmt::skip]
+const MAC_ROMAN_HIGH: [char; 128] = [
+    // 0x80-0x8F
+    '\u{00C4}', '\u{00C5}', '\u{00C7}', '\u{00C9}', '\u{00D1}', '\u{00D6}', '\u{00DC}', '\u{00E1}',
+    '\u{00E0}', '\u{00E2}', '\u{00E4}', '\u{00E3}', '\u{00E5}', '\u{00E7}', '\u{00E9}', '\u{00E8}',
+    // 0x90-0x9F
+    '\u{00EA}', '\u{00EB}', '\u{00ED}', '\u{00EC}', '\u{00EE}', '\u{00EF}', '\u{00F1}', '\u{00F3}',
+    '\u{00F2}', '\u{00F4}', '\u{00F6}', '\u{00F5}', '\u{00FA}', '\u{00F9}', '\u{00FB}', '\u{00FC}',
+    // 0xA0-0xAF
+    '\u{2020}', '\u{00B0}', '\u{00A2}', '\u{00A3}', '\u{00A7}', '\u{2022}', '\u{00B6}', '\u{00DF}',
+    '\u{00AE}', '\u{00A9}', '\u{2122}', '\u{00B4}', '\u{00A8}', '\u{2260}', '\u{00C6}', '\u{00D8}',
+    // 0xB0-0xBF
+    '\u{221E}', '\u{00B1}', '\u{2264}', '\u{2265}', '\u{00A5}', '\u{00B5}', '\u{2202}', '\u{2211}',
+    '\u{220F}', '\u{03C0}', '\u{222B}', '\u{00AA}', '\u{00BA}', '\u{03A9}', '\u{00E6}', '\u{00F8}',
+    // 0xC0-0xCF
+    '\u{00BF}', '\u{00A1}', '\u{00AC}', '\u{221A}', '\u{0192}', '\u{2248}', '\u{2206}', '\u{00AB}',
+    '\u{00BB}', '\u{2026}', '\u{00A0}', '\u{00C0}', '\u{00C3}', '\u{00D5}', '\u{0152}', '\u{0153}',
+    // 0xD0-0xDF
+    '\u{2013}', '\u{2014}', '\u{201C}', '\u{201D}', '\u{2018}', '\u{2019}', '\u{00F7}', '\u{25CA}',
+    '\u{00FF}', '\u{0178}', '\u{2044}', '\u{20AC}', '\u{2039}', '\u{203A}', '\u{FB01}', '\u{FB02}',
+    // 0xE0-0xEF
+    '\u{2021}', '\u{00B7}', '\u{201A}', '\u{201E}', '\u{2030}', '\u{00C2}', '\u{00CA}', '\u{00C1}',
+    '\u{00CB}', '\u{00C8}', '\u{00CD}', '\u{00CE}', '\u{00CF}', '\u{00CC}', '\u{00D3}', '\u{00D4}',
+    // 0xF0-0xFF
+    '\u{F8FF}', '\u{00D2}', '\u{00DA}', '\u{00DB}', '\u{00D9}', '\u{0131}', '\u{02C6}', '\u{02DC}',
+    '\u{00AF}', '\u{02D8}', '\u{02D9}', '\u{02DA}', '\u{00B8}', '\u{02DD}', '\u{02DB}', '\u{02C7}',
+];
 
 #[cfg(test)]
 mod tests {
@@ -326,5 +382,27 @@ mod tests {
             2, 5, b'H', b'e', b'l', b'l', b'o', // "Hello" at offset 2
         ];
         assert_eq!(decode_string(&pool, 2), Some("Hello".to_string()));
+    }
+
+    #[test]
+    fn test_decode_string_mac_roman() {
+        // Mac Roman 0x8A = ä, 0x85 = Ö, 0x9A = ü
+        // "Für Elise" in Mac Roman: F=0x46, ü=0x9F, r=0x72
+        let pool = vec![
+            0, 0, 2, 9, 0x46, 0x9F, 0x72, 0x20, 0x45, 0x6C, 0x69, 0x73, 0x65,
+        ];
+        assert_eq!(decode_string(&pool, 2), Some("Für Elise".to_string()));
+    }
+
+    #[test]
+    fn test_mac_roman_to_string_ascii() {
+        assert_eq!(mac_roman_to_string(b"Hello"), "Hello");
+    }
+
+    #[test]
+    fn test_mac_roman_to_string_high_bytes() {
+        // 0x80 = Ä, 0x87 = á, 0x8E = é, 0xD2 = \u{201C} (left double quote)
+        let bytes = [0x80, 0x87, 0x8E, 0xD2];
+        assert_eq!(mac_roman_to_string(&bytes), "Äáé\u{201C}");
     }
 }
