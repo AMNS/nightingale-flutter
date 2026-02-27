@@ -1420,10 +1420,15 @@ pub fn draw_graphic(
     // Compute lineSpace for relative font size resolution
     // lineSpace = staff_height / (staff_lines - 1), in DDIST
     // Reference: defs.h LNSPACE macro
-    let line_space = if staff_ctx.staff_lines > 1 {
+    // For page-relative GRAPHICs at the start of a system, staff_height might
+    // be zero (context not yet populated). Fall back to the standard 5-line
+    // staff spacing: 4 * STD_LINEHT * 2 = 72 DDIST (used by rastral 5).
+    let line_space = if staff_ctx.staff_lines > 1 && staff_ctx.staff_height > 0 {
         staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
-    } else {
+    } else if staff_ctx.staff_height > 0 {
         staff_ctx.staff_height
+    } else {
+        72 // standard LNSPACE fallback (4 interline spaces at rastral 5 = 72 DDIST)
     };
 
     // Determine font from text style or GRAPHIC's own fields

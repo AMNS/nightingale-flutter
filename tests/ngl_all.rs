@@ -566,22 +566,22 @@ fn test_all_ngl_command_stream_hashes() {
 
     let expected: std::collections::HashMap<&str, u64> = [
         ("01_me_and_lucy", 10992702260944429908),
-        ("02_cloning_frank_blacks", 5696705098476709798),
+        ("02_cloning_frank_blacks", 92715920053470172),
         ("03_holed_up_in_penjinskya", 2402501854323720556),
         ("04_eating_humble_pie", 2779434523516249649),
         ("05_abigail", 17698929841808689852),
         ("06_melyssa_with_a_y", 1887696396327157197),
-        ("07_new_york_debutante", 10821857181363895931),
+        ("07_new_york_debutante", 12771707965927636484),
         ("08_darling_sunshine", 17755709699738733530),
         ("09_swiss_ann", 622171758577788941),
         ("10_ghost_of_fusion_bob", 2122799241293494887),
         ("11_philip", 6492066107507503555),
-        ("12_what_do_i_know", 13276803914387902859),
+        ("12_what_do_i_know", 15238961257637554106),
         ("13_miss_b", 11924056974066374810),
         ("14_chrome_molly", 3594481448612645984),
         ("15_selfsame_twin", 7819116300661252069),
-        ("16_esmerelda", 3402470770706270774),
-        ("17_capital_regiment_march", 4674470539644159153),
+        ("16_esmerelda", 8831301014643088940),
+        ("17_capital_regiment_march", 636890703222669062),
     ]
     .into_iter()
     .collect();
