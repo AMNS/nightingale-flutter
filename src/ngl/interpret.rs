@@ -1251,6 +1251,51 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
         }
     }
 
+    // === Pass 2: Unpack MODNR subobjects ===
+    // MODNRs live in heap type 14 (MODNR_TYPE) but are linked from individual
+    // ANOTE subobjects via first_mod (not from MODNR main objects).
+    // We walk each note's first_mod chain and unpack from the MODNR heap.
+    // Source: NObjTypes.h line 107, DrawNRGR.cp DrawModNR() lines 195-245
+    let modnr_heap_idx = MODNR_TYPE as usize;
+    if modnr_heap_idx < ngl.heaps.len() && ngl.heaps[modnr_heap_idx].obj_count > 0 {
+        let modnr_heap = &ngl.heaps[modnr_heap_idx];
+        let modnr_size = modnr_heap.obj_size as usize;
+        let modnr_data = &modnr_heap.obj_data;
+
+        // Iterate over all unpacked notes, follow first_mod chains
+        for notes_vec in score.notes.values() {
+            for anote in notes_vec {
+                if anote.first_mod == NILINK || anote.first_mod == 0 {
+                    continue;
+                }
+
+                let mut mods = Vec::new();
+                let mut mod_link = anote.first_mod;
+                let mut safety = 0;
+
+                while mod_link != NILINK && mod_link != 0 && safety < 100 {
+                    safety += 1;
+                    let offset = (mod_link as usize) * modnr_size;
+                    if offset + modnr_size > modnr_data.len() {
+                        break;
+                    }
+                    match unpack_amodnr_n105(&modnr_data[offset..offset + modnr_size]) {
+                        Ok(modnr) => {
+                            let next = modnr.next;
+                            mods.push(modnr);
+                            mod_link = next;
+                        }
+                        Err(_) => break,
+                    }
+                }
+
+                if !mods.is_empty() {
+                    score.modnrs.insert(anote.first_mod, mods);
+                }
+            }
+        }
+    }
+
     Ok(score)
 }
 

@@ -1,6 +1,5 @@
 ---
 source: tests/ngl_all.rs
-assertion_line: 426
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -10,13 +9,13 @@ BeginPage: 20
 EndPage: 20
 LedgerLine: 810
 Line: 2
-MusicChar: 3730
+MusicChar: 3734
 NoteStem: 1997
 SetMusicSize: 160
 SetWidths: 1
 Slur: 263
 Staff: 160
-TOTAL: 8372
+TOTAL: 8376
 
 === STAVES ===
 y=73.2 x=[167.0..763.0] lines=5 spacing=4.50
@@ -205,6 +204,7 @@ Smufl(57921): 74
 Smufl(57952): 237
 Smufl(57953): 1
 Smufl(57954): 48
+Smufl(58529): 4
 Smufl(58595): 232
 Smufl(58596): 23
 Smufl(58597): 28

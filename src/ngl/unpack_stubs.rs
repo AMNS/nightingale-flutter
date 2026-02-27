@@ -82,9 +82,56 @@ pub fn unpack_adynamic_n105(data: &[u8]) -> Result<ADynamic, String> {
     })
 }
 
-pub fn unpack_amodnr_n105(_data: &[u8]) -> Result<AModNr, String> {
-    // TODO: Implement full AMODNR_5 unpacking (6 bytes, bitfields in byte 4)
-    Err("AMODNR unpacking not yet implemented".to_string())
+/// Unpack AMODNR_5 from N105 binary data.
+///
+/// On-disk layout (NObjTypesN105.h:382-391):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  ---------
+/// 0       2     next (LINK)
+/// 2       1     selected:1 + visible:1 + soft:1 + xstd:5
+/// 3       1     modCode (Byte)
+/// 4       1     data (SignedByte)
+/// 5       1     ystdpit (SHORTSTD = SignedByte, 1 byte)
+/// Total:  6 bytes (no mac68k padding — already even)
+/// ```
+///
+/// Note: xstd is a 5-bit unsigned field encoding signed values via XSTD_OFFSET (16).
+/// We store the raw value; caller subtracts XSTD_OFFSET when computing positions.
+/// SHORTSTD is SignedByte (1 byte), not short (2 bytes).
+///
+/// Source: NObjTypesN105.h lines 382-391, NObjTypes.h lines 512-523
+pub fn unpack_amodnr_n105(data: &[u8]) -> Result<AModNr, String> {
+    if data.len() < 6 {
+        return Err(format!(
+            "AMODNR_5 data too short: {} bytes (need >=6)",
+            data.len()
+        ));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+
+    // Byte 2: selected:1 | visible:1 | soft:1 | xstd:5
+    let byte2 = data[2];
+    let selected = (byte2 & 0x80) != 0;
+    let visible = (byte2 & 0x40) != 0;
+    let soft = (byte2 & 0x20) != 0;
+    let xstd = byte2 & 0x1F; // Lower 5 bits (biased by XSTD_OFFSET=16)
+
+    let mod_code = data[3];
+    let mod_data = data[4] as i8;
+    let ystdpit = data[5] as i8; // SHORTSTD = SignedByte (1 byte)
+
+    Ok(AModNr {
+        next,
+        selected,
+        visible,
+        soft,
+        xstd,
+        mod_code,
+        data: mod_data,
+        ystdpit,
+    })
 }
 
 pub fn unpack_agraphic_n105(_data: &[u8]) -> Result<AGraphic, String> {

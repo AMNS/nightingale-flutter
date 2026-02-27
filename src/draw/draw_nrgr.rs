@@ -8,9 +8,10 @@
 use crate::context::ContextState;
 use crate::defs::*;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore};
+use crate::obj_types::{ANote, Context, XSTD_OFFSET};
 use crate::render::types::{ddist_to_render, ddist_wide_to_render, MusicGlyph};
 use crate::render::MusicRenderer;
-use crate::utility::acc_x_offset;
+use crate::utility::{acc_x_offset, std2d};
 
 use super::draw_utils::{
     accidental_glyph, flag_glyph, notehead_glyph, resolve_rest_l_dur, rest_glyph_for_duration,
@@ -125,6 +126,11 @@ pub fn draw_sync(
                         // === RESTS ===
                         draw_rest(anote, note_x, note_y, l_dur, lnspace, half_sp, renderer);
                     }
+
+                    // === MODIFIERS (articulations, ornaments, etc.) ===
+                    // Port of DrawModNR() call from DrawNote()/DrawRest()
+                    // Source: DrawNRGR.cp line 780 (DrawNote), line 1458 (DrawRest)
+                    draw_modnrs(score, anote, note_ctx, note_x, note_y, lnspace, renderer);
                 }
             }
         }
@@ -608,4 +614,352 @@ fn chord_note_to_left(
         }
     }
     false
+}
+
+// =============================================================================
+// MODNR (Note Modifier) Rendering
+// Port of DrawNRGR.cp DrawModNR() (lines 195-245) + Draw1ModNR() (lines 105-188)
+// =============================================================================
+
+/// SMuFL codepoints for note modifier glyphs.
+///
+/// Mapped from OG Sonata MCH_* constants (defs.h:171-190) to SMuFL equivalents.
+mod mod_glyphs {
+    // Fermatas
+    pub const FERMATA_ABOVE: u32 = 0xE4C0; // fermataAbove
+    pub const FERMATA_BELOW: u32 = 0xE4C1; // fermataBelow
+
+    // Articulations
+    pub const ACCENT_ABOVE: u32 = 0xE4A0; // articAccentAbove
+    pub const ACCENT_BELOW: u32 = 0xE4A1; // articAccentBelow
+    pub const MARCATO_ABOVE: u32 = 0xE4AC; // articMarcatoAbove (heavyAccent)
+    pub const MARCATO_BELOW: u32 = 0xE4AD; // articMarcatoBelow
+    pub const STACCATO_ABOVE: u32 = 0xE4A2; // articStaccatoAbove
+    pub const STACCATO_BELOW: u32 = 0xE4A3; // articStaccatoBelow
+    pub const STACCATISSIMO_ABOVE: u32 = 0xE4A8; // articStaccatissimoAbove (wedge)
+    pub const STACCATISSIMO_BELOW: u32 = 0xE4A9; // articStaccatissimoBelow
+    pub const TENUTO_ABOVE: u32 = 0xE4A4; // articTenutoAbove
+    pub const TENUTO_BELOW: u32 = 0xE4A5; // articTenutoBelow
+    pub const MARCATO_STACCATO_ABOVE: u32 = 0xE4AE; // articMarcatoStaccatoAbove
+    pub const MARCATO_STACCATO_BELOW: u32 = 0xE4AF; // articMarcatoStaccatoBelow
+
+    // Ornaments
+    pub const TRILL: u32 = 0xE566; // ornamentTrill
+    pub const MORDENT: u32 = 0xE56C; // ornamentMordent
+    pub const INV_MORDENT: u32 = 0xE56D; // ornamentShortTrill (inverted mordent)
+    pub const TURN: u32 = 0xE567; // ornamentTurn
+    pub const LONG_INV_MORDENT: u32 = 0xE56E; // ornamentTremblement
+
+    // Bowing marks
+    pub const UPBOW: u32 = 0xE612; // stringsUpBow
+    pub const DOWNBOW: u32 = 0xE610; // stringsDownBow
+
+    // Other
+    pub const PLUS: u32 = 0xE633; // pluckedLeftHandPizzicato (+)
+    pub const CIRCLE: u32 = 0xE614; // stringsHarmonic (natural harmonic circle)
+}
+
+/// Modifier code constants matching OG NObjTypes.h lines 525-549.
+/// These are matched against AModNr.mod_code.
+const MOD_FERMATA: u8 = 10;
+const MOD_TRILL: u8 = 11;
+const MOD_ACCENT: u8 = 12;
+const MOD_HEAVYACCENT: u8 = 13;
+const MOD_STACCATO: u8 = 14;
+const MOD_WEDGE: u8 = 15;
+const MOD_TENUTO: u8 = 16;
+const MOD_MORDENT: u8 = 17;
+const MOD_INV_MORDENT: u8 = 18;
+const MOD_TURN: u8 = 19;
+const MOD_PLUS: u8 = 20;
+const MOD_CIRCLE: u8 = 21;
+const MOD_UPBOW: u8 = 22;
+const MOD_DOWNBOW: u8 = 23;
+const MOD_TREMOLO1: u8 = 24;
+const MOD_TREMOLO6: u8 = 29;
+const MOD_HEAVYACC_STACC: u8 = 30;
+const MOD_LONG_INVMORDENT: u8 = 31;
+
+/// Size percentages from GetModNRInfo (DrawUtils.cp:1338-1448).
+const CIRCLE_SIZEPCT: f32 = 150.0;
+const _FINGERING_SIZEPCT: f32 = 65.0; // Will be used when fingering rendering is added
+
+/// Get glyph and positioning info for a modifier code.
+///
+/// Port of GetModNRInfo() from DrawUtils.cp lines 1338-1448.
+///
+/// Returns (glyph, x_offset, y_offset, size_pct) where offsets are in eighth-spaces.
+/// `above` determines which variant to use for directional glyphs.
+fn get_modnr_info(code: u8, above: bool, small: bool) -> Option<(u32, i16, i16, f32)> {
+    let size_pct = if small { 75.0 } else { 100.0 };
+
+    match code {
+        // Fingering digits 0-5
+        0..=5 => {
+            // Fingerings: '0' + code, positioned above note, scaled down
+            // We use regular digit characters (not SMuFL music glyphs)
+            // For now, skip fingerings (they need text rendering, not music_char)
+            None
+        }
+
+        MOD_FERMATA => {
+            let glyph = if above {
+                mod_glyphs::FERMATA_ABOVE
+            } else {
+                mod_glyphs::FERMATA_BELOW
+            };
+            Some((glyph, -5, if above { 4 } else { -4 }, size_pct))
+        }
+
+        MOD_TRILL => Some((mod_glyphs::TRILL, 0, if above { 4 } else { 0 }, size_pct)),
+
+        MOD_ACCENT => {
+            let glyph = if above {
+                mod_glyphs::ACCENT_ABOVE
+            } else {
+                mod_glyphs::ACCENT_BELOW
+            };
+            Some((glyph, 0, if above { 3 } else { 0 }, size_pct))
+        }
+
+        MOD_HEAVYACCENT => {
+            let glyph = if above {
+                mod_glyphs::MARCATO_ABOVE
+            } else {
+                mod_glyphs::MARCATO_BELOW
+            };
+            Some((glyph, 0, if above { 5 } else { 0 }, size_pct))
+        }
+
+        MOD_STACCATO => {
+            let glyph = if above {
+                mod_glyphs::STACCATO_ABOVE
+            } else {
+                mod_glyphs::STACCATO_BELOW
+            };
+            Some((glyph, 4, 0, size_pct))
+        }
+
+        MOD_WEDGE => {
+            let glyph = if above {
+                mod_glyphs::STACCATISSIMO_ABOVE
+            } else {
+                mod_glyphs::STACCATISSIMO_BELOW
+            };
+            Some((glyph, 2, if above { 2 } else { 0 }, size_pct))
+        }
+
+        MOD_TENUTO => {
+            let glyph = if above {
+                mod_glyphs::TENUTO_ABOVE
+            } else {
+                mod_glyphs::TENUTO_BELOW
+            };
+            Some((glyph, 0, 0, size_pct))
+        }
+
+        MOD_MORDENT => Some((mod_glyphs::MORDENT, -4, if above { 4 } else { 0 }, size_pct)),
+        MOD_INV_MORDENT => Some((
+            mod_glyphs::INV_MORDENT,
+            -4,
+            if above { 4 } else { 0 },
+            size_pct,
+        )),
+        MOD_TURN => Some((mod_glyphs::TURN, -4, 0, size_pct)),
+        MOD_PLUS => Some((mod_glyphs::PLUS, 0, 0, size_pct)),
+
+        MOD_CIRCLE => {
+            let circle_size = if small {
+                CIRCLE_SIZEPCT * 0.75
+            } else {
+                CIRCLE_SIZEPCT
+            };
+            Some((mod_glyphs::CIRCLE, 2, 0, circle_size))
+        }
+
+        MOD_UPBOW => Some((mod_glyphs::UPBOW, 1, if above { 6 } else { 0 }, size_pct)),
+        MOD_DOWNBOW => Some((mod_glyphs::DOWNBOW, 0, if above { 5 } else { 0 }, size_pct)),
+
+        // Tremolos (24-29): drawn as slashes, not glyphs — handled separately
+        MOD_TREMOLO1..=MOD_TREMOLO6 => None,
+
+        MOD_HEAVYACC_STACC => {
+            let glyph = if above {
+                mod_glyphs::MARCATO_STACCATO_ABOVE
+            } else {
+                mod_glyphs::MARCATO_STACCATO_BELOW
+            };
+            Some((glyph, 0, if above { 5 } else { 0 }, size_pct))
+        }
+
+        MOD_LONG_INVMORDENT => Some((
+            mod_glyphs::LONG_INV_MORDENT,
+            -6,
+            if above { 4 } else { 0 },
+            size_pct,
+        )),
+
+        _ => None, // Unknown modifier code
+    }
+}
+
+/// Draw tremolo slashes on a stem.
+///
+/// Port of DrawSlashes() from DrawNRGR.cp lines 33-96.
+///
+/// Draws `n_slashes` diagonal slash marks across the stem at the note's ystem position.
+/// Slash angle is ~45°, width matches notehead width.
+#[allow(clippy::too_many_arguments)]
+fn draw_tremolo_slashes(
+    note_x: f32,
+    _note_y: f32,
+    ystem_y: f32,
+    n_slashes: u8,
+    stem_down: bool,
+    is_whole: bool,
+    lnspace: f32,
+    renderer: &mut dyn MusicRenderer,
+) {
+    let eighth_sp = lnspace / 8.0;
+
+    // Slash dimensions (DrawNRGR.cp:49-52)
+    let slash_width = 1.125 * lnspace; // HeadWidth
+    let slash_height = lnspace / 2.0;
+    // TREMSLASHLW_DFLT = 25 (Initialize.cp), config.tremSlashLW * lnSpace / 100
+    let slash_thick = 25.0 * lnspace / 100.0;
+
+    // Slash spacing (6 eighth-spaces between slash centers)
+    let slash_leading = if stem_down {
+        6.0 * eighth_sp
+    } else {
+        -6.0 * eighth_sp
+    };
+
+    // Horizontal offset from stem position
+    let dxpos = if is_whole {
+        0.0 // centered for whole notes
+    } else if stem_down {
+        4.0 * eighth_sp
+    } else {
+        -5.0 * eighth_sp
+    };
+
+    // Vertical offset from ystem
+    let dypos = if stem_down {
+        8.0 * eighth_sp
+    } else {
+        -8.0 * eighth_sp
+    };
+
+    let base_x = note_x + dxpos;
+    let base_y = ystem_y + dypos;
+
+    for i in 0..n_slashes {
+        let cy = base_y + (i as f32) * slash_leading;
+        // Slash goes from (x, cy + half_height) to (x + width, cy - half_height)
+        // for stem-up, or mirrored for stem-down
+        if stem_down {
+            renderer.line(
+                base_x,
+                cy + slash_height,
+                base_x + slash_width,
+                cy - slash_height,
+                slash_thick,
+            );
+        } else {
+            renderer.line(
+                base_x,
+                cy - slash_height,
+                base_x + slash_width,
+                cy + slash_height,
+                slash_thick,
+            );
+        }
+    }
+}
+
+/// Draw all modifiers (articulations, ornaments, etc.) for a note or rest.
+///
+/// Port of DrawModNR() from DrawNRGR.cp lines 195-245.
+///
+/// Walks the MODNR linked list for this note (via first_mod) and draws each modifier
+/// glyph at its computed position. Uses GetModNRInfo for glyph selection and offsets.
+pub fn draw_modnrs(
+    score: &InterpretedScore,
+    anote: &ANote,
+    note_ctx: &Context,
+    note_x: f32,
+    note_y: f32,
+    lnspace: f32,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::basic_types::NILINK;
+
+    if anote.first_mod == NILINK || anote.first_mod == 0 {
+        return;
+    }
+
+    let mods = match score.modnrs.get(&anote.first_mod) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let staff_height = note_ctx.staff_height;
+    let staff_lines = note_ctx.staff_lines as i16;
+    let eighth_sp = lnspace / 8.0;
+
+    for modnr in mods {
+        if !modnr.visible {
+            continue;
+        }
+
+        let code = modnr.mod_code;
+
+        // Convert xstd (biased by XSTD_OFFSET) to DDIST offset from note position
+        // Source: DrawNRGR.cp line 218: xdMod = xd + std2d(aModNR->xstd - XSTD_OFFSET, ...)
+        let xstd_signed = modnr.xstd as i16 - XSTD_OFFSET as i16;
+        let xd_mod_ddist = std2d(xstd_signed, staff_height, staff_lines);
+        let xd_mod = note_x + ddist_to_render(xd_mod_ddist);
+
+        // Convert ystdpit to DDIST — this is an absolute staff position
+        // Source: DrawNRGR.cp line 219: ydMod = std2d(aModNR->ystdpit, ...)
+        let yd_mod_ddist = std2d(modnr.ystdpit as i16, staff_height, staff_lines);
+        let yd_mod = ddist_to_render(yd_mod_ddist);
+
+        // Determine if modifier is above or below the note
+        // Source: DrawNRGR.cp line 225: above = (ydMod <= aNote->yd)
+        // (In Nightingale, smaller y = higher on page)
+        let above = yd_mod_ddist <= anote.yd;
+
+        // Handle tremolos separately
+        if (MOD_TREMOLO1..=MOD_TREMOLO6).contains(&code) {
+            let n_slashes = code - MOD_TREMOLO1 + 1;
+            let ystem_y = d2r_sum(note_ctx.staff_top, anote.ystem);
+            let stem_down = anote.ystem > anote.yd;
+            let is_whole = anote.header.sub_type <= WHOLE_L_DUR;
+            draw_tremolo_slashes(
+                note_x,
+                note_y,
+                ystem_y + yd_mod, // ydMod offsets from ystem for tremolos
+                n_slashes,
+                stem_down,
+                is_whole,
+                lnspace,
+                renderer,
+            );
+            continue;
+        }
+
+        // Get glyph and offsets for this modifier type
+        if let Some((glyph, x_offset, y_offset, size_pct)) =
+            get_modnr_info(code, above, anote.small)
+        {
+            // Apply offsets (in eighth-spaces)
+            // Source: DrawNRGR.cp lines 227-228
+            let final_x = xd_mod + (eighth_sp * x_offset as f32);
+            let final_y = d2r_sum(note_ctx.staff_top, 0) + yd_mod + (eighth_sp * y_offset as f32);
+
+            renderer.music_char(final_x, final_y, MusicGlyph::smufl(glyph), size_pct);
+        }
+    }
 }

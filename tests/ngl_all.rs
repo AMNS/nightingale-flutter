@@ -557,22 +557,22 @@ fn test_all_ngl_command_stream_hashes() {
 
     let expected: std::collections::HashMap<&str, u64> = [
         ("01_me_and_lucy", 4288395871016694963),
-        ("02_cloning_frank_blacks", 13659767739003977318),
-        ("03_holed_up_in_penjinskya", 7151889834312542072),
-        ("04_eating_humble_pie", 10084674681073510560),
+        ("02_cloning_frank_blacks", 14064723994164204100),
+        ("03_holed_up_in_penjinskya", 4329094246989365988),
+        ("04_eating_humble_pie", 3461624947927271738),
         ("05_abigail", 8214241234799844033),
         ("06_melyssa_with_a_y", 4436700544004742506),
-        ("07_new_york_debutante", 320862980178282085),
+        ("07_new_york_debutante", 855596332956453339),
         ("08_darling_sunshine", 17259286579294342057),
-        ("09_swiss_ann", 18159894343566814084),
-        ("10_ghost_of_fusion_bob", 11651983271686067342),
+        ("09_swiss_ann", 17642510746682626763),
+        ("10_ghost_of_fusion_bob", 18245837270925467261),
         ("11_philip", 4451562287654482003),
         ("12_what_do_i_know", 1638240818521860770),
         ("13_miss_b", 9918542750356653066),
-        ("14_chrome_molly", 8768068115139265664),
+        ("14_chrome_molly", 12362545374948303005),
         ("15_selfsame_twin", 11200031895832632372),
-        ("16_esmerelda", 17773534908823537390),
-        ("17_capital_regiment_march", 9310509570530656814),
+        ("16_esmerelda", 1818638942897493008),
+        ("17_capital_regiment_march", 8136391618597580709),
     ]
     .into_iter()
     .collect();
