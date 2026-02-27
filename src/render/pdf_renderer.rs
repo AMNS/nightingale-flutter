@@ -92,7 +92,7 @@ impl Default for GraphicsState {
 ///
 /// let mut r = PdfRenderer::new(612.0, 792.0); // US Letter
 /// r.staff(100.0, 72.0, 540.0, 5, 10.0);
-/// r.bar_line(100.0, 140.0, 72.0, BarLineType::Single);
+/// r.bar_line(100.0, 140.0, 72.0, BarLineType::Single, 10.0);
 /// let pdf_bytes = r.finish();
 /// std::fs::write("output.pdf", pdf_bytes).unwrap();
 /// ```
@@ -307,10 +307,17 @@ impl PdfRenderer {
         let descriptor_ref = Ref::new(after_pages + 2);
         let tounicode_ref = Ref::new(after_pages + 3);
         let font_data_ref = Ref::new(after_pages + 4);
-        // Text font ref (Helvetica, always available)
+        // Text font refs — standard PDF Type 1 fonts (always available without embedding).
+        // Sans-serif (Helvetica): F1, F1B, F1I, F1BI
         let text_font_ref = Ref::new(after_pages + 5);
         let text_font_bold_ref = Ref::new(after_pages + 6);
         let text_font_italic_ref = Ref::new(after_pages + 7);
+        let text_font_bold_italic_ref = Ref::new(after_pages + 8);
+        // Serif (Times-Roman): F2, F2B, F2I, F2BI
+        let serif_font_ref = Ref::new(after_pages + 9);
+        let serif_font_bold_ref = Ref::new(after_pages + 10);
+        let serif_font_italic_ref = Ref::new(after_pages + 11);
+        let serif_font_bold_italic_ref = Ref::new(after_pages + 12);
 
         let has_font = self.music_font.is_some();
 
@@ -345,9 +352,16 @@ impl PdfRenderer {
                     fonts.pair(Name(b"Bravura"), type0_ref);
                 }
                 // Built-in PDF text fonts (always available without embedding)
+                // Sans-serif (Helvetica)
                 fonts.pair(Name(b"F1"), text_font_ref);
                 fonts.pair(Name(b"F1B"), text_font_bold_ref);
                 fonts.pair(Name(b"F1I"), text_font_italic_ref);
+                fonts.pair(Name(b"F1BI"), text_font_bold_italic_ref);
+                // Serif (Times-Roman)
+                fonts.pair(Name(b"F2"), serif_font_ref);
+                fonts.pair(Name(b"F2B"), serif_font_bold_ref);
+                fonts.pair(Name(b"F2I"), serif_font_italic_ref);
+                fonts.pair(Name(b"F2BI"), serif_font_bold_italic_ref);
             }
             page.finish();
 
@@ -451,14 +465,27 @@ impl PdfRenderer {
             stream.finish();
         }
 
-        // Define built-in text fonts (Helvetica family — standard PDF Type1 fonts,
-        // available in all PDF readers without embedding).
+        // Define built-in text fonts — standard PDF Type 1 fonts,
+        // available in all PDF readers without embedding.
         // Reference: PDF spec 1.7, Table 5.17 — Standard Type 1 Fonts
+        //
+        // Sans-serif (Helvetica family): F1, F1B, F1I, F1BI
         pdf.type1_font(text_font_ref).base_font(Name(b"Helvetica"));
         pdf.type1_font(text_font_bold_ref)
             .base_font(Name(b"Helvetica-Bold"));
         pdf.type1_font(text_font_italic_ref)
             .base_font(Name(b"Helvetica-Oblique"));
+        pdf.type1_font(text_font_bold_italic_ref)
+            .base_font(Name(b"Helvetica-BoldOblique"));
+        // Serif (Times-Roman family): F2, F2B, F2I, F2BI
+        pdf.type1_font(serif_font_ref)
+            .base_font(Name(b"Times-Roman"));
+        pdf.type1_font(serif_font_bold_ref)
+            .base_font(Name(b"Times-Bold"));
+        pdf.type1_font(serif_font_italic_ref)
+            .base_font(Name(b"Times-Italic"));
+        pdf.type1_font(serif_font_bold_italic_ref)
+            .base_font(Name(b"Times-BoldItalic"));
 
         pdf.finish()
     }
@@ -616,60 +643,106 @@ impl MusicRenderer for PdfRenderer {
 
     /// Draw a bar line.
     /// Reference: PS_Stdio.cp, PS_BarLine(), line 1473
-    fn bar_line(&mut self, top_y: f32, bottom_y: f32, x: f32, bar_type: BarLineType) {
+    fn bar_line(
+        &mut self,
+        top_y: f32,
+        bottom_y: f32,
+        x: f32,
+        bar_type: BarLineType,
+        line_space: f32,
+    ) {
         self.page_has_content = true;
         self.sync_stroke_color();
+        // OG proportions from PS_Stdio.cp:
+        //   INTERLNSPACE(lnSpace) = lnSpace/2  — spacing between double-bar components
+        //   THICKBARLINE(lnSpace) = lnSpace/2  — thickness of thick barline
+        let inter = (line_space / 2.0).max(2.0); // INTERLNSPACE, min 2pt
+        let thick_w = (line_space / 2.0).max(1.5); // THICKBARLINE, min 1.5pt
+        let blw = self.state.bar_line_width * self.state.scale_x;
+
         match bar_type {
             BarLineType::Single => {
-                self.content
-                    .set_line_width(self.state.bar_line_width * self.state.scale_x);
+                self.content.set_line_width(blw);
                 self.content.move_to(self.tx(x), self.ty(top_y));
                 self.content.line_to(self.tx(x), self.ty(bottom_y));
                 self.content.stroke();
             }
             BarLineType::Double => {
-                // Two thin lines, 3pt apart (PS_Stdio.cp convention)
-                let spacing = 3.0;
-                self.content
-                    .set_line_width(self.state.bar_line_width * self.state.scale_x);
-                self.content
-                    .move_to(self.tx(x - spacing / 2.0), self.ty(top_y));
-                self.content
-                    .line_to(self.tx(x - spacing / 2.0), self.ty(bottom_y));
-                self.content.stroke();
-                self.content
-                    .move_to(self.tx(x + spacing / 2.0), self.ty(top_y));
-                self.content
-                    .line_to(self.tx(x + spacing / 2.0), self.ty(bottom_y));
-                self.content.stroke();
-            }
-            BarLineType::FinalDouble => {
-                // Thin line + thick line (PS_Stdio.cp PS_BarLine final variant)
-                let spacing = 3.0;
-                self.content
-                    .set_line_width(self.state.bar_line_width * self.state.scale_x);
-                self.content.move_to(self.tx(x - spacing), self.ty(top_y));
-                self.content
-                    .line_to(self.tx(x - spacing), self.ty(bottom_y));
-                self.content.stroke();
-                // Thick bar: 3× normal width
-                self.content
-                    .set_line_width(self.state.bar_line_width * 3.0 * self.state.scale_x);
+                // OG: BL at x, BL at x+INTERLNSPACE
+                self.content.set_line_width(blw);
                 self.content.move_to(self.tx(x), self.ty(top_y));
                 self.content.line_to(self.tx(x), self.ty(bottom_y));
                 self.content.stroke();
+                self.content.move_to(self.tx(x + inter), self.ty(top_y));
+                self.content.line_to(self.tx(x + inter), self.ty(bottom_y));
+                self.content.stroke();
             }
-            BarLineType::RepeatLeft | BarLineType::RepeatRight | BarLineType::RepeatBoth => {
-                // Thick + thin + dots (simplified: just double for now)
-                // TODO: Add proper repeat bar with dots via repeat_dots()
-                self.content
-                    .set_line_width(self.state.bar_line_width * self.state.scale_x);
-                self.content.move_to(self.tx(x - 1.5), self.ty(top_y));
-                self.content.line_to(self.tx(x - 1.5), self.ty(bottom_y));
+            BarLineType::FinalDouble => {
+                // OG: thin BL at x, thick ML at x+INTERLNSPACE+thickWidth/2
+                self.content.set_line_width(blw);
+                self.content.move_to(self.tx(x), self.ty(top_y));
+                self.content.line_to(self.tx(x), self.ty(bottom_y));
                 self.content.stroke();
-                self.content.move_to(self.tx(x + 1.5), self.ty(top_y));
-                self.content.line_to(self.tx(x + 1.5), self.ty(bottom_y));
+                let thick_x = x + inter + thick_w / 2.0;
+                self.content.set_line_width(thick_w * self.state.scale_x);
+                self.content.move_to(self.tx(thick_x), self.ty(top_y));
+                self.content.line_to(self.tx(thick_x), self.ty(bottom_y));
                 self.content.stroke();
+            }
+            BarLineType::RepeatLeft => {
+                // OG PS_Repeat RPT_L: thick at left, thin at right, dots right of thin
+                // Thick bar at x - thickWidth/2
+                let thick_x = x - thick_w / 2.0;
+                self.content.set_line_width(thick_w * self.state.scale_x);
+                self.content.move_to(self.tx(thick_x), self.ty(top_y));
+                self.content.line_to(self.tx(thick_x), self.ty(bottom_y));
+                self.content.stroke();
+                // Thin bar at x + INTERLNSPACE
+                self.content.set_line_width(blw);
+                self.content.move_to(self.tx(x + inter), self.ty(top_y));
+                self.content.line_to(self.tx(x + inter), self.ty(bottom_y));
+                self.content.stroke();
+                // Dots right of thin bar: x + INTERLNSPACE + 0.4*lineSpace
+                let dot_x = x + inter + 0.4 * line_space;
+                self.draw_repeat_dots(top_y, bottom_y, dot_x, line_space);
+            }
+            BarLineType::RepeatRight => {
+                // OG PS_Repeat RPT_R: thin at left, thick at right, dots left of thin
+                // Thin bar at x
+                self.content.set_line_width(blw);
+                self.content.move_to(self.tx(x), self.ty(top_y));
+                self.content.line_to(self.tx(x), self.ty(bottom_y));
+                self.content.stroke();
+                // Thick bar at x + INTERLNSPACE + thickWidth/2
+                let thick_x = x + inter + thick_w / 2.0;
+                self.content.set_line_width(thick_w * self.state.scale_x);
+                self.content.move_to(self.tx(thick_x), self.ty(top_y));
+                self.content.line_to(self.tx(thick_x), self.ty(bottom_y));
+                self.content.stroke();
+                // Dots left of thin bar: x - 0.8*lineSpace
+                let dot_x = x - 0.8 * line_space;
+                self.draw_repeat_dots(top_y, bottom_y, dot_x, line_space);
+            }
+            BarLineType::RepeatBoth => {
+                // OG PS_Repeat RPT_LR: two thick bars, dots on both sides
+                // OG uses 70% thick width to avoid dot collision
+                let tw = thick_w * 0.7;
+                // Left thick bar at x
+                self.content.set_line_width(tw * self.state.scale_x);
+                self.content.move_to(self.tx(x), self.ty(top_y));
+                self.content.line_to(self.tx(x), self.ty(bottom_y));
+                self.content.stroke();
+                // Right thick bar at x + INTERLNSPACE + thickWidth/4
+                let x2 = x + inter + tw / 4.0;
+                self.content.move_to(self.tx(x2), self.ty(top_y));
+                self.content.line_to(self.tx(x2), self.ty(bottom_y));
+                self.content.stroke();
+                // Left dots (to the right of the bar group)
+                let dot_xl = x + inter + 0.4 * line_space;
+                self.draw_repeat_dots(top_y, bottom_y, dot_xl, line_space);
+                // Right dots (to the left of the bar group)
+                let dot_xr = x - 0.8 * line_space;
+                self.draw_repeat_dots(top_y, bottom_y, dot_xr, line_space);
             }
         }
     }
@@ -700,20 +773,12 @@ impl MusicRenderer for PdfRenderer {
         self.content.stroke();
     }
 
-    /// Draw repeat dots.
+    /// Draw repeat dots (trait method — delegates to draw_repeat_dots).
     /// Reference: PS_Stdio.cp, PS_Repeat(), line 1521
     fn repeat_dots(&mut self, top_y: f32, bottom_y: f32, x: f32) {
-        // Two dots placed at 1/3 and 2/3 of the staff height
-        let third = (bottom_y - top_y) / 3.0;
-        let dot_radius = 1.5; // points
-
-        self.sync_fill_color();
-        // Upper dot — approximate circle with 4 Bezier curves
-        let cy1 = top_y + third;
-        self.draw_circle(x, cy1, dot_radius);
-        // Lower dot
-        let cy2 = top_y + 2.0 * third;
-        self.draw_circle(x, cy2, dot_radius);
+        // Use default line_space based on staff height (4 lines → 3 spaces)
+        let line_space = (bottom_y - top_y) / 4.0;
+        self.draw_repeat_dots(top_y, bottom_y, x, line_space);
     }
 
     // ================== Musical Elements (5 methods) ==================
@@ -982,14 +1047,19 @@ impl MusicRenderer for PdfRenderer {
     /// Draw a text string.
     /// Reference: PS_Stdio.cp, PS_FontString(), line 1855
     fn text_string(&mut self, x: f32, y: f32, text: &str, font: &TextFont) {
-        // Use the built-in Helvetica family (standard PDF Type1 font).
-        // Select regular/bold/italic variant based on font style.
-        let font_name = if font.bold {
-            pdf_writer::Name(b"F1B")
-        } else if font.italic {
-            pdf_writer::Name(b"F1I")
-        } else {
-            pdf_writer::Name(b"F1")
+        // Select the correct standard PDF Type1 font family based on font name.
+        // Serif fonts (Times, Palatino, Briard, etc.) → Times-Roman family (F2*)
+        // Sans-serif fonts (Helvetica, Arial, etc.) → Helvetica family (F1*)
+        let is_serif = is_serif_font(&font.name);
+        let font_name = match (is_serif, font.bold, font.italic) {
+            (false, false, false) => pdf_writer::Name(b"F1"),
+            (false, true, false) => pdf_writer::Name(b"F1B"),
+            (false, false, true) => pdf_writer::Name(b"F1I"),
+            (false, true, true) => pdf_writer::Name(b"F1BI"),
+            (true, false, false) => pdf_writer::Name(b"F2"),
+            (true, true, false) => pdf_writer::Name(b"F2B"),
+            (true, false, true) => pdf_writer::Name(b"F2I"),
+            (true, true, true) => pdf_writer::Name(b"F2BI"),
         };
         let size = font.size.max(4.0); // minimum 4pt to avoid invisible text
         let tx = self.tx(x);
@@ -1129,10 +1199,30 @@ impl MusicRenderer for PdfRenderer {
 
 // Helper methods (not part of MusicRenderer trait)
 impl PdfRenderer {
+    /// Draw two repeat dots vertically centered on the staff middle two spaces.
+    ///
+    /// OG Nightingale uses MCH_dot (augmentation dot) at 150% size for fonts without
+    /// MCH_rptDots. We use filled circles positioned at staff spaces 2 and 3
+    /// (counting from top, for a 5-line staff: spaces between lines 2-3 and 3-4).
+    ///
+    /// Reference: PS_Stdio.cp PS_Repeat() lines 1530-1545
+    fn draw_repeat_dots(&mut self, top_y: f32, bottom_y: f32, x: f32, line_space: f32) {
+        let staff_height = bottom_y - top_y;
+        // Dot radius: about 25% of line_space (similar to augmentation dot at 150%)
+        let dot_radius = (line_space * 0.25).max(1.0);
+        self.sync_fill_color();
+        // Upper dot: 1.5 spaces below top = between lines 2-3
+        let cy1 = top_y + staff_height / 2.0 - line_space / 2.0;
+        self.draw_circle(x, cy1, dot_radius);
+        // Lower dot: 2.5 spaces below top = between lines 3-4
+        let cy2 = top_y + staff_height / 2.0 + line_space / 2.0;
+        self.draw_circle(x, cy2, dot_radius);
+    }
+
     /// Draw an approximate circle using 4 cubic Bezier curves.
     ///
     /// Uses the standard Bezier circle approximation:
-    /// control point offset = radius × 0.5522847498 (4/3 × (√2 − 1))
+    /// control point offset = radius * 0.5522847498 (4/3 * (sqrt(2) - 1))
     fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32) {
         let k = radius * 0.552_284_8;
 
@@ -1153,6 +1243,30 @@ impl PdfRenderer {
         self.content.close_path();
         self.content.fill_nonzero();
     }
+}
+
+/// Classify a font name as serif or sans-serif for PDF standard font selection.
+///
+/// Serif fonts map to Times-Roman family (F2*). Sans-serif map to Helvetica (F1*).
+/// Unknown fonts default to serif (more common in music engraving).
+fn is_serif_font(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    // Explicitly sans-serif fonts
+    if lower.contains("helvetica")
+        || lower.contains("arial")
+        || lower.contains("sans")
+        || lower.contains("gill")
+        || lower.contains("futura")
+        || lower.contains("avenir")
+        || lower.contains("verdana")
+        || lower.contains("tahoma")
+        || lower.contains("calibri")
+    {
+        return false;
+    }
+    // Everything else is treated as serif (Times, Palatino, Briard, Georgia,
+    // Garamond, Caslon, etc.). This is the safer default for music scores.
+    true
 }
 
 #[cfg(test)]
@@ -1183,9 +1297,9 @@ mod tests {
     #[test]
     fn test_pdf_renderer_bar_lines() {
         let mut r = PdfRenderer::new(200.0, 200.0);
-        r.bar_line(20.0, 60.0, 50.0, BarLineType::Single);
-        r.bar_line(20.0, 60.0, 100.0, BarLineType::Double);
-        r.bar_line(20.0, 60.0, 150.0, BarLineType::FinalDouble);
+        r.bar_line(20.0, 60.0, 50.0, BarLineType::Single, 10.0);
+        r.bar_line(20.0, 60.0, 100.0, BarLineType::Double, 10.0);
+        r.bar_line(20.0, 60.0, 150.0, BarLineType::FinalDouble, 10.0);
         let pdf_bytes = r.finish();
         assert!(pdf_bytes.starts_with(b"%PDF-"));
     }

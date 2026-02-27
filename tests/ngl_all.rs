@@ -13,7 +13,9 @@ mod common;
 use nightingale_core::defs::*;
 use nightingale_core::draw::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
-use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
+use nightingale_core::render::{
+    BitmapRenderer, CommandRenderer, MusicRenderer, PdfRenderer, RenderCommand,
+};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::fs;
@@ -353,7 +355,7 @@ fn test_all_ngl_render_and_geometry() {
 
 #[test]
 fn test_all_ngl_produce_valid_pdf() {
-    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    let output_dir = Path::new("test-output/ngl");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
     let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
@@ -571,7 +573,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("06_melyssa_with_a_y", 1887696396327157197),
         ("07_new_york_debutante", 10821857181363895931),
         ("08_darling_sunshine", 17755709699738733530),
-        ("09_swiss_ann", 2281075485808473331),
+        ("09_swiss_ann", 622171758577788941),
         ("10_ghost_of_fusion_bob", 2122799241293494887),
         ("11_philip", 6492066107507503555),
         ("12_what_do_i_know", 13276803914387902859),
@@ -579,7 +581,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("14_chrome_molly", 3594481448612645984),
         ("15_selfsame_twin", 7819116300661252069),
         ("16_esmerelda", 3402470770706270774),
-        ("17_capital_regiment_march", 16688206186782381679),
+        ("17_capital_regiment_march", 4674470539644159153),
     ]
     .into_iter()
     .collect();
@@ -628,11 +630,11 @@ fn test_all_ngl_command_stream_hashes() {
 // Bitmap regression: PDF page 1 rendered to PNG and compared pixel-by-pixel
 // ============================================================================
 
-// pdf_to_png and compare_images_and_diff are in tests/common/mod.rs
+// save_bitmap_page and compare_images_and_diff are in tests/common/mod.rs
 
-/// Visual regression test: PDF → PNG → pixel diff against golden.
+/// Visual regression test: BitmapRenderer → PNG → pixel diff against golden.
 ///
-/// Cross-platform: tries sips (macOS), pdftoppm (Linux), magick (ImageMagick).
+/// Uses pure-Rust BitmapRenderer (tiny-skia) — no external PDF-to-PNG tools needed.
 /// On mismatch, generates a visual diff image (matching pixels dimmed, diffs in red).
 ///
 /// Regenerate goldens: `REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression`
@@ -640,22 +642,20 @@ fn test_all_ngl_command_stream_hashes() {
 fn test_all_ngl_bitmap_regression() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
     let golden_dir = Path::new("tests/golden_bitmaps");
-    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
-    let diff_dir = Path::new("/tmp/nightingale-test-output/bitmap-diff");
-    fs::create_dir_all(output_dir).unwrap();
+    let diff_dir = Path::new("test-output/bitmap-diff");
     fs::create_dir_all(diff_dir).unwrap();
 
     let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let font_data = fs::read(font_path).ok();
 
     let mut mismatches = Vec::new();
-    let mut skipped = 0;
 
     for path in ALL_NGL_FILES {
         let name = short_name(path);
         let ngl = NglFile::read_from_file(path).unwrap();
         let score = interpret_heap(&ngl).unwrap();
 
-        // Render to PDF
+        // Get page dimensions from NGL header
         let (page_width, page_height) =
             nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
                 .map(|hdr| {
@@ -668,34 +668,24 @@ fn test_all_ngl_bitmap_regression() {
                 })
                 .unwrap_or((612.0, 792.0));
 
-        let mut pdf_renderer = PdfRenderer::new(page_width, page_height);
-        if font_path.exists() {
-            pdf_renderer.load_music_font_file(font_path);
+        // Render directly to bitmap (no PDF intermediate)
+        let mut bmp = BitmapRenderer::new(72.0); // 72 DPI = 1 pixel per point
+        bmp.set_page_size(page_width, page_height);
+        if let Some(ref data) = font_data {
+            bmp.load_music_font(data.clone());
         }
-        render_score(&score, &mut pdf_renderer);
-        let pdf_bytes = pdf_renderer.finish();
+        render_score(&score, &mut bmp);
+        // Flush any unfinished page
+        if bmp.page_count() == 0 {
+            bmp.end_page();
+        }
 
-        // Write PDF and convert page 1 to PNG
-        let pdf_path = output_dir.join(format!("{}.pdf", name));
-        fs::write(&pdf_path, &pdf_bytes).unwrap();
-
+        // Save page 1 as current PNG
         let current_png = diff_dir.join(format!("{}_current.png", name));
-        match common::pdf_to_png(&pdf_path, &current_png) {
-            Ok(true) => {} // success
-            Ok(false) => {
-                if skipped == 0 {
-                    eprintln!(
-                        "No PDF-to-PNG tool found (tried sips, pdftoppm, magick). \
-                         Bitmap regression tests will be skipped."
-                    );
-                }
-                skipped += 1;
-                continue;
-            }
-            Err(e) => {
-                eprintln!("[{}] PDF-to-PNG error: {}", name, e);
-                continue;
-            }
+        if let Err(e) = common::save_bitmap_page(&bmp, 0, &current_png) {
+            eprintln!("[{}] Save bitmap error: {}", name, e);
+            mismatches.push(format!("{} (error: {})", name, e));
+            continue;
         }
 
         let golden_path = golden_dir.join(format!("{}_page1.png", name));
@@ -715,13 +705,11 @@ fn test_all_ngl_bitmap_regression() {
         // Pixel-level comparison with visual diff output
         let diff_path = diff_dir.join(format!("{}_diff.png", name));
         match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
-            Ok((total, diff_pixels, diff_pct)) => {
+            Ok((_total, diff_pixels, diff_pct)) => {
                 if diff_pixels == 0 {
-                    // Perfect match — clean up
                     let _ = fs::remove_file(&current_png);
                     let _ = fs::remove_file(&diff_path);
                 } else {
-                    // Save golden copy alongside current and diff
                     let golden_copy = diff_dir.join(format!("{}_golden.png", name));
                     let _ = fs::copy(&golden_path, &golden_copy);
 
@@ -730,7 +718,7 @@ fn test_all_ngl_bitmap_regression() {
                          golden:  {}\n  current: {}\n  diff:    {}",
                         name,
                         diff_pixels,
-                        total,
+                        _total,
                         diff_pct,
                         golden_copy.display(),
                         current_png.display(),
@@ -746,19 +734,10 @@ fn test_all_ngl_bitmap_regression() {
         }
     }
 
-    if skipped == ALL_NGL_FILES.len() {
-        eprintln!(
-            "WARN: All {} bitmap tests skipped (no PDF-to-PNG tool). \
-             Install one of: sips (macOS), poppler-utils (pdftoppm), or ImageMagick (magick).",
-            skipped
-        );
-        return; // Don't fail — just warn
-    }
-
     if !regenerate && !mismatches.is_empty() {
         panic!(
             "Bitmap mismatches in {} fixture(s): {}\n\
-             Visual diff images: open /tmp/nightingale-test-output/bitmap-diff/\n\
+             Visual diff images: open test-output/bitmap-diff/\n\
              Regenerate goldens: REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression",
             mismatches.len(),
             mismatches.join(", ")

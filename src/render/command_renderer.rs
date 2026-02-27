@@ -149,7 +149,14 @@ impl MusicRenderer for CommandRenderer {
         });
     }
 
-    fn bar_line(&mut self, top_y: f32, bottom_y: f32, x: f32, bar_type: BarLineType) {
+    fn bar_line(
+        &mut self,
+        top_y: f32,
+        bottom_y: f32,
+        x: f32,
+        bar_type: BarLineType,
+        _line_space: f32,
+    ) {
         self.commands.push(RenderCommand::BarLine {
             top: top_y,
             bottom: bottom_y,
@@ -377,7 +384,7 @@ mod tests {
     #[test]
     fn test_bar_line() {
         let mut renderer = CommandRenderer::new();
-        renderer.bar_line(50.0, 100.0, 200.0, BarLineType::Double);
+        renderer.bar_line(50.0, 100.0, 200.0, BarLineType::Double, 6.0);
 
         assert_eq!(
             renderer.commands()[0],

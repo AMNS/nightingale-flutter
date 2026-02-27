@@ -14,7 +14,9 @@ use nightingale_core::draw::render_score;
 use nightingale_core::notelist::{
     notelist_to_score, notelist_to_score_with_config, parse_notelist, NotelistLayoutConfig,
 };
-use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
+use nightingale_core::render::{
+    BitmapRenderer, CommandRenderer, MusicRenderer, PdfRenderer, RenderCommand,
+};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::fs;
@@ -332,7 +334,7 @@ fn test_all_notelists_render_and_geometry() {
 
 #[test]
 fn test_all_notelists_produce_valid_pdf() {
-    let output_dir = Path::new("/tmp/nightingale-test-output/notelists");
+    let output_dir = Path::new("test-output/notelists");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
     let config = NotelistLayoutConfig::default();
@@ -595,27 +597,28 @@ fn test_all_notelists_command_stream_hashes() {
 }
 
 // ============================================================================
-// 7. Bitmap regression (Notelist → PDF → PNG → pixel diff against golden)
+// 7. Bitmap regression (Notelist → BitmapRenderer → PNG → pixel diff against golden)
 // ============================================================================
 
-// pdf_to_png and compare_images_and_diff are in tests/common/mod.rs
+// save_bitmap_page and compare_images_and_diff are in tests/common/mod.rs
 
-/// Bitmap regression for all Notelist fixtures.
+/// Visual regression test: BitmapRenderer → PNG → pixel diff against golden.
+///
+/// Uses pure-Rust BitmapRenderer (tiny-skia) — no external PDF-to-PNG tools needed.
+/// On mismatch, generates a visual diff image (matching pixels dimmed, diffs in red).
 ///
 /// Regenerate goldens: `REGENERATE_REFS=1 cargo test test_all_notelists_bitmap_regression`
 #[test]
 fn test_all_notelists_bitmap_regression() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
     let golden_dir = Path::new("tests/golden_bitmaps");
-    let output_dir = Path::new("/tmp/nightingale-test-output/notelists");
-    let diff_dir = Path::new("/tmp/nightingale-test-output/notelist-bitmap-diff");
-    fs::create_dir_all(output_dir).unwrap();
+    let diff_dir = Path::new("test-output/notelist-bitmap-diff");
     fs::create_dir_all(diff_dir).unwrap();
 
     let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let font_data = fs::read(font_path).ok();
     let config = NotelistLayoutConfig::default();
     let mut mismatches = Vec::new();
-    let mut skipped = 0;
 
     for path in ALL_NOTELISTS {
         let name = short_name(path);
@@ -636,33 +639,24 @@ fn test_all_notelists_bitmap_regression() {
         };
         let score = notelist_to_score_with_config(&notelist, &config);
 
-        // Render to PDF
-        let mut pdf_renderer =
-            PdfRenderer::new(config.page_width as f32, config.page_height as f32);
-        if font_path.exists() {
-            pdf_renderer.load_music_font_file(font_path);
+        // Render directly to bitmap (no PDF intermediate)
+        let mut bmp = BitmapRenderer::new(72.0); // 72 DPI = 1 pixel per point
+        bmp.set_page_size(config.page_width as f32, config.page_height as f32);
+        if let Some(ref data) = font_data {
+            bmp.load_music_font(data.clone());
         }
-        render_score(&score, &mut pdf_renderer);
-        let pdf_bytes = pdf_renderer.finish();
+        render_score(&score, &mut bmp);
+        // Flush any unfinished page
+        if bmp.page_count() == 0 {
+            bmp.end_page();
+        }
 
-        let pdf_path = output_dir.join(format!("{}.pdf", name));
-        fs::write(&pdf_path, &pdf_bytes).unwrap();
-
-        // Convert to PNG
+        // Save page 1 as current PNG
         let current_png = diff_dir.join(format!("{}_current.png", name));
-        match common::pdf_to_png(&pdf_path, &current_png) {
-            Ok(true) => {}
-            Ok(false) => {
-                if skipped == 0 {
-                    eprintln!("No PDF-to-PNG tool found. Bitmap tests skipped.");
-                }
-                skipped += 1;
-                continue;
-            }
-            Err(e) => {
-                eprintln!("[{}] PDF-to-PNG error: {}", name, e);
-                continue;
-            }
+        if let Err(e) = common::save_bitmap_page(&bmp, 0, &current_png) {
+            eprintln!("[{}] Save bitmap error: {}", name, e);
+            mismatches.push(format!("{} (error: {})", name, e));
+            continue;
         }
 
         let golden_path = golden_dir.join(format!("nl_{}_page1.png", name));
@@ -674,38 +668,50 @@ fn test_all_notelists_bitmap_regression() {
         }
 
         if !golden_path.exists() {
-            eprintln!(
-                "[{}] No golden bitmap (run REGENERATE_REFS=1 to create)",
-                name
-            );
+            eprintln!("[{}] No golden bitmap at {}", name, golden_path.display());
+            mismatches.push(format!("{} (no golden)", name));
             continue;
         }
 
+        // Pixel-level comparison with visual diff output
         let diff_path = diff_dir.join(format!("{}_diff.png", name));
         match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
-            Ok((_total, diff_px, pct)) => {
-                if diff_px > 0 {
+            Ok((_total, diff_pixels, diff_pct)) => {
+                if diff_pixels == 0 {
+                    let _ = fs::remove_file(&current_png);
+                    let _ = fs::remove_file(&diff_path);
+                } else {
+                    let golden_copy = diff_dir.join(format!("{}_golden.png", name));
+                    let _ = fs::copy(&golden_path, &golden_copy);
+
                     eprintln!(
-                        "[{}] BITMAP MISMATCH: {} pixels differ ({:.2}%) — see {}",
+                        "[{}] BITMAP MISMATCH: {}/{} pixels differ ({:.2}%)\n  \
+                         golden:  {}\n  current: {}\n  diff:    {}",
                         name,
-                        diff_px,
-                        pct,
-                        diff_path.display()
+                        diff_pixels,
+                        _total,
+                        diff_pct,
+                        golden_copy.display(),
+                        current_png.display(),
+                        diff_path.display(),
                     );
-                    mismatches.push(name.clone());
+                    mismatches.push(format!("{} ({:.2}% diff)", name, diff_pct));
                 }
             }
-            Err(e) => eprintln!("[{}] diff error: {}", name, e),
+            Err(e) => {
+                eprintln!("[{}] Comparison error: {}", name, e);
+                mismatches.push(format!("{} (error: {})", name, e));
+            }
         }
     }
 
-    if !mismatches.is_empty() {
+    if !regenerate && !mismatches.is_empty() {
         panic!(
-            "Notelist bitmap mismatches: {:?}\n\
-             Diff images at: {}\n\
-             Run REGENERATE_REFS=1 to update goldens after intentional changes.",
-            mismatches,
-            diff_dir.display()
+            "Notelist bitmap mismatches in {} fixture(s): {}\n\
+             Visual diff images: open test-output/notelist-bitmap-diff/\n\
+             Regenerate goldens: REGENERATE_REFS=1 cargo test test_all_notelists_bitmap_regression",
+            mismatches.len(),
+            mismatches.join(", ")
         );
     }
 }

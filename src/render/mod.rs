@@ -22,11 +22,13 @@
 //! - Original C++ code: PS_Stdio.cp (2,388 lines)
 //! - Design notes: RENDERING_QUICK_REFERENCE.md
 
+pub mod bitmap_renderer;
 pub mod command;
 pub mod command_renderer;
 pub mod pdf_renderer;
 pub mod types;
 
+pub use bitmap_renderer::BitmapRenderer;
 pub use command::RenderCommand;
 pub use command_renderer::CommandRenderer;
 pub use pdf_renderer::PdfRenderer;
@@ -123,8 +125,17 @@ pub trait MusicRenderer {
 
     /// Draw a bar line.
     ///
-    /// Reference: PS_Stdio.cp, PS_BarLine(), line 1473
-    fn bar_line(&mut self, top_y: f32, bottom_y: f32, x: f32, bar_type: BarLineType);
+    /// `line_space` is the staff interline distance in render coordinates (pt).
+    /// Used for double/final/repeat barline proportions (OG: INTERLNSPACE, THICKBARLINE).
+    /// Reference: PS_Stdio.cp, PS_BarLine(), line 1473; PS_Repeat(), line 1521
+    fn bar_line(
+        &mut self,
+        top_y: f32,
+        bottom_y: f32,
+        x: f32,
+        bar_type: BarLineType,
+        line_space: f32,
+    );
 
     /// Draw a system connector line (vertical line connecting multiple staves).
     ///

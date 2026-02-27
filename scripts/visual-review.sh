@@ -9,7 +9,7 @@
 #   ./scripts/visual-review.sh            # show diff summary + open HTML report
 #   ./scripts/visual-review.sh --no-open  # summary only (CI-friendly)
 #
-# Output: /tmp/nightingale-test-output/golden-diff/
+# Output: test-output/golden-diff/
 #   review.html            — interactive HTML diff report
 #   {name}_old.png         — committed version
 #   {name}_new.png         — current version
@@ -23,7 +23,7 @@ echo ""
 # Run the golden_diff test with output
 cargo test --test golden_diff -- --nocapture 2>&1
 
-DIFF_DIR="/tmp/nightingale-test-output/golden-diff"
+DIFF_DIR="test-output/golden-diff"
 REPORT="$DIFF_DIR/review.html"
 
 # Open HTML report if it exists and has diffs

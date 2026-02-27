@@ -219,7 +219,7 @@ with the pixel diff percentage and a path to the diff image.
 # Or run the Rust test directly:
 cargo test --test golden_diff -- --nocapture
 
-# Diff images go to /tmp/nightingale-test-output/golden-diff/
+# Diff images go to test-output/golden-diff/
 #   {name}_old.png   — committed version
 #   {name}_new.png   — current version
 #   {name}_diff.png  — visual diff (matching=dimmed, changed=red)

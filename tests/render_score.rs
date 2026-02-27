@@ -29,7 +29,7 @@ fn count_by_name(commands: &[RenderCommand], name: &str) -> usize {
 fn test_notelist_hbd33_render_to_pdf() {
     use nightingale_core::notelist::{notelist_to_score, parse_notelist, NotelistLayoutConfig};
 
-    let output_dir = Path::new("/tmp/nightingale-test-output");
+    let output_dir = Path::new("test-output");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
     // 1. Parse Notelist
@@ -629,7 +629,7 @@ fn test_tuplet_triplet_rendering() {
     );
 
     // Generate PDF for visual inspection
-    let output_dir = std::path::Path::new("/tmp/nightingale-test-output");
+    let output_dir = std::path::Path::new("test-output");
     std::fs::create_dir_all(output_dir).ok();
     let mut pdf_renderer = PdfRenderer::new(612.0, 792.0);
     render_score(&score, &mut pdf_renderer);
@@ -662,7 +662,7 @@ fn test_ngl_interpret_and_render_all_fixtures() {
         .collect();
     files.sort();
 
-    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    let output_dir = Path::new("test-output/ngl");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
     println!(
@@ -934,7 +934,7 @@ fn test_ngl_capital_regiment_march() {
     assert!(rnd_staff > 0, "Should render staff lines");
 
     // Generate PDF for visual comparison using actual page dimensions from NGL header
-    let output_dir = Path::new("/tmp/nightingale-test-output/ngl");
+    let output_dir = Path::new("test-output/ngl");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
     let mut pdf_renderer = PdfRenderer::new(page_w as f32, page_h as f32);
     let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");

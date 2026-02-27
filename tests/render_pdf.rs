@@ -2,7 +2,7 @@
 //
 // These tests verify that PdfRenderer (pdf-writer backend) correctly
 // implements the MusicRenderer trait by generating real PDF files.
-// PDFs are saved to /tmp/nightingale-test-output/ for visual inspection.
+// PDFs are saved to test-output/ for visual inspection.
 //
 // For automated comparison, use `sips` (macOS) or Ghostscript to convert
 // PDF→PNG, then compare against blessed bitmaps.
@@ -15,7 +15,7 @@ use std::path::Path;
 
 /// Helper to create test output directory
 fn ensure_output_dir() -> String {
-    let dir = "/tmp/nightingale-test-output";
+    let dir = "test-output";
     fs::create_dir_all(dir).expect("Failed to create test output directory");
     dir.to_string()
 }
@@ -70,13 +70,13 @@ fn test_pdf_bar_line_types() {
     r.staff(staff_y, 72.0, 540.0, 5, line_sp);
 
     // Single
-    r.bar_line(staff_y, bottom, 120.0, BarLineType::Single);
+    r.bar_line(staff_y, bottom, 120.0, BarLineType::Single, line_sp);
     // Double
-    r.bar_line(staff_y, bottom, 220.0, BarLineType::Double);
+    r.bar_line(staff_y, bottom, 220.0, BarLineType::Double, line_sp);
     // Final double
-    r.bar_line(staff_y, bottom, 320.0, BarLineType::FinalDouble);
+    r.bar_line(staff_y, bottom, 320.0, BarLineType::FinalDouble, line_sp);
     // Repeat left
-    r.bar_line(staff_y, bottom, 420.0, BarLineType::RepeatLeft);
+    r.bar_line(staff_y, bottom, 420.0, BarLineType::RepeatLeft, line_sp);
 
     write_pdf(r, "pdf_bar_line_types");
 }
@@ -386,10 +386,22 @@ fn test_pdf_bracket_and_brace() {
     r.connector_line(staff1_y, staff2_bottom, 80.0);
 
     // Bar lines across both staves
-    r.bar_line(staff1_y, staff1_bottom, 80.0, BarLineType::Single);
-    r.bar_line(staff2_y, staff2_bottom, 80.0, BarLineType::Single);
-    r.bar_line(staff1_y, staff1_bottom, 540.0, BarLineType::FinalDouble);
-    r.bar_line(staff2_y, staff2_bottom, 540.0, BarLineType::FinalDouble);
+    r.bar_line(staff1_y, staff1_bottom, 80.0, BarLineType::Single, line_sp);
+    r.bar_line(staff2_y, staff2_bottom, 80.0, BarLineType::Single, line_sp);
+    r.bar_line(
+        staff1_y,
+        staff1_bottom,
+        540.0,
+        BarLineType::FinalDouble,
+        line_sp,
+    );
+    r.bar_line(
+        staff2_y,
+        staff2_bottom,
+        540.0,
+        BarLineType::FinalDouble,
+        line_sp,
+    );
 
     write_pdf(r, "pdf_bracket_brace");
 }
@@ -523,7 +535,13 @@ fn test_pdf_multipage() {
 
     // Page 1: treble staff with notes
     r.staff(72.0, 72.0, 540.0, 5, line_sp);
-    r.bar_line(72.0, 72.0 + 4.0 * line_sp, 72.0, BarLineType::Single);
+    r.bar_line(
+        72.0,
+        72.0 + 4.0 * line_sp,
+        72.0,
+        BarLineType::Single,
+        line_sp,
+    );
     r.music_char(
         150.0,
         72.0 + 3.0 * line_sp,
@@ -536,12 +554,24 @@ fn test_pdf_multipage() {
         MusicGlyph::smufl(0xE0A3),
         100.0,
     );
-    r.bar_line(72.0, 72.0 + 4.0 * line_sp, 540.0, BarLineType::Single);
+    r.bar_line(
+        72.0,
+        72.0 + 4.0 * line_sp,
+        540.0,
+        BarLineType::Single,
+        line_sp,
+    );
 
     // Page 2
     r.begin_page(2);
     r.staff(72.0, 72.0, 540.0, 5, line_sp);
-    r.bar_line(72.0, 72.0 + 4.0 * line_sp, 72.0, BarLineType::Single);
+    r.bar_line(
+        72.0,
+        72.0 + 4.0 * line_sp,
+        72.0,
+        BarLineType::Single,
+        line_sp,
+    );
     r.music_char(
         150.0,
         72.0 + 1.0 * line_sp,
@@ -554,7 +584,13 @@ fn test_pdf_multipage() {
         MusicGlyph::smufl(0xE0A3),
         100.0,
     );
-    r.bar_line(72.0, 72.0 + 4.0 * line_sp, 540.0, BarLineType::FinalDouble);
+    r.bar_line(
+        72.0,
+        72.0 + 4.0 * line_sp,
+        540.0,
+        BarLineType::FinalDouble,
+        line_sp,
+    );
 
     write_pdf(r, "pdf_multipage");
 }
@@ -574,7 +610,7 @@ fn test_pdf_complete_measure() {
     r.staff(staff_y, 72.0, 540.0, 5, line_sp);
 
     // Opening bar line
-    r.bar_line(staff_y, bottom, 72.0, BarLineType::Single);
+    r.bar_line(staff_y, bottom, 72.0, BarLineType::Single, line_sp);
 
     // Four quarter notes (C5, D5, E5, F5 — ascending from middle line)
     let notes = [
@@ -622,7 +658,7 @@ fn test_pdf_complete_measure() {
     );
 
     // Final bar line
-    r.bar_line(staff_y, bottom, 460.0, BarLineType::FinalDouble);
+    r.bar_line(staff_y, bottom, 460.0, BarLineType::FinalDouble, line_sp);
 
     write_pdf(r, "pdf_complete_measure");
 }
@@ -644,7 +680,7 @@ fn test_pdf_repeat_dots() {
     r.repeat_dots(staff_y, bottom, 520.0);
 
     // Repeat bar line + dots
-    r.bar_line(staff_y, bottom, 530.0, BarLineType::RepeatRight);
+    r.bar_line(staff_y, bottom, 530.0, BarLineType::RepeatRight, line_sp);
 
     write_pdf(r, "pdf_repeat_dots");
 }

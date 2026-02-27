@@ -150,6 +150,47 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO/ENDING sections
 - [ ] Port Slurs.cp cross-system continuation logic
 
+## Rendering & Testing Architecture (DECIDED)
+
+Three rendering layers, all implementing the same `MusicRenderer` trait:
+
+### Layer 1: PdfRenderer (done)
+PDF output via `pdf-writer`. Maps MusicRenderer methods to PDF content stream operators.
+Used for document export / printing. Embeds Bravura SMuFL font.
+
+### Layer 2: BitmapRenderer (next up)
+Pure-Rust bitmap rendering via `tiny-skia` + `ttf-parser`/`ab_glyph`.
+Used for **test-loop visual regression** — runs in `cargo test` with zero external
+dependencies. Produces per-page PNGs directly (no PDF→PNG conversion tooling needed).
+Enables the autonomous render→inspect→fix cycle.
+
+### Layer 3: Flutter Canvas (production UI)
+Flutter's Skia-backed Canvas via `flutter_rust_bridge`. The real UI renderer.
+Architecture: Rust sends `RenderCommand` stream → Dart replays on Canvas → CustomPaint.
+
+### Visual regression strategy
+- **Rust tests** (`cargo test`): BitmapRenderer produces PNGs, compared against golden
+  bitmaps pixel-by-pixel. Fast, CI-friendly, no system dependencies.
+- **Flutter golden tests** (`flutter test`): CommandRenderer captures command stream →
+  Dart test replays on real Flutter Canvas → `matchesGoldenFile()` comparison.
+  Ensures visual fidelity with production output.
+- **Command-stream hashes**: structural regression check independent of rendering.
+
+### Flutter visual diff UI (future)
+Interactive diff review tool built in Flutter. Features:
+- **Overlay mode**: superimpose old/new renders with variable opacity slider
+- **A/B toggle**: tap to flip between before/after
+- **Zoom & pan**: inspect fine details (stem widths, glyph alignment)
+- **Batch approval**: review all changed goldens, approve/reject per-file
+- **Side-by-side**: old | diff | new (like the current HTML report, but interactive)
+
+This replaces the current static HTML diff report and enables rapid human approval
+of intentional rendering changes during the engraving polish phase.
+
+### VexFlow test suite (future)
+Translate VexFlow's visual regression tests to Notelist format for broad coverage
+of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
+
 ## Phase 4: Flutter Shell — NOT STARTED
 - [ ] flutter_rust_bridge setup
 - [ ] FlutterRenderer backend (command-based -> CustomPaint)

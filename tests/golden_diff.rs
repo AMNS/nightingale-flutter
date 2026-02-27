@@ -6,7 +6,7 @@
 //!
 //! Run:  cargo test --test golden_diff -- --nocapture
 //!
-//! Output goes to /tmp/nightingale-test-output/golden-diff/
+//! Output goes to test-output/golden-diff/
 //! Each changed file gets three images:
 //!   {name}_old.png    — committed version (from git HEAD)
 //!   {name}_new.png    — current working-tree version
@@ -19,8 +19,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-const DIFF_DIR: &str = "/tmp/nightingale-test-output/golden-diff";
-const REPORT_PATH: &str = "/tmp/nightingale-test-output/golden-diff/review.html";
+const DIFF_DIR: &str = "test-output/golden-diff";
+const REPORT_PATH: &str = "test-output/golden-diff/review.html";
 
 /// Extract a file's contents from git HEAD.
 fn git_show_head(repo_file: &str) -> Option<Vec<u8>> {

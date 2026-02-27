@@ -266,7 +266,15 @@ pub fn draw_measure(
                     let top_y = ddist_to_render(measure_ctx.staff_top);
                     let bottom_y = d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height);
                     let bar_type = map_barline_type(ameasure.header.sub_type);
-                    renderer.bar_line(top_y, bottom_y, x, bar_type);
+                    // lineSpace = staffHeight / (staffLines - 1), in render coords (pt)
+                    let ls_render = if measure_ctx.staff_lines > 1 {
+                        ddist_to_render(
+                            measure_ctx.staff_height / (measure_ctx.staff_lines as i16 - 1),
+                        )
+                    } else {
+                        ddist_to_render(measure_ctx.staff_height)
+                    };
+                    renderer.bar_line(top_y, bottom_y, x, bar_type, ls_render);
                 }
 
                 // --- Measure number ---
@@ -1518,13 +1526,20 @@ fn resolve_graphic_font(
 }
 
 /// Map OG Nightingale Mac font names to modern equivalents.
+///
+/// The PdfRenderer classifies serif vs sans-serif from the name and maps to
+/// Times-Roman or Helvetica standard PDF fonts, so the primary goal here is
+/// to preserve the serif/sans-serif classification for unknown fonts.
 fn map_mac_font_name(name: &str) -> String {
     match name {
-        "Times" | "Times New Roman" => "Times New Roman".to_string(),
-        "Helvetica" | "Arial" => "Helvetica".to_string(),
-        "Courier" | "Courier New" => "Courier".to_string(),
-        "Palatino" => "Palatino".to_string(),
-        _ => name.to_string(), // Pass through unknown names
+        "Times" | "Times New Roman" | "New York" => "Times New Roman".to_string(),
+        "Helvetica" | "Arial" | "Geneva" | "Chicago" => "Helvetica".to_string(),
+        "Courier" | "Courier New" | "Monaco" => "Courier".to_string(),
+        "Palatino" | "Palatino Linotype" => "Palatino".to_string(),
+        // Decorative/calligraphic serif fonts — map to Times family so the
+        // PDF renderer selects Times-Roman (closer in width than Helvetica).
+        "Briard" | "Zapf Chancery" | "Apple Chancery" | "Zapfino" => "Times New Roman".to_string(),
+        _ => name.to_string(), // Pass through — PdfRenderer will classify
     }
 }
 

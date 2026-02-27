@@ -5,6 +5,7 @@
 #![allow(dead_code)]
 
 use image::{GenericImageView, Rgba, RgbaImage};
+use nightingale_core::render::BitmapRenderer;
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::path::Path;
@@ -75,6 +76,26 @@ pub fn pdf_to_png(pdf_path: &Path, png_path: &Path) -> Result<bool, String> {
     }
 
     Ok(false)
+}
+
+/// Save a BitmapRenderer page as a PNG file using the `image` crate.
+///
+/// Converts from tiny-skia's premultiplied RGBA to straight RGBA for PNG encoding.
+/// For opaque pixels (alpha=255), premultiplied and straight are identical.
+pub fn save_bitmap_page(
+    renderer: &BitmapRenderer,
+    page: usize,
+    path: &Path,
+) -> Result<bool, String> {
+    let data = renderer.page_data(page).ok_or("page not found")?;
+    let (w, h) = renderer.page_dimensions(page).ok_or("page not found")?;
+
+    // tiny-skia stores premultiplied RGBA. For fully-opaque rendering (our case),
+    // premultiplied == straight, so we can use the bytes directly.
+    let img =
+        RgbaImage::from_raw(w, h, data.to_vec()).ok_or("failed to create image from pixel data")?;
+    img.save(path).map_err(|e| format!("save PNG: {}", e))?;
+    Ok(true)
 }
 
 /// Compare two images pixel-by-pixel and generate a visual diff.
