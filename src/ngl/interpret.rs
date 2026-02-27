@@ -959,7 +959,49 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 filler: 0,
             }),
 
-            RPTEND_TYPE | CONNECT_TYPE | DYNAMIC_TYPE => {
+            DYNAMIC_TYPE => {
+                // N105 DYNAMIC_5 object: 30 bytes on disk (mac68k padded)
+                // 0-22:  OBJECTHEADER_5 (23 bytes)
+                // 23:    dynamicType (SignedByte) — 1-21=text, 22=dim hairpin, 23=cresc hairpin
+                // 24:    filler:7 | crossSys:1 (bitfield)
+                // 25:    [mac68k padding — aligns LINK to even offset]
+                // 26-27: firstSyncL (LINK) — sync the dynamic/hairpin start is attached to
+                // 28-29: lastSyncL (LINK) — sync hairpin end is attached to, or NILINK
+                // Total: 30 bytes (N105_OBJ_SIZES[13])
+                // Source: NObjTypesN105.h lines 370-377, DrawObject.cp:1226-1324
+                let dynamic_type = if obj_bytes.len() > 23 {
+                    obj_bytes[23] as i8
+                } else {
+                    0
+                };
+                let b24 = if obj_bytes.len() > 24 {
+                    obj_bytes[24]
+                } else {
+                    0
+                };
+                let cross_sys = (b24 & 0x01) != 0;
+                // Byte 25 is mac68k padding (LINK must be at even offset)
+                let first_sync_l = if obj_bytes.len() > 27 {
+                    u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                } else {
+                    NILINK
+                };
+                let last_sync_l = if obj_bytes.len() > 29 {
+                    u16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                } else {
+                    NILINK
+                };
+                ObjData::Dynamic(Dynamic {
+                    header: header.clone(),
+                    dynamic_type,
+                    filler: false,
+                    cross_sys,
+                    first_sync_l,
+                    last_sync_l,
+                })
+            }
+
+            RPTEND_TYPE | CONNECT_TYPE => {
                 // Simple objects with minimal unpacking for now
                 ObjData::GrSync(GrSync {
                     header: header.clone(),
@@ -1179,6 +1221,27 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !notetuples.is_empty() {
                     score.tuplets.insert(obj.header.first_sub_obj, notetuples);
+                }
+            }
+
+            DYNAMIC_TYPE => {
+                // Unpack ADYNAMIC subobjects (14 bytes each)
+                // Source: NObjTypesN105.h lines 359-368
+                let mut dynamics = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(dyn_sub) =
+                            unpack_adynamic_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            dynamics.push(dyn_sub);
+                        }
+                    }
+                }
+                if !dynamics.is_empty() {
+                    score.dynamics.insert(obj.header.first_sub_obj, dynamics);
                 }
             }
 

@@ -12,8 +12,8 @@ use crate::render::MusicRenderer;
 use super::draw_beam::draw_beamset;
 use super::draw_nrgr::{collect_slur_endpoints, collect_tie_endpoints, draw_sync};
 use super::draw_object::{
-    draw_clef, draw_connect, draw_keysig, draw_measure, draw_slur, draw_slurs_from_endpoints,
-    draw_staff, draw_ties, draw_timesig,
+    draw_clef, draw_connect, draw_dynamic, draw_keysig, draw_measure, draw_slur,
+    draw_slurs_from_endpoints, draw_staff, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
 use super::helpers::{count_staves, TieEndpoint};
@@ -113,7 +113,8 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             ObjData::BeamSet(_) => draw_beamset(score, obj, &ctx, renderer),
             ObjData::Tuplet(_) => draw_tuplet(score, obj, &ctx, renderer),
             ObjData::Slur(_) => draw_slur(score, obj, &ctx, renderer),
-            // TODO: Dynamic, Tempo, Graphic, Ottava, Ending, etc.
+            ObjData::Dynamic(_) => draw_dynamic(score, obj, &ctx, renderer),
+            // TODO: Tempo, Graphic, Ottava, Ending, etc.
             _ => {}
         }
     }

@@ -773,3 +773,235 @@ pub fn draw_slurs_from_endpoints(
         // else: unmatched slur start — cross-system slur (TODO)
     }
 }
+
+// =============================================================================
+// DYNAMIC rendering — port of DrawDYNAMIC (DrawObject.cp:1226-1324)
+// =============================================================================
+
+/// SMuFL codepoints for dynamic text markings.
+/// Range U+E520..U+E54F (dynamics).
+/// Reference: SMuFL spec §4.52 "Dynamics"
+#[allow(dead_code)]
+mod dyn_glyphs {
+    pub const DYNAMIC_PIANO: u32 = 0xE520;
+    pub const DYNAMIC_MEZZO: u32 = 0xE521;
+    pub const DYNAMIC_FORTE: u32 = 0xE522;
+    pub const DYNAMIC_RINFORZANDO: u32 = 0xE523; // 'r' used in rf, rfz
+    pub const DYNAMIC_SFORZANDO: u32 = 0xE524; // 's' used in sf, sfz
+    pub const DYNAMIC_Z: u32 = 0xE525; // 'z' used in fz, sfz, rfz
+
+    // Combined dynamics (single glyphs for common markings)
+    pub const DYNAMIC_PPPPPP: u32 = 0xE527;
+    pub const DYNAMIC_PPPPP: u32 = 0xE528;
+    pub const DYNAMIC_PPPP: u32 = 0xE529;
+    pub const DYNAMIC_PPP: u32 = 0xE52A;
+    pub const DYNAMIC_PP: u32 = 0xE52B;
+    pub const DYNAMIC_MP: u32 = 0xE52C;
+    pub const DYNAMIC_MF: u32 = 0xE52D;
+    pub const DYNAMIC_FF: u32 = 0xE52F;
+    pub const DYNAMIC_FFF: u32 = 0xE530;
+    pub const DYNAMIC_FFFF: u32 = 0xE531;
+    pub const DYNAMIC_FFFFF: u32 = 0xE532;
+    pub const DYNAMIC_FFFFFF: u32 = 0xE533;
+    pub const DYNAMIC_FP: u32 = 0xE534;
+    pub const DYNAMIC_FZ: u32 = 0xE535;
+    pub const DYNAMIC_SF: u32 = 0xE536;
+    pub const DYNAMIC_SFP: u32 = 0xE537;
+    pub const DYNAMIC_SFZ: u32 = 0xE53B;
+    pub const DYNAMIC_RF: u32 = 0xE53C;
+    pub const DYNAMIC_RFZ: u32 = 0xE53D;
+}
+
+/// Map a Nightingale dynamic type (1-21) to a SMuFL glyph codepoint.
+///
+/// OG mapping: DrawUtils.cp GetDynamicDrawInfo() lines 495-520, defs.h MCH_* constants.
+/// Nightingale uses Sonata font chars; we map to SMuFL combined dynamic glyphs.
+fn dynamic_type_to_smufl(dynamic_type: i8) -> Option<u32> {
+    match dynamic_type {
+        1 => Some(dyn_glyphs::DYNAMIC_PPPP),  // PPPP_DYNAM
+        2 => Some(dyn_glyphs::DYNAMIC_PPP),   // PPP_DYNAM
+        3 => Some(dyn_glyphs::DYNAMIC_PP),    // PP_DYNAM
+        4 => Some(dyn_glyphs::DYNAMIC_PIANO), // P_DYNAM (single p)
+        5 => Some(dyn_glyphs::DYNAMIC_MP),    // MP_DYNAM
+        6 => Some(dyn_glyphs::DYNAMIC_MF),    // MF_DYNAM
+        7 => Some(dyn_glyphs::DYNAMIC_FORTE), // F_DYNAM (single f)
+        8 => Some(dyn_glyphs::DYNAMIC_FF),    // FF_DYNAM
+        9 => Some(dyn_glyphs::DYNAMIC_FFF),   // FFF_DYNAM
+        10 => Some(dyn_glyphs::DYNAMIC_FFFF), // FFFF_DYNAM
+        // Relative dynamics (11-14): più piano, meno piano, meno forte, più forte
+        // No standard SMuFL combined glyph — build from individual chars
+        11 => Some(dyn_glyphs::DYNAMIC_PIANO), // più p (TODO: composite)
+        12 => Some(dyn_glyphs::DYNAMIC_PIANO), // meno p (TODO: composite)
+        13 => Some(dyn_glyphs::DYNAMIC_FORTE), // meno f (TODO: composite)
+        14 => Some(dyn_glyphs::DYNAMIC_FORTE), // più f (TODO: composite)
+        // Sforzando variants (15-21)
+        15 => Some(dyn_glyphs::DYNAMIC_SF),  // SF_DYNAM
+        16 => Some(dyn_glyphs::DYNAMIC_FZ),  // FZ_DYNAM
+        17 => Some(dyn_glyphs::DYNAMIC_SFZ), // SFZ_DYNAM
+        18 => Some(dyn_glyphs::DYNAMIC_RF),  // RF_DYNAM
+        19 => Some(dyn_glyphs::DYNAMIC_RFZ), // RFZ_DYNAM
+        20 => Some(dyn_glyphs::DYNAMIC_FP),  // FP_DYNAM
+        21 => Some(dyn_glyphs::DYNAMIC_SFP), // SFP_DYNAM
+        _ => None,                           // Hairpins (22-23) or unknown
+    }
+}
+
+/// Draw a Dynamic object — hairpins and text dynamic markings.
+///
+/// Port of DrawDYNAMIC (DrawObject.cp:1226-1324) and DrawHairpin (DrawObject.cp:1129-1219).
+///
+/// For hairpins (dim/cresc):
+///   - Two lines forming a wedge, with mouth on one end and point on the other
+///   - DIM_DYNAM (22): mouth at start, point at end (diminuendo ">")
+///   - CRESC_DYNAM (23): point at start, mouth at end (crescendo "<")
+///   - Line width: config.hairpinLW (12%) * lnSpace / 100
+///   - Rise = qd2d(mouthWidth) / 2, offset = qd2d(otherWidth) / 2
+///
+/// For text dynamics (pp, f, mf, sf, etc.):
+///   - Position at firstSyncL.xd + aDynamic.xd, measureTop + aDynamic.yd
+///   - SMuFL glyph from dynamic_type_to_smufl()
+///
+/// Reference: DrawObject.cp:1226-1324, DrawUtils.cp:466-520, PS_Stdio.cp:1351
+pub fn draw_dynamic(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::ngl::interpret::ObjData;
+    use crate::obj_types::FIRSTHAIRPIN_DYNAM;
+    use crate::render::types::ddist_wide_to_render;
+
+    let dyn_obj = match &obj.data {
+        ObjData::Dynamic(d) => d,
+        _ => return,
+    };
+
+    // Get ADYNAMIC subobjects
+    let adynamic_list = match score.dynamics.get(&obj.header.first_sub_obj) {
+        Some(subs) => subs,
+        None => return,
+    };
+
+    // config.hairpinLW = 12 (percent of a space)
+    // Reference: Initialize.cp:964, HAIRPINLW_DFLT = 12
+    const HAIRPIN_LW_PCT: i32 = 12;
+
+    for adynamic in adynamic_list {
+        // Get staff context
+        let staff_ctx = match ctx.get(adynamic.header.staffn) {
+            Some(c) => c,
+            None => continue,
+        };
+
+        if !staff_ctx.visible || !adynamic.header.visible {
+            continue;
+        }
+
+        let staff_height = staff_ctx.staff_height as i32;
+        let staff_lines = staff_ctx.staff_lines as i32;
+        let lnspace_ddist = if staff_lines > 1 {
+            staff_height / (staff_lines - 1)
+        } else {
+            8 // default
+        };
+
+        // Compute X position from firstSyncL
+        // OG: xd = SysRelxd(DynamFIRSTSYNC(pL)) + LinkXD(pL) + aDynamic->xd + systemLeft
+        // In our pipeline: sync positions are relative to system via measure_left + sync.xd
+        let first_sync_xd = match score.get(dyn_obj.first_sync_l) {
+            Some(sync_obj) => sync_obj.header.xd,
+            None => continue,
+        };
+
+        // xd = measure_left + firstSync.xd + obj.xd + aDynamic.xd
+        let xd = staff_ctx.measure_left as i32
+            + first_sync_xd as i32
+            + obj.header.xd as i32
+            + adynamic.xd as i32;
+
+        // yd = measureTop + aDynamic.yd
+        let yd = staff_ctx.measure_top as i32 + adynamic.yd as i32;
+
+        let is_hairpin = (dyn_obj.dynamic_type as u8) >= FIRSTHAIRPIN_DYNAM;
+
+        if is_hairpin {
+            // ---- Hairpin rendering ----
+            // Port of DrawHairpin (DrawObject.cp:1129-1219), PostScript path
+
+            // Compute endxd from lastSyncL
+            // OG: if SystemTYPE(lastSyncL) → endxd = aDynamic->endxd + sysLeft
+            //     else → endxd = SysRelxd(lastSyncL) + aDynamic->endxd + sysLeft
+            let last_sync_xd = match score.get(dyn_obj.last_sync_l) {
+                Some(sync_obj) => {
+                    // Check if lastSyncL is a System object (cross-system hairpin)
+                    if matches!(&sync_obj.data, ObjData::System(_)) {
+                        // Cross-system: endxd relative to system left
+                        0i16
+                    } else {
+                        sync_obj.header.xd
+                    }
+                }
+                None => continue,
+            };
+
+            let endxd = staff_ctx.measure_left as i32 + last_sync_xd as i32 + adynamic.endxd as i32;
+            let endyd = staff_ctx.measure_top as i32 + adynamic.endyd as i32;
+
+            // Convert mouthWidth/otherWidth from quarter-DDIST to DDIST
+            // qd2d(qd, stfHt, lines) = (qd * stfHt) / (4 * (lines - 1))
+            // then divide by 2 for half-rise/offset
+            let divisor = if staff_lines > 1 {
+                4 * (staff_lines - 1)
+            } else {
+                4
+            };
+            let rise = (adynamic.mouth_width as i32 * staff_height) / divisor / 2;
+            let offset = (adynamic.other_width as i32 * staff_height) / divisor / 2;
+
+            // Line thickness: hairpinLW * lnSpace / 100
+            let hair_thick = (HAIRPIN_LW_PCT * lnspace_ddist) / 100;
+            let thick_r = ddist_wide_to_render(hair_thick).max(0.25);
+
+            // Convert positions to render coords
+            let x0 = ddist_wide_to_render(xd);
+            let y0 = ddist_wide_to_render(yd);
+            let x1 = ddist_wide_to_render(endxd);
+            let y1 = ddist_wide_to_render(endyd);
+            let rise_r = ddist_wide_to_render(rise);
+            let offset_r = ddist_wide_to_render(offset);
+
+            match dyn_obj.dynamic_type as u8 {
+                22 => {
+                    // DIM_DYNAM: mouth at start (rise), point at end (offset)
+                    // Top line: (x0, y0+rise) → (x1, y1+offset)
+                    // Bottom line: (x0, y0-rise) → (x1, y1-offset)
+                    renderer.line(x0, y0 + rise_r, x1, y1 + offset_r, thick_r);
+                    renderer.line(x0, y0 - rise_r, x1, y1 - offset_r, thick_r);
+                }
+                23 => {
+                    // CRESC_DYNAM: point at start (offset), mouth at end (rise)
+                    // Top line: (x0, y0+offset) → (x1, y1+rise)
+                    // Bottom line: (x0, y0-offset) → (x1, y1-rise)
+                    renderer.line(x0, y0 + offset_r, x1, y1 + rise_r, thick_r);
+                    renderer.line(x0, y0 - offset_r, x1, y1 - rise_r, thick_r);
+                }
+                _ => {}
+            }
+        } else {
+            // ---- Text dynamic rendering ----
+            // Port of DrawDYNAMIC text path (DrawObject.cp:1290-1319), PostScript path
+
+            let glyph_cp = match dynamic_type_to_smufl(dyn_obj.dynamic_type) {
+                Some(cp) => cp,
+                None => continue,
+            };
+
+            let x = ddist_wide_to_render(xd);
+            let y = ddist_wide_to_render(yd);
+
+            let size_pct = if adynamic.small != 0 { 75.0 } else { 100.0 };
+            renderer.music_char(x, y, MusicGlyph::smufl(glyph_cp), size_pct);
+        }
+    }
+}
