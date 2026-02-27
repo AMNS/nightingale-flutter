@@ -1379,11 +1379,16 @@ pub fn draw_graphic(
         _ => return, // Skip GRDraw, GRArpeggio, etc. for now
     };
 
-    // Get the resolved text string
-    let text = match score.graphic_strings.get(&obj.header.first_sub_obj) {
+    // Get the resolved text string, stripping trailing control chars (DEL, NUL)
+    // that appear in OG Nightingale chord symbol string pools.
+    let raw_text = match score.graphic_strings.get(&obj.header.first_sub_obj) {
         Some(s) if !s.is_empty() => s.as_str(),
         _ => return, // No text to render
     };
+    let text = raw_text.trim_end_matches(['\x7f', '\0']);
+    if text.is_empty() {
+        return;
+    }
 
     // Determine which staff context to use
     // NB: staffn can be 0 for page-relative graphics; use staff 1 as fallback
@@ -1544,6 +1549,10 @@ fn map_mac_font_name(name: &str) -> String {
         // Decorative/calligraphic serif fonts — map to Times family so the
         // PDF renderer selects Times-Roman (closer in width than Helvetica).
         "Briard" | "Zapf Chancery" | "Apple Chancery" | "Zapfino" => "Times New Roman".to_string(),
+        // Sonata was the OG Nightingale music font. When it appears in text styles
+        // for text GRAPHICs (annotations, directions), map to Helvetica (sans-serif)
+        // since these are performance directions, not music symbols.
+        "Sonata" => "Helvetica".to_string(),
         _ => name.to_string(), // Pass through — PdfRenderer will classify
     }
 }
