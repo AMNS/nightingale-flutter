@@ -82,14 +82,15 @@
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
 - [x] **Slurs**: NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs still TODO.
 - [ ] **System layout / spacing improvements**: duration-proportional spacing (port SymWidthRight/CalcSpaceNeeded from SpaceTime.cp), measure width based on content density
-- [ ] **Ottava (8va/8vb)**: dashed line + text above/below staff (DrawOTTAVA port from DrawObject.cp)
+- [x] **Ottava (8va/8vb)**: OTTAVA_5 parsing (40 bytes, bitfields, ANOTEOTTAVA subobjects), draw_ottava() with Sonata italic digit glyphs (MCH_idigits), dashed bracket (hdashed_line), vertical cutoff, alta/bassa distinction. Port of DrawOTTAVA/DrawOctBracket/GetOctTypeNum from Ottava.cp. No test fixtures contain ottavas, but code compiles and is wired into render loop.
 
 #### Tier 2 — Text & Markings
-- [ ] **Dynamics**: hairpin crescendo/diminuendo lines + dynamic text (pp, ff, etc.) (DrawDYNAMIC port from DrawObject.cp)
-- [ ] **Text attached to notes**: lyrics, expression text, other note-attached annotations (DrawGRAPHIC port from DrawObject.cp)
-- [ ] **Part names**: staff labels at start of first system (and abbreviated on continuation systems)
-- [ ] **Tempo markings**: metronome marks, text tempos (DrawTEMPO port from DrawObject.cp)
-- [ ] **Score markings**: fermata, other articulations (DrawMODNR port from DrawObject.cp)
+- [x] **Dynamics**: hairpin crescendo/diminuendo lines + dynamic text (pp, ff, etc.) (DrawDYNAMIC port from DrawObject.cp)
+- [x] **Text attached to notes**: lyrics, expression text, other note-attached annotations (DrawGRAPHIC port from DrawObject.cp)
+- [x] **Part names**: staff labels at start of first system (and abbreviated on continuation systems)
+- [x] **Tempo markings**: TEMPO_5 parsing (38 bytes), verbal tempo string + optional metronome mark (note glyph + dot + "= N"). Font from FONT_TM text style. Port of DrawTEMPO/TempoGlyph/GetGraphicOrTempoDrawInfo from DrawObject.cp/DrawUtils.cp.
+- [x] **Score markings**: fermata, other articulations — all 22 MODNR types implemented (MOD_FERMATA through MOD_LONG_INVMORDENT). Tremolo slashes. Fingerings (0-5) acknowledged but need text rendering. Port of DrawModNR/GetModNRInfo from DrawNRGR.cp/DrawUtils.cp.
+- [x] **Volta brackets (Endings)**: ENDING_5 parsing (32 bytes), horizontal bracket with optional left/right cutoffs, ending number labels. Port of DrawENDING from DrawObject.cp.
 - [ ] **Rehearsal marks**: boxed/circled text above system
 
 #### Tier 3 — Engraving Polish
@@ -146,7 +147,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
 - [x] Port Tuplet.cp -> tuplet rendering (DrawTUPLET/DrawPSTupletBracket)
 - [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
-- [ ] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO sections
+- [x] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO/ENDING sections
 - [ ] Port Slurs.cp cross-system continuation logic
 
 ## Phase 4: Flutter Shell — NOT STARTED

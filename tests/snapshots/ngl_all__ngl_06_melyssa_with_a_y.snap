@@ -9,14 +9,14 @@ BeginPage: 22
 EndPage: 22
 LedgerLine: 949
 LineHorizontalThick: 143
-MusicChar: 3921
+MusicChar: 3922
 NoteStem: 1321
 SetMusicSize: 154
 SetWidths: 1
 Slur: 280
 Staff: 154
-TextString: 789
-TOTAL: 8766
+TextString: 790
+TOTAL: 8768
 
 === STAVES ===
 y=75.4 x=[126.0..763.0] lines=5 spacing=4.50
@@ -211,3 +211,4 @@ Smufl(58598): 43
 Smufl(58599): 19
 Smufl(59523): 15
 Smufl(59526): 15
+Sonata(113): 1

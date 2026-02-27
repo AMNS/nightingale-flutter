@@ -1236,17 +1236,14 @@ pub fn draw_dynamic(
             8 // default
         };
 
-        // Compute X position from firstSyncL
+        // Compute X position from firstSyncL using page-relative coordinates.
         // OG: xd = SysRelxd(DynamFIRSTSYNC(pL)) + LinkXD(pL) + aDynamic->xd + systemLeft
-        // In our pipeline: sync positions are relative to system via measure_left + sync.xd
-        let first_sync_xd = match score.get(dyn_obj.first_sync_l) {
-            Some(sync_obj) => sync_obj.header.xd,
-            None => continue,
-        };
+        // Our model: staff_left + sys_rel_xd(firstSync) + obj.xd + aDynamic.xd
+        // Reference: DSUtils.cp:309-311 (PageRelxd for DYNAMtype)
+        let first_sync_sys_xd = score.sys_rel_xd(dyn_obj.first_sync_l);
 
-        // xd = measure_left + firstSync.xd + obj.xd + aDynamic.xd
-        let xd = staff_ctx.measure_left as i32
-            + first_sync_xd as i32
+        let xd = staff_ctx.staff_left as i32
+            + first_sync_sys_xd
             + obj.header.xd as i32
             + adynamic.xd as i32;
 
@@ -1262,20 +1259,20 @@ pub fn draw_dynamic(
             // Compute endxd from lastSyncL
             // OG: if SystemTYPE(lastSyncL) → endxd = aDynamic->endxd + sysLeft
             //     else → endxd = SysRelxd(lastSyncL) + aDynamic->endxd + sysLeft
-            let last_sync_xd = match score.get(dyn_obj.last_sync_l) {
+            let last_sync_sys_xd = match score.get(dyn_obj.last_sync_l) {
                 Some(sync_obj) => {
                     // Check if lastSyncL is a System object (cross-system hairpin)
                     if matches!(&sync_obj.data, ObjData::System(_)) {
-                        // Cross-system: endxd relative to system left
-                        0i16
+                        // Cross-system: endxd relative to system left only
+                        0i32
                     } else {
-                        sync_obj.header.xd
+                        score.sys_rel_xd(dyn_obj.last_sync_l)
                     }
                 }
                 None => continue,
             };
 
-            let endxd = staff_ctx.measure_left as i32 + last_sync_xd as i32 + adynamic.endxd as i32;
+            let endxd = staff_ctx.staff_left as i32 + last_sync_sys_xd + adynamic.endxd as i32;
             let endyd = staff_ctx.measure_top as i32 + adynamic.endyd as i32;
 
             // Convert mouthWidth/otherWidth from quarter-DDIST to DDIST
@@ -1396,14 +1393,13 @@ pub fn draw_graphic(
         return;
     }
 
-    // Compute X position
+    // Compute X position using page-relative coordinates.
     // OG: xd = SysRelxd(firstObj) + LinkXD(pL) + systemLeft
-    // Our model: measure_left + firstObj.xd + graphic.xd
-    let first_obj_xd = match score.get(gfx.first_obj) {
-        Some(ref_obj) => ref_obj.header.xd as i32,
-        None => 0,
-    };
-    let xd = staff_ctx.measure_left as i32 + first_obj_xd + obj.header.xd as i32;
+    // Our model: staff_left + sys_rel_xd(firstObj) + graphic.xd
+    // (staff_left ≈ systemLeft for most staves; includes system_left offset)
+    // Reference: DSUtils.cp:312-320 (PageRelxd for GRAPHICtype)
+    let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
+    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
 
     // Compute Y position
     // OG: yd = measureTop + LinkYD(pL)
@@ -1540,5 +1536,533 @@ fn default_font_for_type(gtype: &crate::obj_types::GraphicType) -> String {
         GraphicType::GrRehearsal => "Helvetica".to_string(),
         GraphicType::GrChordSym => "Helvetica".to_string(),
         _ => "Times New Roman".to_string(),
+    }
+}
+
+// =============================================================================
+// TEMPO
+// =============================================================================
+
+/// Draw a TEMPO object: verbal tempo string and/or metronome mark.
+///
+/// The metronome mark consists of a duration-unit note glyph (possibly dotted)
+/// followed by " = N" where N is the BPM number string.
+///
+/// Reference: DrawObject.cp, DrawTEMPO(), lines 2275-2461
+/// PostScript path: lines 2440-2454
+pub fn draw_tempo(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::defs::*;
+    use crate::ngl::interpret::ObjData;
+    use crate::render::types::ddist_wide_to_render;
+
+    let tempo = match &obj.data {
+        ObjData::Tempo(t) => t,
+        _ => return,
+    };
+
+    // Staff context for positioning
+    let staffn = if tempo.ext_header.staffn > 0 {
+        tempo.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute position using page-relative coordinates.
+    // OG: GetGraphicOrTempoDrawInfo → xd = PageRelxd(firstObjL) + LinkXD(pL),
+    //                                 yd = PageRelyd(firstObjL) + LinkYD(pL)
+    // Our model: staff_left + sys_rel_xd(firstObjL) + tempo.xd
+    // Reference: DSUtils.cp:335-344 (PageRelxd for TEMPOtype)
+    let first_obj_sys_xd = score.sys_rel_xd(tempo.first_obj_l);
+    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+    let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+
+    let x = ddist_wide_to_render(xd);
+    let y = ddist_wide_to_render(yd);
+
+    // Compute lineSpace for relative font size resolution (in DDIST)
+    // lineSpace = staff_height / (staff_lines - 1)
+    // Reference: defs.h LNSPACE macro
+    let line_space = if staff_ctx.staff_lines > 1 {
+        staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
+    } else {
+        staff_ctx.staff_height
+    };
+
+    // Resolve text style from FONT_TM (index 8)
+    let font = resolve_tempo_font(score, line_space);
+
+    // Get resolved strings
+    let (verbal, metro_num) = match score.tempo_strings.get(&obj.index) {
+        Some((v, m)) => (v.as_str(), m.as_str()),
+        None => return,
+    };
+
+    // Draw the verbal tempo string (e.g., "Allegro")
+    // Reference: DrawObject.cp:2443 (PostScript path)
+    if !verbal.is_empty() {
+        renderer.text_string(x, y, verbal, &font);
+    }
+
+    // Decide whether to draw the metronome mark
+    // OG: if (p->noMM) doDrawMM = False; else doDrawMM = !p->hideMM;
+    // Reference: DrawObject.cp:2386-2387
+    let do_draw_mm = !tempo.no_mm && !tempo.hide_mm;
+
+    if do_draw_mm && tempo.sub_type != NO_L_DUR {
+        // Compute x position for metronome mark.
+        // If there's a verbal string, put the MM to its right with a gap.
+        // OG: xdMM = dEnclBox.right + lnSpace + extraHorizGap (when verbal string present)
+        // Reference: DrawObject.cp:2354-2362
+        let xd_mm = if !verbal.is_empty() {
+            // Estimate width of verbal string: ~0.55 * font.size * char_count
+            // This is approximate; OG used GetNPtStringBBox for exact width.
+            let approx_width = verbal.len() as f32 * font.size * 0.55;
+            let gap = line_space as f32 / 16.0; // DDIST to points
+            x + approx_width + gap
+        } else {
+            x
+        };
+        let yd_mm = y;
+
+        // Draw the duration glyph at 80% size (METROSIZE = 8*size/10)
+        // Reference: DrawObject.cp:2445, style.h:17
+        let note_glyph = tempo_glyph(tempo.sub_type);
+        if let Some(glyph) = note_glyph {
+            renderer.music_char(xd_mm, yd_mm, glyph, 80.0);
+        }
+
+        // Estimate note glyph width for positioning the dot and "= N" string.
+        // OG used CharWidth which is pixel-based; we approximate.
+        // Reference: DrawObject.cp:2370-2383
+        let note_width_pts = font.size * 0.8 * 0.7; // ~70% of metro font size
+
+        // Draw dot if dotted
+        let mut xd_after_note = xd_mm + note_width_pts;
+        if tempo.dotted {
+            // Augmentation dot: small gap + dot glyph
+            // Reference: DrawObject.cp:2446-2449
+            let dot_x = xd_after_note + 1.5; // small gap
+            renderer.music_char(dot_x, yd_mm, MusicGlyph::from_char('.'), 80.0);
+            xd_after_note = dot_x + font.size * 0.3;
+        } else if tempo.sub_type > QTR_L_DUR {
+            // Flagged notes need extra spacing for the flag
+            xd_after_note += (line_space as f32 / 16.0) * 0.5;
+        }
+
+        // Draw " = N" string
+        // OG: sprintf(metroStr," = %s", PToCString(PCopy(p->metroStrOffset)));
+        // Reference: DrawObject.cp:2346, 2451-2452
+        let equals_str = format!(" = {}", metro_num);
+        let mm_font = TextFont::new(font.name.clone(), font.size * 0.8)
+            .bold(font.bold)
+            .italic(font.italic);
+        renderer.text_string(xd_after_note, yd_mm, &equals_str, &mm_font);
+    }
+}
+
+/// Map a Tempo subType (l_dur code) to the Sonata music font glyph.
+///
+/// Reference: DrawUtils.cp, TempoGlyph(), lines 2383-2411
+fn tempo_glyph(sub_type: i8) -> Option<MusicGlyph> {
+    use crate::defs::*;
+    match sub_type {
+        BREVE_L_DUR => Some(MusicGlyph::sonata(0xDD)),
+        WHOLE_L_DUR => Some(MusicGlyph::from_char('w')),
+        HALF_L_DUR => Some(MusicGlyph::from_char('h')),
+        QTR_L_DUR => Some(MusicGlyph::from_char('q')),
+        EIGHTH_L_DUR => Some(MusicGlyph::from_char('e')),
+        SIXTEENTH_L_DUR => Some(MusicGlyph::from_char('x')),
+        THIRTY2ND_L_DUR => Some(MusicGlyph::from_char('r')),
+        SIXTY4TH_L_DUR => Some(MusicGlyph::sonata(0xC6)),
+        ONE28TH_L_DUR => Some(MusicGlyph::sonata(0x8D)),
+        _ => None,
+    }
+}
+
+// =============================================================================
+// ENDING (volta brackets)
+// =============================================================================
+
+/// Draw an ENDING object: volta bracket with optional label ("1.", "2.", etc.).
+///
+/// An ending bracket consists of:
+/// - Optional left cutoff (vertical line descending from bracket)
+/// - Horizontal bracket line
+/// - Optional right cutoff (vertical line descending from bracket)
+/// - Optional ending number label (e.g., "1.", "2.")
+///
+/// Reference: DrawObject.cp, DrawENDING(), lines 1384-1487
+/// PostScript path: lines 1474-1484
+pub fn draw_ending(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::ngl::interpret::ObjData;
+    use crate::render::types::ddist_wide_to_render;
+
+    let ending = match &obj.data {
+        ObjData::Ending(e) => e,
+        _ => return,
+    };
+
+    let staffn = if ending.ext_header.staffn > 0 {
+        ending.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute lineSpace (DDIST)
+    let ln_space = if staff_ctx.staff_lines > 1 {
+        staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
+    } else {
+        staff_ctx.staff_height
+    };
+
+    // ENDING_CUTOFFLEN = 2 * lnSpace
+    // ENDING_THICK = 6 * lnSpace / 50
+    // Reference: style.h lines 121-122
+    let rise = 2 * ln_space as i32;
+    let end_thick = (6 * ln_space as i32) / 50;
+    let end_thick_r = ddist_wide_to_render(end_thick).max(0.5);
+
+    // Compute left end position
+    // OG: xd = SysRelxd(firstObjL) + p->xd + sysLeft
+    //     yd = measureTop + p->yd
+    // Reference: DrawObject.cp:1415-1418, DSUtils.cp:288 (PageRelxd for ENDINGtype)
+    let first_obj_sys_xd = score.sys_rel_xd(ending.first_obj_l);
+    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+    let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+
+    // Compute right end position
+    // OG: endxd = SysRelxd(lastObjL) + p->endxd + sysLeft
+    let last_obj_sys_xd = score.sys_rel_xd(ending.last_obj_l);
+    let endxd = staff_ctx.staff_left as i32 + last_obj_sys_xd + ending.endxd as i32;
+
+    let x1 = ddist_wide_to_render(xd);
+    let y1 = ddist_wide_to_render(yd);
+    let x2 = ddist_wide_to_render(endxd);
+    let rise_r = ddist_wide_to_render(rise);
+
+    // Draw left cutoff (vertical line down from bracket)
+    // Reference: DrawObject.cp:1476
+    if ending.no_l_cutoff == 0 {
+        renderer.line(x1, y1 + rise_r, x1, y1, end_thick_r);
+    }
+
+    // Draw horizontal bracket line
+    // Reference: DrawObject.cp:1477
+    renderer.line(x1, y1, x2, y1, end_thick_r);
+
+    // Draw right cutoff (vertical line down from bracket)
+    // Reference: DrawObject.cp:1478
+    if ending.no_r_cutoff == 0 {
+        renderer.line(x2, y1, x2, y1 + rise_r, end_thick_r);
+    }
+
+    // Draw ending number label
+    // Reference: DrawObject.cp:1479-1483
+    if ending.end_num != 0 {
+        // Standard ending labels: 1="1.", 2="2.", etc.
+        // OG loaded these from a resource; we use a simple mapping.
+        let label = ending_label(ending.end_num);
+
+        // Position: xd + lnSpace, yd + 2*lnSpace
+        // Reference: DrawObject.cp:1419-1421
+        let xd_num = xd + ln_space as i32;
+        let yd_num = yd + 2 * ln_space as i32;
+        let x_num = ddist_wide_to_render(xd_num);
+        let y_num = ddist_wide_to_render(yd_num);
+
+        // Font size = d2pt(2 * lnSpace - 1)
+        // Reference: DrawObject.cp:1421, PostScript uses Times
+        let font_size = ((2 * ln_space as i32 - 1 + 8) / 16) as f32;
+        let font_size = font_size.max(6.0);
+        let font = TextFont::new("Times New Roman", font_size);
+        renderer.text_string(x_num, y_num, &label, &font);
+    }
+}
+
+// =============================================================================
+// OTTAVA (8va/8vb/15ma lines)
+// =============================================================================
+
+/// Draw an OTTAVA object: octave sign number + dashed bracket + optional cutoff.
+///
+/// An ottava consists of:
+/// - The number string ("8" or "15") in Sonata italic digits
+/// - A horizontal dashed bracket line
+/// - An optional vertical cutoff line at the right end
+///
+/// For "alta" types (8va, 15ma, 22ma), the bracket is raised 2 half-spaces
+/// above the number position. For "bassa" types, the cutoff goes upward.
+///
+/// Reference: Ottava.cp, DrawOTTAVA(), lines 538-637
+/// PostScript path: DrawOctBracket(), lines 1186-1234
+pub fn draw_ottava(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::ngl::interpret::ObjData;
+    use crate::render::types::ddist_wide_to_render;
+
+    let ottava = match &obj.data {
+        ObjData::Ottava(o) => o,
+        _ => return,
+    };
+
+    let staffn = if ottava.ext_header.staffn > 0 {
+        ottava.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute lineSpace (DDIST)
+    let ln_space = if staff_ctx.staff_lines > 1 {
+        staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
+    } else {
+        staff_ctx.staff_height
+    };
+    let d_half_sp = ln_space / 2;
+
+    // Get first/last sync positions from ANOTEOTTAVA subobjects
+    // Reference: Ottava.cp:568-573
+    let first_sync_l = match score.first_in_ottava(obj.header.first_sub_obj, obj.header.n_entries) {
+        Some(l) => l,
+        None => return,
+    };
+    let last_sync_l = match score.last_in_ottava(obj.header.first_sub_obj, obj.header.n_entries) {
+        Some(l) => l,
+        None => return,
+    };
+
+    let d_top = staff_ctx.measure_top as i32;
+
+    // Compute first/last x positions using sys_rel_xd for correct cross-measure handling.
+    // OG: firstxd = dLeft + LinkXD(firstSyncL), with cross-measure adjustment at line 574
+    // Our model: staff_left + sys_rel_xd(sync) gives page-relative x regardless of measure.
+    // Reference: Ottava.cp:572-574, DSUtils.cp:568-578
+    let firstxd = staff_ctx.staff_left as i32 + score.sys_rel_xd(first_sync_l);
+    let lastxd = staff_ctx.staff_left as i32 + score.sys_rel_xd(last_sync_l);
+
+    // Cutoff length
+    // OTTAVA_CUTOFFLEN(lnSpace) = lnSpace
+    // Reference: style.h line 112
+    let y_cutoff_len = if ottava.no_cutoff != 0 {
+        0i32
+    } else {
+        ln_space as i32
+    };
+
+    // Get octave type number and bassa flag
+    // Reference: Ottava.cp:503-535
+    let (number, is_bassa) = get_oct_type_info(ottava.oct_sign_type);
+    if number == 0 {
+        return; // Unknown type
+    }
+
+    // Compute bracket positions
+    // OG: octxdFirst = firstxd + p->xdFirst
+    //     octydFirst = dTop + p->ydFirst
+    //     octxdLast = lastxd + lastNoteWidth + p->xdLast
+    // We skip lastNoteWidth for now (minor adjustment).
+    // Reference: Ottava.cp:583-588
+    let octxd_first = firstxd + ottava.xd_first as i32;
+    let octyd_first = d_top + ottava.yd_first as i32;
+    let octxd_last = lastxd + ottava.xd_last as i32;
+    // octydLast not used in bracket (bracket is horizontal)
+
+    if !ottava.number_vis {
+        return;
+    }
+
+    // Compute bracket start/end points
+    // For alta: raise bracket by 2*dhalfSp
+    // Reference: Ottava.cp:601-606
+    let first_pt_x = octxd_first;
+    let mut first_pt_y = octyd_first;
+    let last_pt_x = octxd_last;
+
+    if !is_bassa {
+        first_pt_y -= 2 * d_half_sp as i32;
+    }
+
+    // OTTAVA_THICK(lnSpace) = 6 * lnSpace / 50
+    // Reference: style.h line 111
+    let ott_thick = (6 * ln_space as i32) / 50;
+    let ott_thick_r = ddist_wide_to_render(ott_thick).max(0.5);
+
+    // Draw the number string using music_char (Sonata italic digits)
+    // OG: NumToSonataStr converts number to Sonata italic digits
+    //     PS_MusString draws them at octaveNumSize (default 110%)
+    // Reference: Ottava.cp:617-619, MusicFont.cp:352-366
+    let num_x = ddist_wide_to_render(octxd_first);
+    let num_y = ddist_wide_to_render(octyd_first);
+
+    // octaveNumSize: config.octaveNumSize, default 110%
+    let oct_num_size: f32 = 110.0;
+
+    // Draw each digit of the number as a Sonata italic glyph
+    let num_str = format!("{}", number);
+    let mut char_x = num_x;
+    let glyph_advance = ddist_wide_to_render(ln_space as i32) * oct_num_size / 100.0 * 0.55;
+    for ch in num_str.chars() {
+        if let Some(digit) = ch.to_digit(10) {
+            let glyph_code = sonata_italic_digit(digit as u8);
+            renderer.music_char(char_x, num_y, MusicGlyph::Sonata(glyph_code), oct_num_size);
+            char_x += glyph_advance;
+        }
+    }
+
+    // Estimate the width of the number string in DDIST
+    let num_width_ddist = (num_str.len() as i32) * (ln_space as i32 * 55 / 100);
+    // XFUDGE = 4 points = 64 DDIST
+    let x_fudge = 64i32;
+
+    // Draw bracket if long enough
+    // OG: dBrackMinLen = 4 * dhalfSp; if (lastPt.h - firstPt.h > dBrackMinLen) ...
+    // Reference: Ottava.cp:607-611
+    let d_brack_min_len = 4 * d_half_sp as i32;
+    if last_pt_x - first_pt_x > d_brack_min_len {
+        // Draw horizontal dashed line from after number to end
+        // OG PostScript path: PS_HDashedLine(firstPt.h+p2d(octWidth+XFUDGE), firstPt.v,
+        //                                    lastPt.h, OTTAVA_THICK(lnSpace), pt2d(4))
+        // Reference: Ottava.cp:1220-1221
+        let dash_start_x = ddist_wide_to_render(first_pt_x + num_width_ddist + x_fudge);
+        let bracket_y = ddist_wide_to_render(first_pt_y);
+        let end_x = ddist_wide_to_render(last_pt_x);
+        // dash_len = pt2d(4) = 4 points = 64 DDIST → 4.0 points
+        let dash_len: f32 = 4.0;
+
+        if end_x > dash_start_x {
+            renderer.hdashed_line(dash_start_x, bracket_y, end_x, ott_thick_r, dash_len);
+        }
+
+        // Draw vertical cutoff at right end
+        // OG: PS_Line(lastPt.h, firstPt.v, lastPt.h,
+        //             firstPt.v + (isBassa ? -yCutoffLen : yCutoffLen),
+        //             OTTAVA_THICK(lnSpace))
+        // Reference: Ottava.cp:1222-1224
+        if y_cutoff_len != 0 {
+            let cutoff_y_end = if is_bassa {
+                first_pt_y - y_cutoff_len
+            } else {
+                first_pt_y + y_cutoff_len
+            };
+            renderer.line(
+                end_x,
+                bracket_y,
+                end_x,
+                ddist_wide_to_render(cutoff_y_end),
+                ott_thick_r,
+            );
+        }
+    }
+}
+
+/// Get the octave type number and bassa flag from an octSignType code.
+///
+/// Returns (number, is_bassa). Number is 8, 15, or 22.
+/// Returns (0, false) for unknown types.
+///
+/// Reference: Ottava.cp, GetOctTypeNum(), lines 503-535
+fn get_oct_type_info(oct_sign_type: u8) -> (i32, bool) {
+    match oct_sign_type {
+        1 => (8, false),  // OTTAVA8va
+        2 => (15, false), // OTTAVA15ma
+        3 => (22, false), // OTTAVA22ma
+        4 => (8, true),   // OTTAVA8vaBassa
+        5 => (15, true),  // OTTAVA15maBassa
+        6 => (22, true),  // OTTAVA22maBassa
+        _ => (0, false),
+    }
+}
+
+/// Map a decimal digit (0-9) to the Sonata italic digit glyph code.
+///
+/// These are the MCH_idigits[] values from vars.h:330.
+/// Used by NumToSonataStr() (MusicFont.cp:352-366) for tuplet numbers,
+/// ottava numbers, etc.
+///
+/// Reference: vars.h line 330
+fn sonata_italic_digit(digit: u8) -> u8 {
+    const MCH_IDIGITS: [u8; 10] = [0xBC, 0xC1, 0xAA, 0xA3, 0xA2, 0xB0, 0xA4, 0xA6, 0xA5, 0xBB];
+    if (digit as usize) < MCH_IDIGITS.len() {
+        MCH_IDIGITS[digit as usize]
+    } else {
+        MCH_IDIGITS[0]
+    }
+}
+
+/// Get the ending label string for an ending number code.
+///
+/// OG Nightingale loaded these from resources. Standard convention:
+/// 1 = "1.", 2 = "2.", 3 = "1. 2.", etc.
+///
+/// Reference: InitNightingale.cp:133-161
+fn ending_label(end_num: u8) -> String {
+    match end_num {
+        1 => "1.".to_string(),
+        2 => "2.".to_string(),
+        3 => "1. 2.".to_string(),
+        4 => "1. 2. 3.".to_string(),
+        n => format!("{}.", n),
+    }
+}
+
+/// Resolve the tempo mark font from the FONT_TM text style (index 8).
+///
+/// Reference: DrawObject.cp:2314-2317 (fontSize, fontID, fontStyle from FONT_TM)
+fn resolve_tempo_font(score: &InterpretedScore, line_space: i16) -> TextFont {
+    use crate::defs::FONT_TM;
+
+    let idx = FONT_TM as usize;
+    if idx < score.text_styles.len() {
+        let ts = &score.text_styles[idx];
+        let pt_size = if ts.rel_f_size {
+            rel_size_to_pt(ts.font_size, line_space)
+        } else {
+            (ts.font_size as f32).max(4.0)
+        };
+        let bold = (ts.font_style & 1) != 0;
+        let italic = (ts.font_style & 2) != 0;
+        let name = if ts.font_name.is_empty() {
+            "Times New Roman".to_string()
+        } else {
+            map_mac_font_name(&ts.font_name)
+        };
+        TextFont::new(name, pt_size).bold(bold).italic(italic)
+    } else {
+        // Fallback: bold 12pt Times
+        TextFont::new("Times New Roman", 12.0).bold(true)
     }
 }

@@ -241,9 +241,27 @@ pub fn unpack_agraphic_n105(data: &[u8]) -> Result<AGraphic, String> {
     Ok(AGraphic { next, str_offset })
 }
 
-pub fn unpack_anoteottava_n105(_data: &[u8]) -> Result<ANoteOttava, String> {
-    // TODO: Implement full ANOTEOTTAVA_5 unpacking (4 bytes)
-    Err("ANOTEOTTAVA unpacking not yet implemented".to_string())
+/// Unpack ANOTEOTTAVA_5 subobject from N105 binary data.
+///
+/// On-disk layout (4 bytes, ANOTEOTTAVA_5):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  ----------
+/// 0       2     next (LINK)
+/// 2       2     opSync (LINK) — Sync containing note/chord under this ottava
+/// ```
+///
+/// Source: NObjTypesN105.h lines 431-434
+pub fn unpack_anoteottava_n105(data: &[u8]) -> Result<ANoteOttava, String> {
+    if data.len() < 4 {
+        return Err(format!(
+            "ANOTEOTTAVA_5 data too short: {} bytes (need 4)",
+            data.len()
+        ));
+    }
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let op_sync = u16::from_be_bytes([data[2], data[3]]);
+    Ok(ANoteOttava { next, op_sync })
 }
 
 pub fn unpack_arptend_n105(_data: &[u8]) -> Result<ARptEnd, String> {

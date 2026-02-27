@@ -139,6 +139,12 @@ pub struct InterpretedScore {
     /// Resolved at interpretation time from AGRAPHIC.strOffset + string pool.
     pub graphic_strings: HashMap<Link, String>,
 
+    /// Resolved tempo strings for TEMPO objects.
+    /// Key is the object's 1-based index (Link), value is (verbal_string, metro_string).
+    /// verbal_string: e.g. "Allegro", metro_string: e.g. "120"
+    /// Resolved at interpretation time from Tempo.str_offset + Tempo.metro_str_offset.
+    pub tempo_strings: HashMap<Link, (String, String)>,
+
     /// Text styles parsed from the score header (15 entries, indexed by FONT_* constants).
     /// Each entry: (font_name, font_size, font_style, is_lyric, enclosure, rel_f_size).
     pub text_styles: Vec<TextStyle>,
@@ -248,6 +254,7 @@ impl InterpretedScore {
             grnotes: HashMap::new(),
             psmeas_subs: HashMap::new(),
             graphic_strings: HashMap::new(),
+            tempo_strings: HashMap::new(),
             text_styles: Vec::new(),
         }
     }
@@ -324,6 +331,77 @@ impl InterpretedScore {
             .get(&first_sub)
             .map(|slurs| slurs.iter().take(count as usize).cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// Get ottava subobjects for an Ottava (sequential, not chained).
+    ///
+    /// Each ANOTEOTTAVA contains an opSync link pointing to the Sync
+    /// under the ottava bracket.
+    pub fn get_ottava_subs(&self, first_sub: Link, count: u8) -> Vec<ANoteOttava> {
+        self.ottavas
+            .get(&first_sub)
+            .map(|octs| octs.iter().take(count as usize).cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Get the first Sync link under an Ottava.
+    ///
+    /// Equivalent to C++ FirstInOttava(): returns the opSync of the
+    /// first ANOTEOTTAVA subobject.
+    ///
+    /// Reference: Ottava.cp lines 871-877
+    pub fn first_in_ottava(&self, first_sub: Link, count: u8) -> Option<Link> {
+        let subs = self.get_ottava_subs(first_sub, count);
+        subs.first().map(|s| s.op_sync)
+    }
+
+    /// Get the last Sync link under an Ottava.
+    ///
+    /// Equivalent to C++ LastInOttava(): returns the opSync of the
+    /// last ANOTEOTTAVA subobject.
+    ///
+    /// Reference: Ottava.cp lines 879-892
+    pub fn last_in_ottava(&self, first_sub: Link, count: u8) -> Option<Link> {
+        let subs = self.get_ottava_subs(first_sub, count);
+        subs.last().map(|s| s.op_sync)
+    }
+
+    /// Compute an object's x-offset relative to its System.
+    ///
+    /// Mirrors C++ `SysRelxd()` from DSUtils.cp:568-578.
+    /// For a Measure: returns measure.xd.
+    /// For other objects inside a measure: returns measure.xd + obj.xd.
+    /// For objects before the first measure: returns obj.xd.
+    pub fn sys_rel_xd(&self, link: Link) -> i32 {
+        let obj = match self.get(link) {
+            Some(o) => o,
+            None => return 0,
+        };
+        let obj_xd = obj.header.xd as i32;
+
+        // If it IS a Measure, just return its xd
+        if obj.header.obj_type == MEASURE_TYPE as i8 {
+            return obj_xd;
+        }
+
+        // Walk left to find the enclosing Measure
+        let mut cur = obj.header.left;
+        let mut steps = 0;
+        while cur != NILINK && steps < 5000 {
+            if let Some(left_obj) = self.get(cur) {
+                if left_obj.header.obj_type == MEASURE_TYPE as i8 {
+                    // Found enclosing measure
+                    return left_obj.header.xd as i32 + obj_xd;
+                }
+                cur = left_obj.header.left;
+            } else {
+                break;
+            }
+            steps += 1;
+        }
+
+        // Before first measure of system — just return obj.xd
+        obj_xd
     }
 
     /// Get the head (first) object of the score list.
@@ -1189,6 +1267,231 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                             last_obj,
                         })
                     }
+                    TEMPO_TYPE => {
+                        // N105 TEMPO_5 object: 38 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24:    subType (SignedByte) — beat duration code (same as l_dur)
+                        // 25:    bitfield: expanded:1|noMM:1|filler:4|dotted:1|hideMM:1 (MSB-first)
+                        // 26-27: tempoMM (short) — BPM
+                        // 28-31: strOffset (STRINGOFFSET/long) — verbal tempo string
+                        // 32-33: firstObjL (LINK) — object tempo is attached to
+                        // 34-37: metroStrOffset (STRINGOFFSET/long) — metronome number string
+                        // Source: NObjTypesN105.h lines 519-532
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        let sub_type = if obj_bytes.len() > 24 {
+                            obj_bytes[24] as i8
+                        } else {
+                            4 // QTR_L_DUR default
+                        };
+                        let b25 = if obj_bytes.len() > 25 {
+                            obj_bytes[25]
+                        } else {
+                            0
+                        };
+                        // MSB-first bitfield: expanded:1|noMM:1|filler:4|dotted:1|hideMM:1
+                        let expanded = (b25 >> 7) & 1 != 0;
+                        let no_mm = (b25 >> 6) & 1 != 0;
+                        let filler = (b25 >> 2) & 0x0F;
+                        let dotted = (b25 >> 1) & 1 != 0;
+                        let hide_mm = b25 & 1 != 0;
+                        let tempo_mm = if obj_bytes.len() > 27 {
+                            i16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                        } else {
+                            120
+                        };
+                        let str_offset = if obj_bytes.len() > 31 {
+                            i32::from_be_bytes([
+                                obj_bytes[28],
+                                obj_bytes[29],
+                                obj_bytes[30],
+                                obj_bytes[31],
+                            ])
+                        } else {
+                            0
+                        };
+                        let first_obj_l = if obj_bytes.len() > 33 {
+                            u16::from_be_bytes([obj_bytes[32], obj_bytes[33]])
+                        } else {
+                            NILINK
+                        };
+                        let metro_str_offset = if obj_bytes.len() > 37 {
+                            i32::from_be_bytes([
+                                obj_bytes[34],
+                                obj_bytes[35],
+                                obj_bytes[36],
+                                obj_bytes[37],
+                            ])
+                        } else {
+                            0
+                        };
+                        ObjData::Tempo(Tempo {
+                            header: header.clone(),
+                            ext_header,
+                            sub_type,
+                            expanded,
+                            no_mm,
+                            filler,
+                            dotted,
+                            hide_mm,
+                            tempo_mm,
+                            str_offset,
+                            first_obj_l,
+                            metro_str_offset,
+                        })
+                    }
+                    ENDING_TYPE => {
+                        // N105 ENDING_5 object: 32 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24-25: firstObjL (LINK) — left end attachment
+                        // 26-27: lastObjL (LINK) — right end attachment or NILINK
+                        // 28:    bitfield: noLCutoff:1|noRCutoff:1|endNum:6 (MSB-first)
+                        // 29:    [mac68k padding]
+                        // 30-31: endxd (DDIST) — position offset from lastObjL
+                        // Source: NObjTypesN105.h lines 547-556
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        let first_obj_l = if obj_bytes.len() > 25 {
+                            u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
+                        } else {
+                            NILINK
+                        };
+                        let last_obj_l = if obj_bytes.len() > 27 {
+                            u16::from_be_bytes([obj_bytes[26], obj_bytes[27]])
+                        } else {
+                            NILINK
+                        };
+                        let b28 = if obj_bytes.len() > 28 {
+                            obj_bytes[28]
+                        } else {
+                            0
+                        };
+                        let no_l_cutoff = (b28 >> 7) & 1;
+                        let no_r_cutoff = (b28 >> 6) & 1;
+                        let end_num = b28 & 0x3F;
+                        // Byte 29 is mac68k padding
+                        let endxd = if obj_bytes.len() > 31 {
+                            i16::from_be_bytes([obj_bytes[30], obj_bytes[31]])
+                        } else {
+                            0
+                        };
+                        ObjData::Ending(Ending {
+                            header: header.clone(),
+                            ext_header,
+                            first_obj_l,
+                            last_obj_l,
+                            no_l_cutoff,
+                            no_r_cutoff,
+                            end_num,
+                            endxd,
+                        })
+                    }
+                    OTTAVA_TYPE => {
+                        // N105 OTTAVA_5 object: 40 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24:    bitfield: noCutoff:1|crossStaff:1|crossSystem:1|octSignType:5 (MSB-first)
+                        // 25:    filler (SignedByte)
+                        // 26:    bitfield2: numberVis:1|unused1:1|brackVis:1|unused2:5 (MSB-first)
+                        // 27:    [mac68k padding — aligns DDIST to even offset]
+                        // 28-29: nxd (DDIST)
+                        // 30-31: nyd (DDIST)
+                        // 32-33: xdFirst (DDIST)
+                        // 34-35: ydFirst (DDIST)
+                        // 36-37: xdLast (DDIST)
+                        // 38-39: ydLast (DDIST)
+                        // Source: NObjTypesN105.h lines 436-451
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                1
+                            },
+                        };
+                        let b24 = if obj_bytes.len() > 24 {
+                            obj_bytes[24]
+                        } else {
+                            0
+                        };
+                        let no_cutoff = (b24 >> 7) & 1;
+                        let cross_staff = (b24 >> 6) & 1;
+                        let cross_system = (b24 >> 5) & 1;
+                        let oct_sign_type = b24 & 0x1F;
+                        let filler = if obj_bytes.len() > 25 {
+                            obj_bytes[25] as i8
+                        } else {
+                            0
+                        };
+                        let b26 = if obj_bytes.len() > 26 {
+                            obj_bytes[26]
+                        } else {
+                            0
+                        };
+                        let number_vis = (b26 >> 7) & 1 != 0;
+                        let brack_vis = (b26 >> 5) & 1 != 0;
+                        // Byte 27 is mac68k padding
+                        let nxd = if obj_bytes.len() > 29 {
+                            i16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                        } else {
+                            0
+                        };
+                        let nyd = if obj_bytes.len() > 31 {
+                            i16::from_be_bytes([obj_bytes[30], obj_bytes[31]])
+                        } else {
+                            0
+                        };
+                        let xd_first = if obj_bytes.len() > 33 {
+                            i16::from_be_bytes([obj_bytes[32], obj_bytes[33]])
+                        } else {
+                            0
+                        };
+                        let yd_first = if obj_bytes.len() > 35 {
+                            i16::from_be_bytes([obj_bytes[34], obj_bytes[35]])
+                        } else {
+                            0
+                        };
+                        let xd_last = if obj_bytes.len() > 37 {
+                            i16::from_be_bytes([obj_bytes[36], obj_bytes[37]])
+                        } else {
+                            0
+                        };
+                        let yd_last = if obj_bytes.len() > 39 {
+                            i16::from_be_bytes([obj_bytes[38], obj_bytes[39]])
+                        } else {
+                            0
+                        };
+                        ObjData::Ottava(Ottava {
+                            header: header.clone(),
+                            ext_header,
+                            no_cutoff,
+                            cross_staff,
+                            cross_system,
+                            oct_sign_type,
+                            filler,
+                            number_vis,
+                            unused1: false,
+                            brack_vis,
+                            unused2: false,
+                            nxd,
+                            nyd,
+                            xd_first,
+                            yd_first,
+                            xd_last,
+                            yd_last,
+                        })
+                    }
                     _ => ObjData::GrSync(GrSync {
                         header: header.clone(),
                     }),
@@ -1264,6 +1567,17 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 continue;
             }
         };
+
+        // Resolve TEMPO strings from the string pool immediately.
+        // TEMPO objects have no subobjects, so we do this in the main object loop.
+        // Source: DrawObject.cp:2320-2346 (DrawTEMPO string handling)
+        if let ObjData::Tempo(ref tempo) = data {
+            let verbal =
+                reader_decode_string(&ngl.string_pool, tempo.str_offset).unwrap_or_default();
+            let metro =
+                reader_decode_string(&ngl.string_pool, tempo.metro_str_offset).unwrap_or_default();
+            score.tempo_strings.insert(obj_idx, (verbal, metro));
+        }
 
         score.objects.push(InterpretedObject {
             index: obj_idx,
@@ -1532,6 +1846,27 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !graphics.is_empty() {
                     score.graphics.insert(obj.header.first_sub_obj, graphics);
+                }
+            }
+
+            OTTAVA_TYPE => {
+                // Unpack ANOTEOTTAVA subobjects (4 bytes each: next + opSync)
+                // Source: NObjTypesN105.h lines 431-434
+                let mut noteottavas = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(no) =
+                            unpack_anoteottava_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            noteottavas.push(no);
+                        }
+                    }
+                }
+                if !noteottavas.is_empty() {
+                    score.ottavas.insert(obj.header.first_sub_obj, noteottavas);
                 }
             }
 

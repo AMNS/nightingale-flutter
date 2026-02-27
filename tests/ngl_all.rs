@@ -287,7 +287,9 @@ fn test_all_ngl_render_and_geometry() {
                 }
                 RenderCommand::MusicChar { x, y, .. } => {
                     // X should be within page width with margin.
-                    // Y should be positive (page-relative in multi-page scores).
+                    // Y can be negative for elements above the first staff
+                    // (tempo markings, rehearsal marks, etc.) — allow up to
+                    // ~50 pt above the top staff line.
                     assert!(
                         *x > -10.0 && *x < 900.0,
                         "[{}] Note x ({}) should be within page width",
@@ -295,8 +297,8 @@ fn test_all_ngl_render_and_geometry() {
                         x
                     );
                     assert!(
-                        *y > -10.0,
-                        "[{}] Note y ({}) should be non-negative",
+                        *y > -60.0,
+                        "[{}] MusicChar y ({}) is unreasonably negative",
                         name,
                         y
                     );
@@ -531,6 +533,11 @@ fn test_all_ngl_score_structure() {
                     TUPLET_TYPE => "TUP",
                     GRAPHIC_TYPE => "GFX",
                     TEMPO_TYPE => "TEMPO",
+                    ENDING_TYPE => "END",
+                    OTTAVA_TYPE => "OTT",
+                    SPACER_TYPE => "SPC",
+                    RPTEND_TYPE => "RPT",
+                    PSMEAS_TYPE => "PSM",
                     _ => "?",
                 };
                 format!("{}={}", n, c)
@@ -556,23 +563,23 @@ fn test_all_ngl_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("01_me_and_lucy", 12855114807852179648),
-        ("02_cloning_frank_blacks", 3969126462608252762),
-        ("03_holed_up_in_penjinskya", 5693022970979351812),
-        ("04_eating_humble_pie", 15456613713247775025),
-        ("05_abigail", 13164028095336495281),
-        ("06_melyssa_with_a_y", 14391485875790172217),
-        ("07_new_york_debutante", 5500162587237017746),
-        ("08_darling_sunshine", 4345705978497755974),
-        ("09_swiss_ann", 913761507988915320),
-        ("10_ghost_of_fusion_bob", 17691783095061632062),
-        ("11_philip", 17902503554937568882),
-        ("12_what_do_i_know", 10137758518515684706),
-        ("13_miss_b", 522574061119857763),
-        ("14_chrome_molly", 2149360063058581272),
-        ("15_selfsame_twin", 4441194027489723529),
-        ("16_esmerelda", 3390536069196480929),
-        ("17_capital_regiment_march", 16477945034908735935),
+        ("01_me_and_lucy", 10992702260944429908),
+        ("02_cloning_frank_blacks", 5696705098476709798),
+        ("03_holed_up_in_penjinskya", 2402501854323720556),
+        ("04_eating_humble_pie", 2779434523516249649),
+        ("05_abigail", 17698929841808689852),
+        ("06_melyssa_with_a_y", 1887696396327157197),
+        ("07_new_york_debutante", 10821857181363895931),
+        ("08_darling_sunshine", 17755709699738733530),
+        ("09_swiss_ann", 2281075485808473331),
+        ("10_ghost_of_fusion_bob", 2122799241293494887),
+        ("11_philip", 6492066107507503555),
+        ("12_what_do_i_know", 13276803914387902859),
+        ("13_miss_b", 11924056974066374810),
+        ("14_chrome_molly", 3594481448612645984),
+        ("15_selfsame_twin", 7819116300661252069),
+        ("16_esmerelda", 3402470770706270774),
+        ("17_capital_regiment_march", 16688206186782381679),
     ]
     .into_iter()
     .collect();
