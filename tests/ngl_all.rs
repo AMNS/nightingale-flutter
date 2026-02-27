@@ -358,7 +358,7 @@ fn test_all_ngl_produce_valid_pdf() {
     let output_dir = Path::new("test-output/ngl");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
-    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let font_path = Path::new("assets/fonts/Bravura.otf");
 
     for path in ALL_NGL_FILES {
         let name = short_name(path);
@@ -645,8 +645,9 @@ fn test_all_ngl_bitmap_regression() {
     let diff_dir = Path::new("test-output/bitmap-diff");
     fs::create_dir_all(diff_dir).unwrap();
 
-    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
-    let font_data = fs::read(font_path).ok();
+    let font_dir = Path::new("assets/fonts");
+    let font_path = font_dir.join("Bravura.otf");
+    let font_data = fs::read(&font_path).ok();
 
     let mut mismatches = Vec::new();
 
@@ -674,6 +675,7 @@ fn test_all_ngl_bitmap_regression() {
         if let Some(ref data) = font_data {
             bmp.load_music_font(data.clone());
         }
+        bmp.load_text_fonts_from_dir(font_dir);
         render_score(&score, &mut bmp);
         // Flush any unfinished page
         if bmp.page_count() == 0 {

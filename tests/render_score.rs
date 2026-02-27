@@ -83,7 +83,7 @@ fn test_notelist_hbd33_render_to_pdf() {
     let mut pdf_renderer = PdfRenderer::new(config.page_width as f32, config.page_height as f32);
 
     // Load Bravura SMuFL font for real glyph rendering
-    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let font_path = Path::new("assets/fonts/Bravura.otf");
     if font_path.exists() {
         pdf_renderer.load_music_font_file(font_path);
     }
@@ -738,7 +738,7 @@ fn test_ngl_interpret_and_render_all_fixtures() {
                 })
                 .unwrap_or((612.0, 792.0));
         let mut pdf_renderer = PdfRenderer::new(page_width, page_height);
-        let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+        let font_path = Path::new("assets/fonts/Bravura.otf");
         if font_path.exists() {
             pdf_renderer.load_music_font_file(font_path);
         }
@@ -937,7 +937,7 @@ fn test_ngl_capital_regiment_march() {
     let output_dir = Path::new("test-output/ngl");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
     let mut pdf_renderer = PdfRenderer::new(page_w as f32, page_h as f32);
-    let font_path = Path::new("icebox/nightingale_app/assets/fonts/Bravura.otf");
+    let font_path = Path::new("assets/fonts/Bravura.otf");
     if font_path.exists() {
         pdf_renderer.load_music_font_file(font_path);
     }

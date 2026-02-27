@@ -294,6 +294,35 @@ impl BitmapRenderer {
         }
     }
 
+    /// Load Liberation Sans + Serif text fonts from a directory.
+    ///
+    /// Expects the directory to contain:
+    ///   LiberationSerif-{Regular,Bold,Italic,BoldItalic}.ttf
+    ///   LiberationSans-{Regular,Bold,Italic,BoldItalic}.ttf
+    ///
+    /// These are metric-compatible replacements for Times New Roman and
+    /// Helvetica/Arial, matching the fonts used in Nightingale NGL files.
+    /// Returns the number of fonts successfully loaded (0..8).
+    pub fn load_text_fonts_from_dir(&mut self, dir: &Path) -> usize {
+        let variants: &[(&str, &str)] = &[
+            ("serif", "LiberationSerif-Regular.ttf"),
+            ("serif-bold", "LiberationSerif-Bold.ttf"),
+            ("serif-italic", "LiberationSerif-Italic.ttf"),
+            ("serif-bold-italic", "LiberationSerif-BoldItalic.ttf"),
+            ("sans", "LiberationSans-Regular.ttf"),
+            ("sans-bold", "LiberationSans-Bold.ttf"),
+            ("sans-italic", "LiberationSans-Italic.ttf"),
+            ("sans-bold-italic", "LiberationSans-BoldItalic.ttf"),
+        ];
+        let mut loaded = 0;
+        for (role, filename) in variants {
+            if self.load_text_font_file(&dir.join(filename), role) {
+                loaded += 1;
+            }
+        }
+        loaded
+    }
+
     /// Get the completed pages as Pixmap references.
     pub fn pages(&self) -> &[Pixmap] {
         &self.pages
