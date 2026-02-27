@@ -12,8 +12,8 @@ use crate::render::MusicRenderer;
 use super::draw_beam::draw_beamset;
 use super::draw_nrgr::{collect_slur_endpoints, collect_tie_endpoints, draw_sync};
 use super::draw_object::{
-    draw_clef, draw_connect, draw_dynamic, draw_keysig, draw_measure, draw_slur,
-    draw_slurs_from_endpoints, draw_staff, draw_ties, draw_timesig,
+    draw_clef, draw_connect, draw_dynamic, draw_graphic, draw_keysig, draw_measure,
+    draw_part_names, draw_slur, draw_slurs_from_endpoints, draw_staff, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
 use super::helpers::{count_staves, TieEndpoint};
@@ -62,6 +62,11 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
     // Reference: PS_Stdio.cp, PS_NewPage() / PS_EndPage()
     let mut current_page: i32 = -1; // -1 = no page started yet
 
+    // Track whether the next Measure object is the first in its system.
+    // Used by draw_measure to decide measure number placement.
+    // Reference: DrawUtils.cp:2157 — FirstMeasInSys()
+    let mut first_meas_in_system = false;
+
     for obj in score.walk() {
         // Update context BEFORE drawing (matches C++ pipeline)
         ctx.update_from_object(obj, score);
@@ -99,8 +104,20 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
                     slur_ends.clear();
                 }
             }
-            ObjData::Staff(_) => draw_staff(score, obj, &ctx, renderer),
-            ObjData::Measure(_) => draw_measure(score, obj, &ctx, renderer),
+            ObjData::Staff(_) => {
+                draw_staff(score, obj, &ctx, renderer);
+                // Draw part names once per system, at the Staff object.
+                // Get system_num from the first staff's context.
+                // Reference: DrawObject.cp, DrawSTAFF(), lines 636-651
+                let system_num = ctx.get(1).map_or(0, |c| c.system_num);
+                draw_part_names(score, &ctx, renderer, system_num);
+                // The next Measure after a Staff is the first in the system.
+                first_meas_in_system = true;
+            }
+            ObjData::Measure(_) => {
+                draw_measure(score, obj, &ctx, renderer, first_meas_in_system);
+                first_meas_in_system = false;
+            }
             ObjData::Sync(_) => {
                 draw_sync(score, obj, &ctx, renderer);
                 collect_tie_endpoints(score, obj, &ctx, &mut tie_starts, &mut tie_ends);
@@ -114,7 +131,8 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             ObjData::Tuplet(_) => draw_tuplet(score, obj, &ctx, renderer),
             ObjData::Slur(_) => draw_slur(score, obj, &ctx, renderer),
             ObjData::Dynamic(_) => draw_dynamic(score, obj, &ctx, renderer),
-            // TODO: Tempo, Graphic, Ottava, Ending, etc.
+            ObjData::Graphic(_) => draw_graphic(score, obj, &ctx, renderer),
+            // TODO: Tempo, Ottava, Ending, etc.
             _ => {}
         }
     }

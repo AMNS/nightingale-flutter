@@ -7,7 +7,8 @@
 
 use crate::context::ContextState;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore};
-use crate::render::types::{ddist_to_render, BarLineType, MusicGlyph, Point};
+use crate::obj_types::PartInfo;
+use crate::render::types::{ddist_to_render, BarLineType, MusicGlyph, Point, TextFont};
 use crate::render::MusicRenderer;
 
 use super::draw_utils::{clef_glyph, clef_halfline_position, get_ks_y_offset};
@@ -67,6 +68,137 @@ pub fn draw_staff(
     }
 }
 
+/// Draw part names to the left of staves.
+///
+/// Port of DrawObject.cp DrawPartName() (lines 326-410).
+///
+/// Called during STAFF object rendering. For each part, the name is drawn
+/// once per part (triggered on the last staff), centered vertically between
+/// the part's first and last staves.
+///
+/// Which name is shown depends on whether this is the first system:
+///   - System 1: uses score.first_names (0=none, 1=abbrev, 2=full)
+///   - Other systems: uses score.other_names
+///
+/// Horizontal centering formula from OG (DrawObject.cp:370-377):
+///   xd = systemLeft - connWidth - indent/2 - pt2d(nameWidth/2)
+///
+/// Vertical centering from OG (DrawObject.cp:399, PostScript path):
+///   yd = midpoint(firstStaffTop, lastStaffBot) + pt2d(fontSize/4)
+///
+/// Reference: DrawObject.cp:326-410, DrawObject.cp:636-651
+pub fn draw_part_names(
+    score: &InterpretedScore,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+    system_num: i16,
+) {
+    use crate::render::types::ddist_to_render;
+
+    // Determine which name code and indent apply for this system.
+    // OG: DrawObject.cp:636-651 — first system uses firstNames/dIndentFirst,
+    //     subsequent systems use otherNames/dIndentOther.
+    // Note: d_indent_first/d_indent_other are available in the score header but
+    // not used here because NGL system rects already incorporate the indent.
+    let names_code = if system_num <= 1 {
+        score.first_names
+    } else {
+        score.other_names
+    };
+
+    // 0 = NONAMES: don't draw part names
+    // Reference: DrawObject.cp:344
+    if names_code == 0 {
+        return;
+    }
+
+    for part_info in &score.part_infos {
+        // Skip DUMMY parts (first_staff < 1 or last_staff < 1)
+        if part_info.first_staff < 1 || part_info.last_staff < 1 {
+            continue;
+        }
+
+        // Get name string based on code
+        // Reference: DrawObject.cp:355-356
+        let name = if names_code == 1 {
+            // ABBREVNAMES
+            PartInfo::short_name_str(part_info)
+        } else {
+            // FULLNAMES
+            PartInfo::name_str(part_info)
+        };
+
+        if name.is_empty() {
+            continue;
+        }
+
+        // Get context for first and last staff of this part
+        let first_ctx = match ctx.get(part_info.first_staff) {
+            Some(c) if c.staff_visible => c,
+            _ => continue,
+        };
+        let last_ctx = match ctx.get(part_info.last_staff) {
+            Some(c) if c.staff_visible => c,
+            _ => continue,
+        };
+
+        // Compute lineSpace for relative font size resolution
+        let line_space = if first_ctx.staff_lines > 1 {
+            first_ctx.staff_height / (first_ctx.staff_lines as i16 - 1)
+        } else {
+            first_ctx.staff_height
+        };
+
+        // Resolve part name font from text style FONT_PN (index 2).
+        // Reference: DrawObject.cp:358 — GetTextSize(doc->relFSizePN, doc->fontSizePN, LNSPACE)
+        let font = if score.text_styles.len() > 2 {
+            let ts = &score.text_styles[2]; // FONT_PN = 2
+            let pt_size = if ts.rel_f_size {
+                rel_size_to_pt(ts.font_size, line_space)
+            } else {
+                (ts.font_size as f32).max(4.0)
+            };
+            let bold = (ts.font_style & 1) != 0;
+            let italic = (ts.font_style & 2) != 0;
+            let font_name = if ts.font_name.is_empty() {
+                "Times New Roman".to_string()
+            } else {
+                map_mac_font_name(&ts.font_name)
+            };
+            TextFont::new(font_name, pt_size).bold(bold).italic(italic)
+        } else {
+            TextFont::new("Times New Roman".to_string(), 10.0)
+        };
+
+        // --- Vertical position ---
+        // OG: DrawObject.cp:349-352 — midpoint of first staff top to last staff bottom
+        let yd_top = first_ctx.staff_top;
+        let yd_bot = last_ctx.staff_top + last_ctx.staff_height;
+        let yd_mid = ((yd_top as i32 + yd_bot as i32) / 2) as i16;
+        // OG PostScript path: yd += pt2d(fontSize/4) for baseline adjustment
+        // Reference: DrawObject.cp:399
+        let yd_adjusted = yd_mid.saturating_add((font.size * 4.0) as i16); // pt2d = pt * 16
+        let text_y = ddist_to_render(yd_adjusted);
+
+        // --- Horizontal position ---
+        // OG centered mode (DrawObject.cp:370-377) centers the name in the indent
+        // area using: xd = systemLeft - connWidth - indent/2 - pt2d(nameWidth/2)
+        //
+        // In NGL files the system rect already incorporates the first-system indent
+        // (e.g. System 1 left=2032 vs System 2 left=1504), so we use a simpler
+        // right-aligned approach: place text ending a small margin to the left of
+        // systemLeft, with approximate width based on character count.
+        //
+        // Reference: DrawObject.cp:360-377, SpaceTime.cp:525-543
+        let system_left_pt = ddist_to_render(first_ctx.system_left);
+        let margin = 4.0_f32; // small gap between name and staff/clef
+        let approx_name_width = name.len() as f32 * font.size * 0.5;
+        let text_x = system_left_pt - margin - approx_name_width;
+
+        renderer.text_string(text_x, text_y, &name, &font);
+    }
+}
+
 /// Map AMeasure.header.sub_type to BarLineType enum.
 ///
 /// Reference: obj_types.rs BarlineType enum (lines 382-390)
@@ -82,45 +214,243 @@ fn map_barline_type(sub_type: i8) -> BarLineType {
     }
 }
 
-/// Draw a Measure object (bar lines for all staves).
+/// Draw a Measure object (bar lines + measure numbers for all staves).
 ///
-/// Port of DrawObject.cp DrawMEASURE() (line 2772) + DrawBarline().
+/// Port of DrawObject.cp DrawMEASURE() (line 2772) + DrawBarline() + DrawMeasNum().
 ///
 /// For each AMeasure subobject:
-/// - Get context for that staff
-/// - If visible:
-///   - Compute bar line X from measure_left (already absolute)
-///   - Compute top/bottom Y from staff_top and staff_height
-///   - Map AMeasure.header.sub_type to BarLineType enum
-///   - Call renderer.bar_line()
+/// - Draw bar line if visible
+/// - Draw measure number if conditions are met (ShouldDrawMeasNum logic)
 ///
-/// Reference: DrawObject.cp, DrawMEASURE(), line 2772
+/// Measure number conditions (DrawUtils.cp:2132-2161, ShouldDrawMeasNum):
+/// - `number_meas != 0` (measure numbers enabled)
+/// - Not a fake measure
+/// - Staff is top visible (if aboveMN) or bottom visible (if !aboveMN)
+/// - measureNum >= threshold (startMNPrint1 ? 1 : 2)
+/// - Either every nth measure (number_meas > 0) or first measure in system (number_meas < 0)
+///
+/// Reference: DrawObject.cp:2772 (DrawMEASURE), DrawObject.cp:2504-2553 (DrawMeasNum),
+///            DrawObject.cp:2885-2911 (measure number call site),
+///            DrawUtils.cp:2132-2161 (ShouldDrawMeasNum)
 pub fn draw_measure(
     score: &InterpretedScore,
     obj: &InterpretedObject,
     ctx: &ContextState,
     renderer: &mut dyn MusicRenderer,
+    first_meas_in_system: bool,
 ) {
     if let Some(ameasure_list) = score.measures.get(&obj.header.first_sub_obj) {
+        // Find the top and bottom visible staff numbers for measure number placement.
+        // Reference: DrawUtils.cp:2149-2150 — NextVisStaffn()
+        let mut top_vis_staff: i8 = 0;
+        let mut bot_vis_staff: i8 = 0;
+        for ameasure in ameasure_list {
+            let staffn = ameasure.header.staffn;
+            if let Some(c) = ctx.get(staffn) {
+                if c.staff_visible {
+                    if top_vis_staff == 0 || staffn < top_vis_staff {
+                        top_vis_staff = staffn;
+                    }
+                    if staffn > bot_vis_staff {
+                        bot_vis_staff = staffn;
+                    }
+                }
+            }
+        }
+
         for ameasure in ameasure_list {
             if let Some(measure_ctx) = ctx.get(ameasure.header.staffn) {
-                // Check if measure is visible (both staff context and sub-object)
+                // --- Bar line ---
                 if measure_ctx.visible && ameasure.header.visible {
-                    // Bar line X is at the measure left (already absolute from context)
                     let x = ddist_to_render(measure_ctx.measure_left);
-
-                    // Top and bottom from staff top + staff height
                     let top_y = ddist_to_render(measure_ctx.staff_top);
                     let bottom_y = d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height);
-
-                    // Map subtype to BarLineType
                     let bar_type = map_barline_type(ameasure.header.sub_type);
-
                     renderer.bar_line(top_y, bottom_y, x, bar_type);
+                }
+
+                // --- Measure number ---
+                // Reference: DrawObject.cp:2885-2911
+                if should_draw_meas_num(
+                    score,
+                    ameasure,
+                    top_vis_staff,
+                    bot_vis_staff,
+                    first_meas_in_system,
+                ) {
+                    // Suppress measure numbers at the system's closing barline.
+                    // NGL files repeat the boundary measure as both the closing
+                    // barline of system N and the opening barline of system N+1.
+                    // The closing barline's measure_left is at or very near
+                    // staff_right. Threshold of 48 DDIST (3 points) covers typical
+                    // rounding; mid-system measures are never this close.
+                    let dist_to_right =
+                        (measure_ctx.measure_left - measure_ctx.staff_right).unsigned_abs();
+                    let at_system_end = dist_to_right <= 48;
+                    if !at_system_end {
+                        draw_meas_num(
+                            score,
+                            obj,
+                            ameasure,
+                            measure_ctx,
+                            renderer,
+                            first_meas_in_system,
+                        );
+                    }
                 }
             }
         }
     }
+}
+
+/// Determine if a measure number should be drawn for this AMeasure subobject.
+///
+/// Port of DrawUtils.cp ShouldDrawMeasNum() (lines 2132-2161).
+///
+/// Reference: DrawUtils.cp:2132-2161
+fn should_draw_meas_num(
+    score: &InterpretedScore,
+    ameasure: &crate::obj_types::AMeasure,
+    top_vis_staff: i8,
+    bot_vis_staff: i8,
+    first_meas_in_system: bool,
+) -> bool {
+    // number_meas == 0 means never show measure numbers
+    if score.number_meas == 0 {
+        return false;
+    }
+
+    // Check if this is a fake measure (high bit of reserved_m was oldFakeMeas)
+    // Reference: DrawUtils.cp:2141 — MeasISFAKE
+    if ameasure.reserved_m < 0 {
+        return false;
+    }
+
+    let measure_num = ameasure.measure_num as i32 + score.first_mn_number as i32;
+
+    // Only draw on the correct staff (top if aboveMN, bottom otherwise)
+    // Reference: DrawUtils.cp:2149-2154
+    let target_staff = if score.above_mn {
+        top_vis_staff
+    } else {
+        bot_vis_staff
+    };
+    if ameasure.header.staffn != target_staff {
+        return false;
+    }
+
+    // Check minimum measure number threshold
+    // Reference: DrawUtils.cp:2156
+    let threshold = if score.start_mn_print1 { 1 } else { 2 };
+    if measure_num < threshold {
+        return false;
+    }
+
+    // Check frequency: every nth measure or first-in-system only
+    // Reference: DrawUtils.cp:2158-2159
+    if score.number_meas > 0 {
+        // Every nth measure
+        (measure_num % score.number_meas as i32) == 0
+    } else {
+        // number_meas < 0: first measure of each system only
+        first_meas_in_system
+    }
+}
+
+/// Draw a measure number at the appropriate position.
+///
+/// Port of DrawObject.cp DrawMeasNum() (lines 2504-2553) and the position
+/// calculation from DrawMEASURE (lines 2885-2911, PostScript path).
+///
+/// Position calculation:
+///   xdMN = dLeft + halfLn2d(xMNOffset, ...) [+ per-measure xMNStdOffset]
+///   yOffset = aboveMN ? -yMNOffset : 2*staffLines + yMNOffset
+///   ydMN = dTop + halfLn2d(yOffset, ...) [+ per-measure yMNStdOffset]
+///
+/// Reference: DrawObject.cp:2504-2553, DrawObject.cp:2885-2911
+fn draw_meas_num(
+    score: &InterpretedScore,
+    _obj: &InterpretedObject,
+    ameasure: &crate::obj_types::AMeasure,
+    measure_ctx: &crate::obj_types::Context,
+    renderer: &mut dyn MusicRenderer,
+    first_meas_in_system: bool,
+) {
+    use crate::utility::std2d;
+
+    let measure_num = ameasure.measure_num as i32 + score.first_mn_number as i32;
+    let num_str = measure_num.to_string();
+
+    let staff_height = measure_ctx.staff_height;
+    let staff_lines = measure_ctx.staff_lines as i16;
+
+    // halfLn2d: convert half-line units to DDIST
+    // halfLn2d(h, staffHeight, staffLines) = h * staffHeight / (2 * (staffLines - 1))
+    // Reference: defs.h, halfLn2d macro
+    let half_ln_2d = |half_lines: i32| -> i16 {
+        if staff_lines <= 1 {
+            return 0;
+        }
+        (half_lines * staff_height as i32 / (2 * (staff_lines as i32 - 1))) as i16
+    };
+
+    // X position: at the measure's left edge + horizontal offset
+    // Reference: DrawObject.cp:2893-2898
+    let d_left = measure_ctx.measure_left;
+    let x_offset = if first_meas_in_system && score.sys_first_mn {
+        // First measure in system uses staffLeft + xSysMNOffset
+        // Reference: DrawObject.cp:2893-2894
+        let base = measure_ctx.staff_left;
+        base + half_ln_2d(score.x_sys_mn_offset as i32)
+    } else {
+        d_left + half_ln_2d(score.x_mn_offset as i32)
+    };
+    // Per-measure adjustment
+    // Reference: DrawObject.cp:2905-2906
+    let xd_mn = x_offset + std2d(ameasure.x_mn_std_offset as i16, staff_height, staff_lines);
+
+    // Y position: above or below the staff
+    // Reference: DrawObject.cp:2899-2904
+    let y_offset_halflines = if score.above_mn {
+        -(score.y_mn_offset as i32)
+    } else {
+        2 * staff_lines as i32 + score.y_mn_offset as i32
+    };
+    let d_top = measure_ctx.staff_top;
+    let yd_base = d_top + half_ln_2d(y_offset_halflines);
+    let yd_mn = yd_base + std2d(ameasure.y_mn_std_offset as i16, staff_height, staff_lines);
+
+    // Compute lineSpace for relative font size
+    let line_space = if staff_lines > 1 {
+        staff_height / (staff_lines - 1)
+    } else {
+        staff_height
+    };
+
+    // Resolve font from FONT_MN (text_styles[0])
+    // Reference: DrawObject.cp:2540 — GetTextSize(doc->relFSizeMN, doc->fontSizeMN, LNSPACE)
+    let font = if !score.text_styles.is_empty() {
+        let ts = &score.text_styles[0]; // FONT_MN = 0
+        let pt_size = if ts.rel_f_size {
+            rel_size_to_pt(ts.font_size, line_space)
+        } else {
+            (ts.font_size as f32).max(4.0)
+        };
+        let bold = (ts.font_style & 1) != 0;
+        let italic = (ts.font_style & 2) != 0;
+        let font_name = if ts.font_name.is_empty() {
+            "Times New Roman".to_string()
+        } else {
+            map_mac_font_name(&ts.font_name)
+        };
+        TextFont::new(font_name, pt_size).bold(bold).italic(italic)
+    } else {
+        TextFont::new("Times New Roman".to_string(), 10.0)
+    };
+
+    let text_x = ddist_to_render(xd_mn);
+    let text_y = ddist_to_render(yd_mn);
+    renderer.text_string(text_x, text_y, &num_str, &font);
 }
 
 /// Draw a Connect object (brackets, braces, or connecting lines).
@@ -1003,5 +1333,212 @@ pub fn draw_dynamic(
             let size_pct = if adynamic.small != 0 { 75.0 } else { 100.0 };
             renderer.music_char(x, y, MusicGlyph::smufl(glyph_cp), size_pct);
         }
+    }
+}
+
+/// Draw a GRAPHIC object (text strings, lyrics, rehearsal marks, etc.).
+///
+/// Handles GRString, GRLyric, GRRehearsal, GRChordSym subtypes by rendering
+/// the resolved text from the string pool at the GRAPHIC's position.
+///
+/// Position computation follows the OG DrawGRAPHIC (DrawObject.cp:1983-2224):
+///   x = measure_left + firstObj.xd + graphic.xd
+///   y = measure_top + graphic.yd
+///
+/// Font is determined by:
+///   1. The text style index in graphic.info (FONT_MN, FONT_PN, FONT_R1, etc.)
+///   2. Or the graphic's own fontInd/fontSize/fontStyle fields (FONT_THISITEMONLY=0)
+///
+/// Reference: DrawObject.cp:1983-2224, DrawObject.cp:1808-1969 (DrawTextBlock)
+pub fn draw_graphic(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::ngl::interpret::ObjData;
+    use crate::obj_types::GraphicType;
+    use crate::render::types::ddist_wide_to_render;
+
+    let gfx = match &obj.data {
+        ObjData::Graphic(g) => g,
+        _ => return,
+    };
+
+    // Only handle text-based graphic types for now
+    let gtype = match gfx.graphic_type as u8 {
+        x if x == GraphicType::GrString as u8 => GraphicType::GrString,
+        x if x == GraphicType::GrLyric as u8 => GraphicType::GrLyric,
+        x if x == GraphicType::GrRehearsal as u8 => GraphicType::GrRehearsal,
+        x if x == GraphicType::GrChordSym as u8 => GraphicType::GrChordSym,
+        _ => return, // Skip GRDraw, GRArpeggio, etc. for now
+    };
+
+    // Get the resolved text string
+    let text = match score.graphic_strings.get(&obj.header.first_sub_obj) {
+        Some(s) if !s.is_empty() => s.as_str(),
+        _ => return, // No text to render
+    };
+
+    // Determine which staff context to use
+    // NB: staffn can be 0 for page-relative graphics; use staff 1 as fallback
+    let staffn = if gfx.ext_header.staffn > 0 {
+        gfx.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute X position
+    // OG: xd = SysRelxd(firstObj) + LinkXD(pL) + systemLeft
+    // Our model: measure_left + firstObj.xd + graphic.xd
+    let first_obj_xd = match score.get(gfx.first_obj) {
+        Some(ref_obj) => ref_obj.header.xd as i32,
+        None => 0,
+    };
+    let xd = staff_ctx.measure_left as i32 + first_obj_xd + obj.header.xd as i32;
+
+    // Compute Y position
+    // OG: yd = measureTop + LinkYD(pL)
+    // For text GRAPHICs, yd is relative to the staff's measure_top
+    let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+
+    let x = ddist_wide_to_render(xd);
+    let y = ddist_wide_to_render(yd);
+
+    // Compute lineSpace for relative font size resolution
+    // lineSpace = staff_height / (staff_lines - 1), in DDIST
+    // Reference: defs.h LNSPACE macro
+    let line_space = if staff_ctx.staff_lines > 1 {
+        staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
+    } else {
+        staff_ctx.staff_height
+    };
+
+    // Determine font from text style or GRAPHIC's own fields
+    // Mac fontStyle bits: 0=normal, bit0=bold, bit1=italic, bit2=underline, etc.
+    let font = resolve_graphic_font(gfx, score, &gtype, line_space);
+
+    // Handle multiline text (lines delimited by CR = '\r')
+    // Reference: DrawTextBlock, DrawObject.cp:1808-1969
+    if gfx.multi_line != 0 && text.contains('\r') {
+        let line_spacing = font.size * 1.2; // ~120% line spacing
+        for (i, line) in text.split('\r').enumerate() {
+            if !line.is_empty() {
+                let line_y = y + (i as f32) * line_spacing;
+                renderer.text_string(x, line_y, line, &font);
+            }
+        }
+    } else {
+        renderer.text_string(x, y, text, &font);
+    }
+}
+
+/// Convert a GrRelSize code to point size using staff line spacing.
+///
+/// OG Nightingale formula (Utility.cp:1132-1141, vars.h:350):
+///   relFSizeTab = [1.0, 1.5, 1.7, 2.0, 2.2, 2.5, 3.0, 3.6, 0, 4.0]
+///   point_size = d2pt(relFSizeTab[code] * lineSpace)
+///   d2pt(d) = (d + 8) >> 4    (DDIST → points with rounding)
+///
+/// lineSpace is in DDIST units (staff_height / (staff_lines - 1)).
+/// MIN_TEXT_SIZE = 4pt enforced.
+fn rel_size_to_pt(code: u8, line_space: i16) -> f32 {
+    // relFSizeTab from vars.h:350
+    // Index:  0    1     2     3     4     5     6     7    8   9
+    //        ---  Tiny  VSm   Sm    Med   Lg    VLg   Jmbo ---  StHt
+    const REL_F_SIZE_TAB: [f32; 10] = [1.0, 1.5, 1.7, 2.0, 2.2, 2.5, 3.0, 3.6, 0.0, 4.0];
+
+    let idx = code as usize;
+    if idx >= REL_F_SIZE_TAB.len() || line_space <= 0 {
+        return 12.0; // fallback
+    }
+    let multiplier = REL_F_SIZE_TAB[idx];
+    if multiplier == 0.0 {
+        return 12.0; // unused slot (code 8)
+    }
+    // d2pt: (ddist + 8) >> 4 = (ddist + 8) / 16
+    let ddist = multiplier * line_space as f32;
+    let pt = (ddist + 8.0) / 16.0;
+    pt.max(4.0) // MIN_TEXT_SIZE
+}
+
+/// Resolve font parameters for a GRAPHIC object.
+///
+/// If graphic.info == FONT_THISITEMONLY (0), use the graphic's own font fields.
+/// Otherwise, look up the text style from the score header.
+///
+/// line_space: staff line spacing in DDIST = staff_height / (staff_lines - 1).
+///
+/// Reference: GetGraphicFontInfo (DrawUtils.cp:2481-2506), GetTextSize (Utility.cp:1162)
+fn resolve_graphic_font(
+    gfx: &crate::obj_types::Graphic,
+    score: &InterpretedScore,
+    gtype: &crate::obj_types::GraphicType,
+    line_space: i16,
+) -> TextFont {
+    use crate::defs::FONT_THISITEMONLY;
+
+    let style_idx = gfx.info as usize;
+
+    // Try to use text style from header
+    if style_idx > FONT_THISITEMONLY as usize && style_idx < score.text_styles.len() {
+        let ts = &score.text_styles[style_idx];
+        let pt_size = if ts.rel_f_size {
+            rel_size_to_pt(ts.font_size, line_space)
+        } else {
+            (ts.font_size as f32).max(4.0)
+        };
+        let bold = (ts.font_style & 1) != 0;
+        let italic = (ts.font_style & 2) != 0;
+        let name = if ts.font_name.is_empty() {
+            default_font_for_type(gtype)
+        } else {
+            map_mac_font_name(&ts.font_name)
+        };
+        TextFont::new(name, pt_size).bold(bold).italic(italic)
+    } else {
+        // FONT_THISITEMONLY: use the graphic's own font fields
+        let pt_size = if gfx.rel_f_size != 0 {
+            rel_size_to_pt(gfx.font_size, line_space)
+        } else if gfx.font_size > 0 {
+            gfx.font_size as f32
+        } else {
+            12.0
+        };
+        let bold = (gfx.font_style & 1) != 0;
+        let italic = (gfx.font_style & 2) != 0;
+        TextFont::new(default_font_for_type(gtype), pt_size)
+            .bold(bold)
+            .italic(italic)
+    }
+}
+
+/// Map OG Nightingale Mac font names to modern equivalents.
+fn map_mac_font_name(name: &str) -> String {
+    match name {
+        "Times" | "Times New Roman" => "Times New Roman".to_string(),
+        "Helvetica" | "Arial" => "Helvetica".to_string(),
+        "Courier" | "Courier New" => "Courier".to_string(),
+        "Palatino" => "Palatino".to_string(),
+        _ => name.to_string(), // Pass through unknown names
+    }
+}
+
+/// Default font for a given graphic type.
+fn default_font_for_type(gtype: &crate::obj_types::GraphicType) -> String {
+    use crate::obj_types::GraphicType;
+    match gtype {
+        GraphicType::GrLyric => "Times New Roman".to_string(),
+        GraphicType::GrRehearsal => "Helvetica".to_string(),
+        GraphicType::GrChordSym => "Helvetica".to_string(),
+        _ => "Times New Roman".to_string(),
     }
 }

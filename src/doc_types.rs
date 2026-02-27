@@ -612,7 +612,7 @@ impl ScoreHeader {
     pub fn from_n105_bytes(data: &[u8]) -> Result<Self, String> {
         if data.len() < SCORE_HDR_SIZE_N105 {
             return Err(format!(
-                "ScoreHeader requires {} bytes, got {}",
+                "ScoreHeader requires >={} bytes, got {}",
                 SCORE_HDR_SIZE_N105,
                 data.len()
             ));
@@ -662,24 +662,22 @@ impl ScoreHeader {
         let comment = read_array::<{ MAX_COMMENT_LEN + 1 }>(data, offset);
         offset += MAX_COMMENT_LEN + 1;
 
-        // Config fields (42 bytes total from here)
-        let note_ins_feedback = data[offset];
+        // Config bitfield byte: 8 single-bit fields packed into 1 byte (mac68k alignment)
+        // C++: feedback:1, dontSendPatches:1, saved:1, named:1, used:1, transposed:1,
+        //      lyricText:1, polyTimbral:1
+        // Reference: NDocAndCnfgTypesN105.h lines 53-60
+        let config_bits = data[offset];
         offset += 1;
-        let dont_send_patches = data[offset];
-        offset += 1;
-        let saved = data[offset];
-        offset += 1;
-        let named = data[offset];
-        offset += 1;
-        let used = data[offset];
-        offset += 1;
-        let transposed = data[offset];
-        offset += 1;
-        let filler_sc1 = data[offset];
-        offset += 1;
-        let poly_timbral = data[offset];
-        offset += 1;
-        let filler_sc2 = data[offset];
+        let note_ins_feedback = (config_bits >> 7) & 1;
+        let dont_send_patches = (config_bits >> 6) & 1;
+        let saved = (config_bits >> 5) & 1;
+        let named = (config_bits >> 4) & 1;
+        let used = (config_bits >> 3) & 1;
+        let transposed = (config_bits >> 2) & 1;
+        let filler_sc1 = (config_bits >> 1) & 1; // lyricText
+        let poly_timbral = config_bits & 1;
+        // currentPage (Byte) — no longer used
+        let filler_sc2 = data[offset]; // currentPage
         offset += 1;
 
         let space_percent = read_i16_be(data, offset);
@@ -700,16 +698,16 @@ impl ScoreHeader {
         let footer_str_offset = read_i32_be(data, offset);
         offset += 4;
 
-        let top_pgn = data[offset];
+        // PGN bitfield byte: packed into 1 byte
+        // C++: topPGN:1, hPosPGN:3, alternatePGN:1, useHeaderFooter:1, fillerPGN:2
+        // Reference: NDocAndCnfgTypesN105.h lines 72-77
+        let pgn_bits = data[offset];
         offset += 1;
-        let h_pos_pgn = data[offset];
-        offset += 1;
-        let alternate_pgn = data[offset];
-        offset += 1;
-        let use_header_footer = data[offset];
-        offset += 1;
-        let filler_pgn = data[offset];
-        offset += 1;
+        let top_pgn = (pgn_bits >> 7) & 1;
+        let h_pos_pgn = (pgn_bits >> 4) & 0x07;
+        let alternate_pgn = (pgn_bits >> 3) & 1;
+        let use_header_footer = (pgn_bits >> 2) & 1;
+        let filler_pgn = pgn_bits & 0x03;
         let filler_mb = data[offset] as i8;
         offset += 1;
 
@@ -731,14 +729,15 @@ impl ScoreHeader {
         let x_sys_mn_offset = data[offset] as i8;
         offset += 1;
 
-        let above_mn = read_i16_be(data, offset);
+        // aboveMN bitfield: 4 fields packed into 1 short (2 bytes)
+        // C++: aboveMN:1, sysFirstMN:1, startMNPrint1:1, firstMNNumber:13
+        // Reference: NDocAndCnfgTypesN105.h lines 86-89
+        let mn_bits = read_u16_be(data, offset);
         offset += 2;
-        let sys_first_mn = read_i16_be(data, offset);
-        offset += 2;
-        let start_mn_print1 = read_i16_be(data, offset);
-        offset += 2;
-        let first_mn_number = read_i16_be(data, offset);
-        offset += 2;
+        let above_mn = ((mn_bits >> 15) & 1) as i16;
+        let sys_first_mn = ((mn_bits >> 14) & 1) as i16;
+        let start_mn_print1 = ((mn_bits >> 13) & 1) as i16;
+        let first_mn_number = (mn_bits & 0x1FFF) as i16;
 
         let master_head_l = read_u16_be(data, offset);
         offset += 2;
@@ -756,12 +755,13 @@ impl ScoreHeader {
         // Layout is fontName[32] + 4 bytes of packed data
         let font_name_mn = read_array::<32>(data, offset);
         offset += 32;
-        let filler_mn = read_u16_be(data, offset);
-        offset += 2;
-        let lyric_mn = read_u16_be(data, offset) & 0x8000;
-        let enclosure_mn = (read_u16_be(data, offset - 2) >> 13) & 0x0003;
-        let rel_f_size_mn = (read_u16_be(data, offset - 2) >> 12) & 0x0001;
-        let font_size_mn = (read_u16_be(data, offset - 2) >> 8) & 0x000F;
+        // Bitfield u16: filler:5, lyric:1, enclosure:2, relFSize:1, fontSize:7
+        let mn_bits = read_u16_be(data, offset);
+        let filler_mn = (mn_bits >> 11) & 0x1F;
+        let lyric_mn = (mn_bits >> 10) & 0x01;
+        let enclosure_mn = (mn_bits >> 8) & 0x03;
+        let rel_f_size_mn = (mn_bits >> 7) & 0x01;
+        let font_size_mn = mn_bits & 0x7F;
         offset += 2;
         let font_style_mn = read_i16_be(data, offset);
         offset += 2;
@@ -771,92 +771,89 @@ impl ScoreHeader {
 
         let font_name_pn = read_array::<32>(data, offset);
         offset += 32;
-        let filler_pn = 0;
-        let lyric_pn = 0;
-        let enclosure_pn = 0;
-        let rel_f_size_pn = 0;
-        let font_size_pn = 0;
+        let pn_bits = read_u16_be(data, offset);
+        let filler_pn = (pn_bits >> 11) & 0x1F;
+        let lyric_pn = (pn_bits >> 10) & 0x01;
+        let enclosure_pn = (pn_bits >> 8) & 0x03;
+        let rel_f_size_pn = (pn_bits >> 7) & 0x01;
+        let font_size_pn = pn_bits & 0x7F;
         offset += 2;
         let font_style_pn = read_i16_be(data, offset);
         offset += 2;
 
-        let font_name_rm = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_rm, lyric_rm, enclosure_rm, rel_f_size_rm, font_size_rm) = (0, 0, 0, 0, 0);
-        let font_style_rm = read_i16_be(data, offset);
-        offset += 2;
+        // Helper: parse a TEXTSTYLE record (36 bytes = fontName[32] + bitfield u16 + fontStyle i16)
+        // Reference: NDocAndCnfgTypesN105.h:92-214
+        macro_rules! read_textstyle {
+            ($data:expr, $offset:expr) => {{
+                let name = read_array::<32>($data, $offset);
+                let bits = read_u16_be($data, $offset + 32);
+                let filler = (bits >> 11) & 0x1F;
+                let lyric = (bits >> 10) & 0x01;
+                let enclosure = (bits >> 8) & 0x03;
+                let rel_f_size = (bits >> 7) & 0x01;
+                let font_size = bits & 0x7F;
+                let font_style = read_i16_be($data, $offset + 34);
+                $offset += 36; // TEXTSTYLE_SIZE_N105
+                (
+                    name, filler, lyric, enclosure, rel_f_size, font_size, font_style,
+                )
+            }};
+        }
 
-        let font_name1 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r1, lyric1, enclosure1, rel_f_size1, font_size1) = (0, 0, 0, 0, 0);
-        let font_style1 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name2 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r2, lyric2, enclosure2, rel_f_size2, font_size2) = (0, 0, 0, 0, 0);
-        let font_style2 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name3 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r3, lyric3, enclosure3, rel_f_size3, font_size3) = (0, 0, 0, 0, 0);
-        let font_style3 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name4 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r4, lyric4, enclosure4, rel_f_size4, font_size4) = (0, 0, 0, 0, 0);
-        let font_style4 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name_tm = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_tm, lyric_tm, enclosure_tm, rel_f_size_tm, font_size_tm) = (0, 0, 0, 0, 0);
-        let font_style_tm = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name_cs = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_cs, lyric_cs, enclosure_cs, rel_f_size_cs, font_size_cs) = (0, 0, 0, 0, 0);
-        let font_style_cs = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name_pg = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_pg, lyric_pg, enclosure_pg, rel_f_size_pg, font_size_pg) = (0, 0, 0, 0, 0);
-        let font_style_pg = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name5 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r5, lyric5, enclosure5, rel_f_size5, font_size5) = (0, 0, 0, 0, 0);
-        let font_style5 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name6 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r6, lyric6, enclosure6, rel_f_size6, font_size6) = (0, 0, 0, 0, 0);
-        let font_style6 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name7 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r7, lyric7, enclosure7, rel_f_size7, font_size7) = (0, 0, 0, 0, 0);
-        let font_style7 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name8 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r8, lyric8, enclosure8, rel_f_size8, font_size8) = (0, 0, 0, 0, 0);
-        let font_style8 = read_i16_be(data, offset);
-        offset += 2;
-
-        let font_name9 = read_array::<32>(data, offset);
-        offset += 32 + 4;
-        let (filler_r9, lyric9, enclosure9, rel_f_size9, font_size9) = (0, 0, 0, 0, 0);
-        let font_style9 = read_i16_be(data, offset);
-        offset += 2;
+        let (
+            font_name_rm,
+            filler_rm,
+            lyric_rm,
+            enclosure_rm,
+            rel_f_size_rm,
+            font_size_rm,
+            font_style_rm,
+        ) = read_textstyle!(data, offset);
+        let (font_name1, filler_r1, lyric1, enclosure1, rel_f_size1, font_size1, font_style1) =
+            read_textstyle!(data, offset);
+        let (font_name2, filler_r2, lyric2, enclosure2, rel_f_size2, font_size2, font_style2) =
+            read_textstyle!(data, offset);
+        let (font_name3, filler_r3, lyric3, enclosure3, rel_f_size3, font_size3, font_style3) =
+            read_textstyle!(data, offset);
+        let (font_name4, filler_r4, lyric4, enclosure4, rel_f_size4, font_size4, font_style4) =
+            read_textstyle!(data, offset);
+        let (
+            font_name_tm,
+            filler_tm,
+            lyric_tm,
+            enclosure_tm,
+            rel_f_size_tm,
+            font_size_tm,
+            font_style_tm,
+        ) = read_textstyle!(data, offset);
+        let (
+            font_name_cs,
+            filler_cs,
+            lyric_cs,
+            enclosure_cs,
+            rel_f_size_cs,
+            font_size_cs,
+            font_style_cs,
+        ) = read_textstyle!(data, offset);
+        let (
+            font_name_pg,
+            filler_pg,
+            lyric_pg,
+            enclosure_pg,
+            rel_f_size_pg,
+            font_size_pg,
+            font_style_pg,
+        ) = read_textstyle!(data, offset);
+        let (font_name5, filler_r5, lyric5, enclosure5, rel_f_size5, font_size5, font_style5) =
+            read_textstyle!(data, offset);
+        let (font_name6, filler_r6, lyric6, enclosure6, rel_f_size6, font_size6, font_style6) =
+            read_textstyle!(data, offset);
+        let (font_name7, filler_r7, lyric7, enclosure7, rel_f_size7, font_size7, font_style7) =
+            read_textstyle!(data, offset);
+        let (font_name8, filler_r8, lyric8, enclosure8, rel_f_size8, font_size8, font_style8) =
+            read_textstyle!(data, offset);
+        let (font_name9, filler_r9, lyric9, enclosure9, rel_f_size9, font_size9, font_style9) =
+            read_textstyle!(data, offset);
 
         // Font table (714 bytes)
         let nfonts_used = read_i16_be(data, offset);
@@ -953,9 +950,14 @@ impl ScoreHeader {
             offset += 1;
         }
 
-        // Expansion (255 entries, 3 bytes each = 765 bytes)
+        // Expansion (155 entries, 3 bytes each = 465 bytes)
+        // Guard against buffer overrun: some N105 files have exactly 2148 bytes,
+        // and with correct bitfield packing the voice+expansion table fits tightly.
         let mut expansion = [VoiceInfo::default(); 256 - (MAXVOICES + 1)];
         for item in expansion.iter_mut() {
+            if offset + 3 > data.len() {
+                break;
+            }
             item.partn = data[offset];
             offset += 1;
             item.voice_role = data[offset];

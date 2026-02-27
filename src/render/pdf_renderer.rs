@@ -307,6 +307,10 @@ impl PdfRenderer {
         let descriptor_ref = Ref::new(after_pages + 2);
         let tounicode_ref = Ref::new(after_pages + 3);
         let font_data_ref = Ref::new(after_pages + 4);
+        // Text font ref (Helvetica, always available)
+        let text_font_ref = Ref::new(after_pages + 5);
+        let text_font_bold_ref = Ref::new(after_pages + 6);
+        let text_font_italic_ref = Ref::new(after_pages + 7);
 
         let has_font = self.music_font.is_some();
 
@@ -333,9 +337,17 @@ impl PdfRenderer {
                 .media_box(Rect::new(0.0, 0.0, self.page_width, self.page_height))
                 .contents(content_id);
 
-            // Add font resource to each page
-            if has_font {
-                page.resources().fonts().pair(Name(b"Bravura"), type0_ref);
+            // Add font resources to each page
+            {
+                let mut resources = page.resources();
+                let mut fonts = resources.fonts();
+                if has_font {
+                    fonts.pair(Name(b"Bravura"), type0_ref);
+                }
+                // Built-in PDF text fonts (always available without embedding)
+                fonts.pair(Name(b"F1"), text_font_ref);
+                fonts.pair(Name(b"F1B"), text_font_bold_ref);
+                fonts.pair(Name(b"F1I"), text_font_italic_ref);
             }
             page.finish();
 
@@ -438,6 +450,15 @@ impl PdfRenderer {
             stream.pair(Name(b"Length1"), font.data.len() as i32);
             stream.finish();
         }
+
+        // Define built-in text fonts (Helvetica family — standard PDF Type1 fonts,
+        // available in all PDF readers without embedding).
+        // Reference: PDF spec 1.7, Table 5.17 — Standard Type 1 Fonts
+        pdf.type1_font(text_font_ref).base_font(Name(b"Helvetica"));
+        pdf.type1_font(text_font_bold_ref)
+            .base_font(Name(b"Helvetica-Bold"));
+        pdf.type1_font(text_font_italic_ref)
+            .base_font(Name(b"Helvetica-Oblique"));
 
         pdf.finish()
     }
@@ -960,13 +981,30 @@ impl MusicRenderer for PdfRenderer {
 
     /// Draw a text string.
     /// Reference: PS_Stdio.cp, PS_FontString(), line 1855
-    fn text_string(&mut self, x: f32, y: f32, text: &str, _font: &TextFont) {
-        // PDF text rendering requires a font resource. For now, use the built-in
-        // Helvetica font which is available in all PDF readers without embedding.
+    fn text_string(&mut self, x: f32, y: f32, text: &str, font: &TextFont) {
+        // Use the built-in Helvetica family (standard PDF Type1 font).
+        // Select regular/bold/italic variant based on font style.
+        let font_name = if font.bold {
+            pdf_writer::Name(b"F1B")
+        } else if font.italic {
+            pdf_writer::Name(b"F1I")
+        } else {
+            pdf_writer::Name(b"F1")
+        };
+        let size = font.size.max(4.0); // minimum 4pt to avoid invisible text
+        let tx = self.tx(x);
+        let ty = self.ty(y);
         self.sync_fill_color();
         self.content.begin_text();
-        self.content.set_font(pdf_writer::Name(b"F1"), 12.0);
-        self.content.next_line(self.tx(x), self.ty(y));
+        self.content.set_font(font_name, 1.0); // size applied via text matrix
+                                               // The global CTM has Y-flip [1 0 0 -1 0 page_height], which makes text
+                                               // render upside-down. Use a text matrix to flip Y back for text rendering,
+                                               // same approach as music_char().
+                                               // Text matrix: [sx 0 0 -sy tx ty] un-flips the Y axis for this text.
+        let scaled_size = size * self.state.scale_x;
+        self.content
+            .set_text_matrix([scaled_size, 0.0, 0.0, -scaled_size, tx, ty]);
+        // With text matrix set, show at origin (position is in the matrix)
         self.content.show(Str(text.as_bytes()));
         self.content.end_text();
     }

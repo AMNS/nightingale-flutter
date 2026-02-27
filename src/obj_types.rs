@@ -117,6 +117,28 @@ pub struct PartInfo {
     pub fms_output_destination: [u8; 280], // FreeMIDI destination (obsolete, ~280 bytes)
 }
 
+impl PartInfo {
+    /// Extract the full part name as a Rust string (from C string in name[32]).
+    pub fn name_str(pi: &PartInfo) -> String {
+        let pos = pi
+            .name
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(pi.name.len());
+        String::from_utf8_lossy(&pi.name[..pos]).to_string()
+    }
+
+    /// Extract the short part name as a Rust string (from C string in short_name[12]).
+    pub fn short_name_str(pi: &PartInfo) -> String {
+        let pos = pi
+            .short_name
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(pi.short_name.len());
+        String::from_utf8_lossy(&pi.short_name[..pos]).to_string()
+    }
+}
+
 // =============================================================================
 // Type 1: TAIL
 // =============================================================================

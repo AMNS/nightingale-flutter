@@ -53,7 +53,7 @@ pub use super::unpack_slur::unpack_aslur_n105;
 pub use super::unpack_structural::{unpack_ameasure_n105, unpack_astaff_n105};
 pub use super::unpack_stubs::{
     unpack_aconnect_n105, unpack_adynamic_n105, unpack_agraphic_n105, unpack_amodnr_n105,
-    unpack_anoteottava_n105, unpack_apsmeas_n105, unpack_arptend_n105,
+    unpack_anoteottava_n105, unpack_apsmeas_n105, unpack_arptend_n105, unpack_partinfo,
 };
 
 /// InterpretedScore: all decoded objects and subobjects from a .ngl file.
@@ -70,9 +70,35 @@ pub struct InterpretedScore {
     /// All objects in heap order (1-based indexing: slot 0 unused)
     pub objects: Vec<InterpretedObject>,
 
+    // Score header fields needed for rendering
+    /// Code for drawing part names on first system (0=none, 1=abbrev, 2=full)
+    pub first_names: i8,
+    /// Code for drawing part names on other systems
+    pub other_names: i8,
+    /// Amount to indent first System (DDIST)
+    pub d_indent_first: i16,
+    /// Amount to indent Systems other than first (DDIST)
+    pub d_indent_other: i16,
+    /// Show measure nos.: -=every system, 0=never, n=every nth meas.
+    pub number_meas: i8,
+    /// True=measure numbers above staff, else below
+    pub above_mn: bool,
+    /// Number of first measure
+    pub first_mn_number: i16,
+    /// Horiz. pos. offset for meas. nos. (half-spaces)
+    pub x_mn_offset: i8,
+    /// Vert. pos. offset for meas. nos. (half-spaces)
+    pub y_mn_offset: i8,
+    /// Horiz. pos. offset for meas. nos. if 1st meas. in system (half-spaces)
+    pub x_sys_mn_offset: i8,
+    /// True=indent 1st meas. of system by xSysMNOffset
+    pub sys_first_mn: bool,
+    /// True=First meas. number to print is 1, else 2
+    pub start_mn_print1: bool,
+
     // Subobject storage by type
-    /// Type 0 subobjects: PARTINFO (62 bytes)
-    pub part_infos: HashMap<Link, Vec<u8>>, // Raw bytes for now, full decode TBD
+    /// Type 0 subobjects: decoded PARTINFO structs
+    pub part_infos: Vec<crate::obj_types::PartInfo>,
     /// Type 2 subobjects: ANOTE (30 bytes)
     pub notes: HashMap<Link, Vec<ANote>>,
     /// Type 3 subobjects: ARPTEND (6 bytes)
@@ -107,6 +133,37 @@ pub struct InterpretedScore {
     pub grnotes: HashMap<Link, Vec<ANote>>,
     /// Type 23 subobjects: APSMEAS (6 bytes)
     pub psmeas_subs: HashMap<Link, Vec<APsMeas>>,
+
+    /// Resolved text strings for GRAPHIC objects.
+    /// Key is the GRAPHIC object's first_sub_obj link, value is the decoded string.
+    /// Resolved at interpretation time from AGRAPHIC.strOffset + string pool.
+    pub graphic_strings: HashMap<Link, String>,
+
+    /// Text styles parsed from the score header (15 entries, indexed by FONT_* constants).
+    /// Each entry: (font_name, font_size, font_style, is_lyric, enclosure, rel_f_size).
+    pub text_styles: Vec<TextStyle>,
+}
+
+/// Text style record parsed from the N105 score header.
+///
+/// 15 of these are stored at offset 390 (0x186) in the score header, each 36 bytes.
+/// Indexed by FONT_THISITEMONLY=0, FONT_MN=1, FONT_PN=2, FONT_RM=3, FONT_R1=4, etc.
+///
+/// Source: NBasicTypesN105.h lines 53-61
+#[derive(Debug, Clone)]
+pub struct TextStyle {
+    /// Font name (Pascal string, up to 31 chars)
+    pub font_name: String,
+    /// True if font size is relative to staff size
+    pub rel_f_size: bool,
+    /// Font size (absolute pt or relative code)
+    pub font_size: u8,
+    /// Font style (bold, italic, etc. — Mac TextFace bitfield)
+    pub font_style: i16,
+    /// True if lyric spacing
+    pub lyric: bool,
+    /// Enclosure type (0=none, 1=box, 2=circle)
+    pub enclosure: u8,
 }
 
 /// InterpretedObject: a single object with its header and type-specific data.
@@ -160,7 +217,19 @@ impl InterpretedScore {
         Self {
             head_l: NILINK,
             objects: Vec::new(),
-            part_infos: HashMap::new(),
+            first_names: 0,
+            other_names: 0,
+            d_indent_first: 0,
+            d_indent_other: 0,
+            number_meas: 0,
+            above_mn: true,
+            first_mn_number: 1,
+            x_mn_offset: 0,
+            y_mn_offset: 0,
+            x_sys_mn_offset: 0,
+            sys_first_mn: false,
+            start_mn_print1: true,
+            part_infos: Vec::new(),
             notes: HashMap::new(),
             rptend_subs: HashMap::new(),
             staffs: HashMap::new(),
@@ -178,6 +247,8 @@ impl InterpretedScore {
             tuplets: HashMap::new(),
             grnotes: HashMap::new(),
             psmeas_subs: HashMap::new(),
+            graphic_strings: HashMap::new(),
+            text_styles: Vec::new(),
         }
     }
 
@@ -452,6 +523,70 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
     // Reference: NObjTypesN105.h DOCUMENTHDR, ScoreHeader.head_l
     if ngl.score_header_raw.len() >= 2 {
         score.head_l = u16::from_be_bytes([ngl.score_header_raw[0], ngl.score_header_raw[1]]);
+    }
+
+    // === Parse score header fields for part names, measure numbers, etc. ===
+    // Use the full ScoreHeader parser from doc_types which already handles all offsets.
+    // The parser requires SCORE_HDR_SIZE_N105+1 bytes (off-by-one in voice table parsing),
+    // so only attempt this for files large enough. N103 files may be shorter.
+    match crate::doc_types::ScoreHeader::from_n105_bytes(&ngl.score_header_raw) {
+        Ok(hdr) => {
+            score.first_names = hdr.first_names;
+            score.other_names = hdr.other_names;
+            score.d_indent_first = hdr.d_indent_first;
+            score.d_indent_other = hdr.d_indent_other;
+            score.number_meas = hdr.number_meas;
+            score.above_mn = hdr.above_mn != 0;
+            score.first_mn_number = hdr.first_mn_number;
+            score.x_mn_offset = hdr.x_mn_offset;
+            score.y_mn_offset = hdr.y_mn_offset;
+            score.x_sys_mn_offset = hdr.x_sys_mn_offset;
+            score.sys_first_mn = hdr.sys_first_mn != 0;
+            score.start_mn_print1 = hdr.start_mn_print1 != 0;
+        }
+        Err(e) => {
+            eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
+        }
+    }
+
+    // === Parse text styles from score header ===
+    // N105: 15 TEXTSTYLE records at file offset 390 (0x186), each 36 bytes.
+    // score_header_raw starts at file offset 80, so offset within raw = 390 - 80 = 310.
+    // TEXTSTYLEN105: fontName[32] + bitfield(2 bytes) + fontStyle(2 bytes) = 36 bytes
+    // Bitfield: filler2:5 | lyric:1 | enclosure:2 | relFSize:1 | fontSize:7
+    // Source: NBasicTypesN105.h lines 53-61, Ngale5ProgQuickRef-TN1.txt
+    const TEXT_STYLE_OFFSET: usize = 310; // file offset 390 - 80 (header start)
+    const TEXT_STYLE_SIZE: usize = 36;
+    const NUM_TEXT_STYLES: usize = 15;
+    if ngl.score_header_raw.len() >= TEXT_STYLE_OFFSET + NUM_TEXT_STYLES * TEXT_STYLE_SIZE {
+        for i in 0..NUM_TEXT_STYLES {
+            let base = TEXT_STYLE_OFFSET + i * TEXT_STYLE_SIZE;
+            let style_bytes = &ngl.score_header_raw[base..base + TEXT_STYLE_SIZE];
+            // fontName[32]: Pascal string (byte 0 = length, bytes 1..len = chars)
+            let name_len = style_bytes[0] as usize;
+            let name_len = name_len.min(31); // cap at 31 chars
+            let font_name = String::from_utf8_lossy(&style_bytes[1..1 + name_len]).to_string();
+            // Bitfield at offset 32-33 (big-endian u16):
+            // bits 15-11: filler2 (5 bits)
+            // bit 10: lyric (1 bit)
+            // bits 9-8: enclosure (2 bits)
+            // bit 7: relFSize (1 bit)
+            // bits 6-0: fontSize (7 bits)
+            let bf = u16::from_be_bytes([style_bytes[32], style_bytes[33]]);
+            let lyric = (bf >> 10) & 1 != 0;
+            let enclosure = ((bf >> 8) & 0x03) as u8;
+            let rel_f_size = (bf >> 7) & 1 != 0;
+            let font_size = (bf & 0x7F) as u8;
+            let font_style = i16::from_be_bytes([style_bytes[34], style_bytes[35]]);
+            score.text_styles.push(TextStyle {
+                font_name,
+                rel_f_size,
+                font_size,
+                font_style,
+                lyric,
+                enclosure,
+            });
+        }
     }
 
     // Get the object heap (type 24)
@@ -945,6 +1080,115 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                             yd_last,
                         })
                     }
+                    GRAPHIC_TYPE => {
+                        // N105 GRAPHIC_5 object: 44 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24:    graphicType (SignedByte)
+                        // 25:    voice (SignedByte)
+                        // 26:    bitfield: enclosure:2|justify:3|vConstrain:1|hConstrain:1|multiLine:1
+                        // 27:    [mac68k padding]
+                        // 28-29: info (short) — text style index for GRString/GRLyric
+                        // 30-33: gu union (4 bytes: Handle/thickness)
+                        // 34:    fontInd (SignedByte)
+                        // 35:    relFSize:1|fontSize:7
+                        // 36-37: fontStyle (short)
+                        // 38-39: info2 (short)
+                        // 40-41: firstObj (LINK)
+                        // 42-43: lastObj (LINK)
+                        // Source: NObjTypesN105.h lines 401-425
+                        let ext_header = crate::obj_types::ExtObjHeader {
+                            staffn: if obj_bytes.len() > 23 {
+                                obj_bytes[23] as i8
+                            } else {
+                                0 // NB: staffn can be 0 for GRAPHICs
+                            },
+                        };
+                        let graphic_type = if obj_bytes.len() > 24 {
+                            obj_bytes[24] as i8
+                        } else {
+                            3 // default: GRString
+                        };
+                        let voice = if obj_bytes.len() > 25 {
+                            obj_bytes[25] as i8
+                        } else {
+                            1
+                        };
+                        let b26 = if obj_bytes.len() > 26 {
+                            obj_bytes[26]
+                        } else {
+                            0
+                        };
+                        let enclosure = (b26 >> 6) & 0x03;
+                        let justify = (b26 >> 3) & 0x07;
+                        let v_constrain = (b26 >> 2) & 1 != 0;
+                        let h_constrain = (b26 >> 1) & 1 != 0;
+                        let multi_line = b26 & 1;
+                        // Byte 27 is padding
+                        let info = if obj_bytes.len() > 29 {
+                            i16::from_be_bytes([obj_bytes[28], obj_bytes[29]])
+                        } else {
+                            0
+                        };
+                        let gu_thickness = if obj_bytes.len() > 33 {
+                            i16::from_be_bytes([obj_bytes[30], obj_bytes[31]])
+                        } else {
+                            0
+                        };
+                        let font_ind = if obj_bytes.len() > 34 {
+                            obj_bytes[34] as i8
+                        } else {
+                            0
+                        };
+                        let b35 = if obj_bytes.len() > 35 {
+                            obj_bytes[35]
+                        } else {
+                            0
+                        };
+                        let rel_f_size = (b35 >> 7) & 1;
+                        let font_size = b35 & 0x7F;
+                        let font_style = if obj_bytes.len() > 37 {
+                            i16::from_be_bytes([obj_bytes[36], obj_bytes[37]])
+                        } else {
+                            0
+                        };
+                        let info2 = if obj_bytes.len() > 39 {
+                            i16::from_be_bytes([obj_bytes[38], obj_bytes[39]])
+                        } else {
+                            0
+                        };
+                        let first_obj = if obj_bytes.len() > 41 {
+                            u16::from_be_bytes([obj_bytes[40], obj_bytes[41]])
+                        } else {
+                            NILINK
+                        };
+                        let last_obj = if obj_bytes.len() > 43 {
+                            u16::from_be_bytes([obj_bytes[42], obj_bytes[43]])
+                        } else {
+                            NILINK
+                        };
+                        ObjData::Graphic(Graphic {
+                            header: header.clone(),
+                            ext_header,
+                            graphic_type,
+                            voice,
+                            enclosure,
+                            justify,
+                            v_constrain,
+                            h_constrain,
+                            multi_line,
+                            info,
+                            gu_handle: 0, // Not meaningful in modern context
+                            gu_thickness,
+                            font_ind,
+                            rel_f_size,
+                            font_size,
+                            font_style,
+                            info2,
+                            first_obj,
+                            last_obj,
+                        })
+                    }
                     _ => ObjData::GrSync(GrSync {
                         header: header.clone(),
                     }),
@@ -1053,6 +1297,23 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
 
         // Unpack subobjects based on type
         match obj.header.obj_type as u8 {
+            HEADER_TYPE => {
+                // Unpack PARTINFO subobjects from the HEADER heap.
+                // Only process from the first HEADER (main score), not the master page.
+                if score.part_infos.is_empty() {
+                    let n_entries = obj.header.n_entries as usize;
+                    for i in 0..n_entries {
+                        let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                        let offset = sub_idx * sub_size;
+                        if offset + sub_size <= sub_data.len() {
+                            if let Ok(pi) = unpack_partinfo(&sub_data[offset..offset + sub_size]) {
+                                score.part_infos.push(pi);
+                            }
+                        }
+                    }
+                }
+            }
+
             SYNC_TYPE | GRSYNC_TYPE => {
                 // Unpack ANOTE subobjects
                 let mut notes = Vec::new();
@@ -1242,6 +1503,35 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !dynamics.is_empty() {
                     score.dynamics.insert(obj.header.first_sub_obj, dynamics);
+                }
+            }
+
+            GRAPHIC_TYPE => {
+                // Unpack AGRAPHIC subobjects (6 bytes each: next + strOffset)
+                // Each GRAPHIC object has exactly 1 subobject.
+                // Source: NObjTypesN105.h lines 396-399
+                let mut graphics = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(gr) = unpack_agraphic_n105(&sub_data[offset..offset + sub_size]) {
+                            graphics.push(gr);
+                        }
+                    }
+                }
+                // Resolve string from string pool for the first (and usually only) subobject
+                if let Some(first_gr) = graphics.first() {
+                    if let Some(text) = reader_decode_string(&ngl.string_pool, first_gr.str_offset)
+                    {
+                        if !text.is_empty() {
+                            score.graphic_strings.insert(obj.header.first_sub_obj, text);
+                        }
+                    }
+                }
+                if !graphics.is_empty() {
+                    score.graphics.insert(obj.header.first_sub_obj, graphics);
                 }
             }
 

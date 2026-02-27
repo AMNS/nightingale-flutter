@@ -2,7 +2,95 @@
 //!
 //! These will be filled in as we port additional rendering features.
 
-use crate::obj_types::{AConnect, ADynamic, AGraphic, AModNr, ANoteOttava, APsMeas, ARptEnd};
+use crate::obj_types::{
+    AConnect, ADynamic, AGraphic, AModNr, ANoteOttava, APsMeas, ARptEnd, PartInfo,
+};
+
+/// Unpack PARTINFO subobject from N105/N103 binary data.
+///
+/// On-disk layout (NBasicTypes.h:171-201, no mac68k padding issues — all fields align):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  ---------
+/// 0       2     next (LINK)
+/// 2       1     partVelocity
+/// 3       1     firstStaff
+/// 4       1     patchNum
+/// 5       1     lastStaff
+/// 6       1     channel
+/// 7       1     transpose
+/// 8       2     loKeyNum
+/// 10      2     hiKeyNum
+/// 12      32    name[32] (C string)
+/// 44      12    shortName[12] (C string)
+/// 56      6     hiKeyName..loKeyAcc
+/// 62+     2     bankNumber0, bankNumber32 (N103+, may not be present)
+/// 64+     282   FreeMIDI fields (obsolete, variable size)
+/// ```
+///
+/// We read the essential fields (up to offset 56) and handle
+/// optional trailing fields gracefully.
+pub fn unpack_partinfo(data: &[u8]) -> Result<PartInfo, String> {
+    if data.len() < 56 {
+        return Err(format!(
+            "PARTINFO data too short: {} bytes (need >=56)",
+            data.len()
+        ));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let part_velocity = data[2] as i8;
+    let first_staff = data[3] as i8;
+    let patch_num = data[4];
+    let last_staff = data[5] as i8;
+    let channel = data[6];
+    let transpose = data[7] as i8;
+    let lo_key_num = i16::from_be_bytes([data[8], data[9]]);
+    let hi_key_num = i16::from_be_bytes([data[10], data[11]]);
+
+    let mut name = [0u8; 32];
+    name.copy_from_slice(&data[12..44]);
+    let mut short_name = [0u8; 12];
+    short_name.copy_from_slice(&data[44..56]);
+
+    let hi_key_name = if data.len() > 56 { data[56] } else { 0 };
+    let hi_key_acc = if data.len() > 57 { data[57] } else { 0 };
+    let tran_name = if data.len() > 58 { data[58] } else { 0 };
+    let tran_acc = if data.len() > 59 { data[59] } else { 0 };
+    let lo_key_name = if data.len() > 60 { data[60] } else { 0 };
+    let lo_key_acc = if data.len() > 61 { data[61] } else { 0 };
+    let bank_number0 = if data.len() > 62 { data[62] } else { 0 };
+    let bank_number32 = if data.len() > 63 { data[63] } else { 0 };
+    let fms_output_device = if data.len() > 65 {
+        u16::from_be_bytes([data[64], data[65]])
+    } else {
+        0
+    };
+
+    Ok(PartInfo {
+        next,
+        part_velocity,
+        first_staff,
+        last_staff,
+        patch_num,
+        channel,
+        transpose,
+        lo_key_num,
+        hi_key_num,
+        name,
+        short_name,
+        hi_key_name,
+        hi_key_acc,
+        tran_name,
+        tran_acc,
+        lo_key_name,
+        lo_key_acc,
+        bank_number0,
+        bank_number32,
+        fms_output_device,
+        fms_output_destination: [0u8; 280], // Obsolete, don't bother reading
+    })
+}
 
 pub fn unpack_aconnect_n105(_data: &[u8]) -> Result<AConnect, String> {
     // TODO: Implement full ACONNECT_5 unpacking (12 bytes, bitfields in byte 2)
@@ -134,9 +222,23 @@ pub fn unpack_amodnr_n105(data: &[u8]) -> Result<AModNr, String> {
     })
 }
 
-pub fn unpack_agraphic_n105(_data: &[u8]) -> Result<AGraphic, String> {
-    // TODO: Implement full AGRAPHIC_5 unpacking (6 bytes)
-    Err("AGRAPHIC unpacking not yet implemented".to_string())
+/// Unpack AGRAPHIC_5 subobject (6 bytes on disk).
+///
+/// Layout:
+///   Offset 0-1: next (LINK, u16 big-endian)
+///   Offset 2-5: strOffset (STRINGOFFSET = long, i32 big-endian)
+///
+/// Source: NObjTypesN105.h lines 396-399
+pub fn unpack_agraphic_n105(data: &[u8]) -> Result<AGraphic, String> {
+    if data.len() < 6 {
+        return Err(format!(
+            "AGRAPHIC_5 data too short: {} bytes (need >=6)",
+            data.len()
+        ));
+    }
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let str_offset = i32::from_be_bytes([data[2], data[3], data[4], data[5]]);
+    Ok(AGraphic { next, str_offset })
 }
 
 pub fn unpack_anoteottava_n105(_data: &[u8]) -> Result<ANoteOttava, String> {
