@@ -32,22 +32,22 @@ x=351.1 top=72.0 bottom=96.0
 x=351.1 top=132.0 bottom=156.0
 x=448.3 top=72.0 bottom=96.0
 x=448.3 top=132.0 bottom=156.0
-x=557.9 top=72.0 bottom=96.0
-x=557.9 top=132.0 bottom=156.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
 x=245.4 top=247.0 bottom=271.0
 x=245.4 top=307.0 bottom=331.0
 x=345.3 top=247.0 bottom=271.0
 x=345.3 top=307.0 bottom=331.0
 x=445.2 top=247.0 bottom=271.0
 x=445.2 top=307.0 bottom=331.0
-x=557.9 top=247.0 bottom=271.0
-x=557.9 top=307.0 bottom=331.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
 x=299.3 top=422.0 bottom=446.0
 x=299.3 top=482.0 bottom=506.0
 x=447.1 top=422.0 bottom=446.0
 x=447.1 top=482.0 bottom=506.0
-x=557.9 top=422.0 bottom=446.0
-x=557.9 top=482.0 bottom=506.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
 
 === BEAMS ===
 x=[194.0..206.2] y=[69.0..72.0] slope=0.246 thick=3.00

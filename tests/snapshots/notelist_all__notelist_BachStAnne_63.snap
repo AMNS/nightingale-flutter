@@ -1,6 +1,5 @@
 ---
 source: tests/notelist_all.rs
-assertion_line: 397
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -120,9 +119,9 @@ x=302.8 top=192.0 bottom=216.0
 x=430.3 top=72.0 bottom=96.0
 x=430.3 top=132.0 bottom=156.0
 x=430.3 top=192.0 bottom=216.0
-x=557.9 top=72.0 bottom=96.0
-x=557.9 top=132.0 bottom=156.0
-x=557.9 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
 x=228.9 top=247.0 bottom=271.0
 x=228.9 top=307.0 bottom=331.0
 x=228.9 top=367.0 bottom=391.0
@@ -144,9 +143,9 @@ x=340.5 top=542.0 bottom=566.0
 x=451.1 top=422.0 bottom=446.0
 x=451.1 top=482.0 bottom=506.0
 x=451.1 top=542.0 bottom=566.0
-x=557.9 top=422.0 bottom=446.0
-x=557.9 top=482.0 bottom=506.0
-x=557.9 top=542.0 bottom=566.0
+x=558.0 top=422.0 bottom=446.0
+x=558.0 top=482.0 bottom=506.0
+x=558.0 top=542.0 bottom=566.0
 x=229.9 top=597.0 bottom=621.0
 x=229.9 top=657.0 bottom=681.0
 x=229.9 top=717.0 bottom=741.0
@@ -156,9 +155,9 @@ x=336.7 top=717.0 bottom=741.0
 x=447.3 top=597.0 bottom=621.0
 x=447.3 top=657.0 bottom=681.0
 x=447.3 top=717.0 bottom=741.0
-x=557.9 top=597.0 bottom=621.0
-x=557.9 top=657.0 bottom=681.0
-x=557.9 top=717.0 bottom=741.0
+x=558.0 top=597.0 bottom=621.0
+x=558.0 top=657.0 bottom=681.0
+x=558.0 top=717.0 bottom=741.0
 x=229.9 top=772.0 bottom=796.0
 x=229.9 top=832.0 bottom=856.0
 x=229.9 top=892.0 bottom=916.0
@@ -168,9 +167,9 @@ x=340.5 top=892.0 bottom=916.0
 x=451.1 top=772.0 bottom=796.0
 x=451.1 top=832.0 bottom=856.0
 x=451.1 top=892.0 bottom=916.0
-x=557.9 top=772.0 bottom=796.0
-x=557.9 top=832.0 bottom=856.0
-x=557.9 top=892.0 bottom=916.0
+x=558.0 top=772.0 bottom=796.0
+x=558.0 top=832.0 bottom=856.0
+x=558.0 top=892.0 bottom=916.0
 x=230.8 top=947.0 bottom=971.0
 x=230.8 top=1007.0 bottom=1031.0
 x=230.8 top=1067.0 bottom=1091.0
@@ -180,9 +179,9 @@ x=334.8 top=1067.0 bottom=1091.0
 x=446.3 top=947.0 bottom=971.0
 x=446.3 top=1007.0 bottom=1031.0
 x=446.3 top=1067.0 bottom=1091.0
-x=557.9 top=947.0 bottom=971.0
-x=557.9 top=1007.0 bottom=1031.0
-x=557.9 top=1067.0 bottom=1091.0
+x=558.0 top=947.0 bottom=971.0
+x=558.0 top=1007.0 bottom=1031.0
+x=558.0 top=1067.0 bottom=1091.0
 x=229.9 top=1122.0 bottom=1146.0
 x=229.9 top=1182.0 bottom=1206.0
 x=229.9 top=1242.0 bottom=1266.0
@@ -192,9 +191,9 @@ x=340.5 top=1242.0 bottom=1266.0
 x=451.1 top=1122.0 bottom=1146.0
 x=451.1 top=1182.0 bottom=1206.0
 x=451.1 top=1242.0 bottom=1266.0
-x=557.9 top=1122.0 bottom=1146.0
-x=557.9 top=1182.0 bottom=1206.0
-x=557.9 top=1242.0 bottom=1266.0
+x=558.0 top=1122.0 bottom=1146.0
+x=558.0 top=1182.0 bottom=1206.0
+x=558.0 top=1242.0 bottom=1266.0
 x=228.9 top=1297.0 bottom=1321.0
 x=228.9 top=1357.0 bottom=1381.0
 x=228.9 top=1417.0 bottom=1441.0
@@ -228,9 +227,9 @@ x=336.1 top=1767.0 bottom=1791.0
 x=446.9 top=1647.0 bottom=1671.0
 x=446.9 top=1707.0 bottom=1731.0
 x=446.9 top=1767.0 bottom=1791.0
-x=557.8 top=1647.0 bottom=1671.0
-x=557.8 top=1707.0 bottom=1731.0
-x=557.8 top=1767.0 bottom=1791.0
+x=558.0 top=1647.0 bottom=1671.0
+x=558.0 top=1707.0 bottom=1731.0
+x=558.0 top=1767.0 bottom=1791.0
 x=228.9 top=1822.0 bottom=1846.0
 x=228.9 top=1882.0 bottom=1906.0
 x=228.9 top=1942.0 bottom=1966.0
@@ -288,9 +287,9 @@ x=341.0 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
@@ -312,9 +311,9 @@ x=341.0 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
 x=446.9 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
-x=557.8 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
@@ -360,9 +359,9 @@ x=317.2 top=2047.9 bottom=2071.9
 x=427.9 top=2047.9 bottom=2071.9
 x=427.9 top=2047.9 bottom=2071.9
 x=427.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=230.2 top=2047.9 bottom=2071.9
 x=230.2 top=2047.9 bottom=2071.9
 x=230.2 top=2047.9 bottom=2071.9
@@ -372,9 +371,9 @@ x=338.6 top=2047.9 bottom=2071.9
 x=441.4 top=2047.9 bottom=2071.9
 x=441.4 top=2047.9 bottom=2071.9
 x=441.4 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=240.9 top=2047.9 bottom=2071.9
 x=240.9 top=2047.9 bottom=2071.9
 x=240.9 top=2047.9 bottom=2071.9
@@ -384,9 +383,9 @@ x=355.1 top=2047.9 bottom=2071.9
 x=456.5 top=2047.9 bottom=2071.9
 x=456.5 top=2047.9 bottom=2071.9
 x=456.5 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=230.7 top=2047.9 bottom=2071.9
 x=230.7 top=2047.9 bottom=2071.9
 x=230.7 top=2047.9 bottom=2071.9
@@ -396,9 +395,9 @@ x=342.1 top=2047.9 bottom=2071.9
 x=446.4 top=2047.9 bottom=2071.9
 x=446.4 top=2047.9 bottom=2071.9
 x=446.4 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=222.6 top=2047.9 bottom=2071.9
 x=222.6 top=2047.9 bottom=2071.9
 x=222.6 top=2047.9 bottom=2071.9
@@ -408,9 +407,9 @@ x=323.4 top=2047.9 bottom=2071.9
 x=441.9 top=2047.9 bottom=2071.9
 x=441.9 top=2047.9 bottom=2071.9
 x=441.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=217.0 top=2047.9 bottom=2071.9
 x=217.0 top=2047.9 bottom=2071.9
 x=217.0 top=2047.9 bottom=2071.9
@@ -420,9 +419,9 @@ x=331.4 top=2047.9 bottom=2071.9
 x=443.5 top=2047.9 bottom=2071.9
 x=443.5 top=2047.9 bottom=2071.9
 x=443.5 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=227.7 top=2047.9 bottom=2071.9
 x=227.7 top=2047.9 bottom=2071.9
 x=227.7 top=2047.9 bottom=2071.9
@@ -432,9 +431,9 @@ x=341.1 top=2047.9 bottom=2071.9
 x=442.1 top=2047.9 bottom=2071.9
 x=442.1 top=2047.9 bottom=2071.9
 x=442.1 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=238.2 top=2047.9 bottom=2071.9
 x=238.2 top=2047.9 bottom=2071.9
 x=238.2 top=2047.9 bottom=2071.9
@@ -444,9 +443,9 @@ x=357.1 top=2047.9 bottom=2071.9
 x=458.8 top=2047.9 bottom=2071.9
 x=458.8 top=2047.9 bottom=2071.9
 x=458.8 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=234.9 top=2047.9 bottom=2071.9
 x=234.9 top=2047.9 bottom=2071.9
 x=234.9 top=2047.9 bottom=2071.9
@@ -456,9 +455,9 @@ x=343.4 top=2047.9 bottom=2071.9
 x=449.4 top=2047.9 bottom=2071.9
 x=449.4 top=2047.9 bottom=2071.9
 x=449.4 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=558.0 top=2047.9 bottom=2071.9
 x=558.0 top=2047.9 bottom=2071.9
 x=558.0 top=2047.9 bottom=2071.9

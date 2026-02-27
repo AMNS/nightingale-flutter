@@ -74,9 +74,9 @@ x=350.5 top=192.0 bottom=216.0
 x=454.1 top=72.0 bottom=96.0
 x=454.1 top=132.0 bottom=156.0
 x=454.1 top=192.0 bottom=216.0
-x=557.8 top=72.0 bottom=96.0
-x=557.8 top=132.0 bottom=156.0
-x=557.8 top=192.0 bottom=216.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=132.0 bottom=156.0
+x=558.0 top=192.0 bottom=216.0
 x=230.8 top=247.0 bottom=271.0
 x=230.8 top=307.0 bottom=331.0
 x=230.8 top=367.0 bottom=391.0
@@ -86,9 +86,9 @@ x=338.6 top=367.0 bottom=391.0
 x=446.4 top=247.0 bottom=271.0
 x=446.4 top=307.0 bottom=331.0
 x=446.4 top=367.0 bottom=391.0
-x=557.9 top=247.0 bottom=271.0
-x=557.9 top=307.0 bottom=331.0
-x=557.9 top=367.0 bottom=391.0
+x=558.0 top=247.0 bottom=271.0
+x=558.0 top=307.0 bottom=331.0
+x=558.0 top=367.0 bottom=391.0
 x=228.9 top=422.0 bottom=446.0
 x=228.9 top=482.0 bottom=506.0
 x=228.9 top=542.0 bottom=566.0
@@ -218,9 +218,9 @@ x=346.6 top=2047.9 bottom=2071.9
 x=463.1 top=2047.9 bottom=2071.9
 x=463.1 top=2047.9 bottom=2071.9
 x=463.1 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
 x=228.9 top=2047.9 bottom=2071.9
@@ -242,9 +242,9 @@ x=386.5 top=2047.9 bottom=2071.9
 x=497.8 top=2047.9 bottom=2071.9
 x=497.8 top=2047.9 bottom=2071.9
 x=497.8 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
-x=557.9 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
+x=558.0 top=2047.9 bottom=2071.9
 
 === BEAMS ===
 x=[190.8..208.1] y=[121.0..119.1] slope=-0.112 thick=3.00

@@ -1324,19 +1324,17 @@ pub fn notelist_to_score_with_config(
                     // measure (which would be in a different coordinate space).
                     let bar_xd = if let Some(gmi) = global_meas_idx {
                         if gmi >= sys_meas_end {
-                            // System-boundary barline: next measure is on the next system.
-                            // Place at right edge of this system's last measure.
-                            let last = sys_meas_end - 1;
-                            measure_abs_xd[last] + measure_width_ddist[last]
+                            // System-boundary or final barline: flush to staff right edge.
+                            config.content_width()
                         } else if gmi < measure_abs_xd.len() {
                             measure_abs_xd[gmi]
                         } else {
-                            let last = measure_abs_xd.len() - 1;
-                            measure_abs_xd[last] + measure_width_ddist[last]
+                            // Past end of all measures (final barline): flush right.
+                            config.content_width()
                         }
                     } else {
-                        let last = sys_meas_end - 1;
-                        measure_abs_xd[last] + measure_width_ddist[last]
+                        // No matching measure index — flush right.
+                        config.content_width()
                     };
                     sys_barline_idx += 1;
 

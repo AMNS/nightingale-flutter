@@ -1,6 +1,5 @@
 ---
 source: tests/notelist_all.rs
-assertion_line: 397
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -22,7 +21,7 @@ y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=371.4 top=72.0 bottom=96.0
-x=557.9 top=72.0 bottom=96.0
+x=558.0 top=72.0 bottom=96.0
 
 === BEAMS ===
 x=[130.0..299.6] y=[84.0..84.0] slope=0.000 thick=3.00
