@@ -492,6 +492,241 @@ fn draw_rest(
     }
 }
 
+/// Draw a GRSync object (grace notes).
+///
+/// Grace notes are structurally identical to regular notes (same ANote struct)
+/// but rendered at 70% size with an optional diagonal slash across the stem.
+///
+/// Port of DrawNRGR.cp DrawGRSYNC() (line 2221) + DrawGRNote() (line 1695).
+///
+/// GRACESIZE = 7*size/10 (style.h:15)
+pub fn draw_grsync(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    // Grace notes are stored in score.grnotes (keyed by first_sub_obj)
+    if let Some(grnote_list) = score.grnotes.get(&obj.header.first_sub_obj) {
+        for grnote in grnote_list {
+            if let Some(note_ctx) = ctx.get(grnote.header.staffn) {
+                if !note_ctx.visible || !grnote.header.visible {
+                    continue;
+                }
+
+                // Grace note size: 70% of normal (GRACESIZE = 7*size/10)
+                let grace_size_pct = 70.0_f32;
+
+                let lnspace = lnspace_for_staff(note_ctx.staff_height, note_ctx.staff_lines);
+                let half_sp = lnspace / 2.0;
+                let head_width = 1.125 * lnspace; // HeadWidth (defs.h:355)
+                                                  // Grace note head width is smaller (scaled by grace size)
+                let grace_head_width = head_width * grace_size_pct / 100.0;
+
+                // X position: measure_left + grsync xd + grnote xd
+                // Reference: DrawUtils.cp GRNoteXLoc() line 1482-1509
+                let xd_norm = d2r_sum3(note_ctx.measure_left, obj.header.xd, grnote.xd);
+
+                // Apply otherStemSide offset (for grace note chords)
+                let note_x = if grnote.other_stem_side && !grnote.rest {
+                    let stem_down = find_stem_down(grnote, grnote_list);
+                    if stem_down {
+                        xd_norm - grace_head_width
+                    } else {
+                        xd_norm + grace_head_width
+                    }
+                } else {
+                    xd_norm
+                };
+
+                // Y position: staff_top + grnote yd
+                let note_y = d2r_sum(note_ctx.staff_top, grnote.yd);
+
+                let l_dur = grnote.header.sub_type;
+
+                // === Draw notehead at 70% size ===
+                let notehead = notehead_glyph(grnote.head_shape, l_dur);
+                if notehead != 0 {
+                    renderer.music_char(
+                        note_x,
+                        note_y,
+                        MusicGlyph::smufl(notehead),
+                        grace_size_pct,
+                    );
+                }
+
+                // === Draw accidental at 70% size ===
+                if grnote.accident != 0 {
+                    if let Some(acc_glyph) = accidental_glyph(grnote.accident) {
+                        let chord_note_to_l = chord_note_to_left(grnote, grnote_list);
+                        let acc_anchor = if chord_note_to_l {
+                            xd_norm - grace_head_width
+                        } else {
+                            xd_norm
+                        };
+                        let xmove = if grnote.accident == AC_DBLFLAT {
+                            (grnote.xmove_acc as i16 + 2).min(31)
+                        } else {
+                            grnote.xmove_acc as i16
+                        };
+                        let offset_ddist =
+                            acc_x_offset(xmove, note_ctx.staff_height, note_ctx.staff_lines as i16);
+                        let acc_x = acc_anchor - ddist_to_render(offset_ddist);
+                        renderer.music_char(
+                            acc_x,
+                            note_y,
+                            MusicGlyph::smufl(acc_glyph),
+                            grace_size_pct,
+                        );
+                    }
+                }
+
+                // === Draw ledger lines (at grace note size) ===
+                let ledgers = ledger_lines_for_note(grnote.yd, note_ctx.staff_height);
+                if !ledgers.is_empty() {
+                    let stem_down = grnote.ystem > grnote.yd;
+                    // Scale ledger line dimensions for grace notes
+                    let d_l_len = 1.5 * lnspace * grace_size_pct / 100.0;
+                    let d_l_other_len = 0.375 * lnspace * grace_size_pct / 100.0;
+                    let d_sticks_out = d_l_len - grace_head_width;
+
+                    let ledger_left = if stem_down {
+                        note_x - d_l_other_len
+                    } else {
+                        note_x - d_sticks_out
+                    };
+                    let ledger_len = d_l_len + d_l_other_len;
+                    let ledger_center_x = ledger_left + ledger_len / 2.0;
+                    let ledger_half_width = ledger_len / 2.0;
+
+                    for halfline in ledgers {
+                        let ledger_y = ddist_wide_to_render(
+                            note_ctx.staff_top as i32
+                                + (halfline as i32 * note_ctx.staff_height as i32 / 8),
+                        );
+                        renderer.ledger_line(ledger_y, ledger_center_x, ledger_half_width);
+                    }
+                }
+
+                // === Draw stem + flag (grace notes always have stems except whole/breve) ===
+                if l_dur > WHOLE_L_DUR && grnote.ystem != grnote.yd {
+                    let stem_down = grnote.ystem > grnote.yd;
+
+                    // Stem X uses grace note head width for upstem offset
+                    let stem_x = if stem_down {
+                        xd_norm
+                    } else {
+                        xd_norm + grace_head_width
+                    };
+
+                    let stem_near_yd = if grnote.in_chord {
+                        let mut near_yd = grnote.yd;
+                        for sibling in grnote_list {
+                            if sibling.header.staffn == grnote.header.staffn
+                                && sibling.voice == grnote.voice
+                                && !sibling.rest
+                            {
+                                if stem_down {
+                                    if sibling.yd < near_yd {
+                                        near_yd = sibling.yd;
+                                    }
+                                } else if sibling.yd > near_yd {
+                                    near_yd = sibling.yd;
+                                }
+                            }
+                        }
+                        near_yd
+                    } else {
+                        grnote.yd
+                    };
+
+                    let beam_extend = if grnote.beamed { 0.5_f32 } else { 0.0 };
+                    let stem_top = if stem_down {
+                        d2r_sum(note_ctx.staff_top, grnote.ystem.min(stem_near_yd))
+                    } else {
+                        d2r_sum(note_ctx.staff_top, grnote.ystem.min(stem_near_yd)) - beam_extend
+                    };
+                    let stem_bottom = if stem_down {
+                        d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd)) + beam_extend
+                    } else {
+                        d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd))
+                    };
+
+                    let stem_width = 0.8;
+                    renderer.note_stem(stem_x, stem_top, stem_bottom, stem_width);
+
+                    // Flag for unbeamed grace notes
+                    let flag_count = crate::utility::nflags(l_dur);
+                    if !grnote.beamed && flag_count > 0 {
+                        if let Some(flag) = flag_glyph(l_dur, !stem_down) {
+                            let flag_x = stem_x;
+                            let flag_y = d2r_sum(note_ctx.staff_top, grnote.ystem);
+                            renderer.music_char(
+                                flag_x,
+                                flag_y,
+                                MusicGlyph::smufl(flag),
+                                grace_size_pct,
+                            );
+                        }
+                    }
+
+                    // === Slash across stem (grace note characteristic slash) ===
+                    // OG: if (config.slashGraceStems!=0 && flagCount==1) slashStem = True
+                    // Also slashes beamed first-in-beam if config > 1.
+                    // Default: always slash single-flag (eighth) grace notes.
+                    // Reference: DrawNRGR.cp lines 1773-1799
+                    let slash_stem = if flag_count == 1 && !grnote.beamed {
+                        true
+                    } else {
+                        // Slash first note of beamed grace group when config > 1
+                        // We don't track beam position, so skip beamed slashing for now
+                        false
+                    };
+
+                    if slash_stem {
+                        // Slash geometry:
+                        // xdStem2Slash = -3*dhalfSp/4
+                        // xdSlash = xd + (stemDown? 0 : headWidth) + xdStem2Slash
+                        // ydSlash = dTop + ystem + (stemDown? -2*dhalfSp : 7*dhalfSp/2)
+                        // slashLen = 5*dhalfSp/2
+                        // slYDelta = slashLen (GRNOTE_SLASH_YDELTA = slashLen for 45° angle)
+                        // Reference: DrawNRGR.cp lines 1773-1781
+                        let xd_stem2slash = -3.0 * half_sp / 4.0;
+                        let slash_x = if stem_down {
+                            note_x + xd_stem2slash
+                        } else {
+                            note_x + grace_head_width + xd_stem2slash
+                        };
+                        let ystem_y = d2r_sum(note_ctx.staff_top, grnote.ystem);
+                        let slash_y = if stem_down {
+                            ystem_y - 2.0 * half_sp
+                        } else {
+                            ystem_y + 3.5 * half_sp
+                        };
+                        let slash_len = 2.5 * half_sp;
+                        let sl_y_delta = slash_len; // ~45° angle
+                                                    // Slash line weight: config.graceSlashLW% of lnSpace, default ~13%
+                        let slash_thick = 0.13 * lnspace;
+
+                        renderer.line(
+                            slash_x,
+                            slash_y,
+                            slash_x + slash_len,
+                            slash_y - sl_y_delta,
+                            slash_thick,
+                        );
+                    }
+                }
+
+                // === Augmentation dots (rare for grace notes, but possible) ===
+                if grnote.ndots > 0 && grnote.y_move_dots != 0 {
+                    draw_aug_dots_note(grnote, note_x, note_y, l_dur, lnspace, half_sp, renderer);
+                }
+            }
+        }
+    }
+}
+
 /// Collect tie endpoint information from a Sync object.
 ///
 /// For each note with tied_r, record a TieEndpoint in `tie_starts`.
