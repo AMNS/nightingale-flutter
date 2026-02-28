@@ -288,15 +288,18 @@ pub fn draw_measure(
                     bot_vis_staff,
                     first_meas_in_system,
                 ) {
-                    // Suppress measure numbers at the system's closing barline.
+                    // Suppress measure numbers at the system's closing barline
+                    // and at the score's final barline.
                     // NGL files repeat the boundary measure as both the closing
                     // barline of system N and the opening barline of system N+1.
-                    // The closing barline's measure_left is at or very near
-                    // staff_right. Threshold of 48 DDIST (3 points) covers typical
-                    // rounding; mid-system measures are never this close.
+                    // System-end barlines have dist=1; the score's final barline
+                    // has dist=72 (N103) or 64 (N105). Mid-system measures have
+                    // dist >= 595 across all fixtures. Threshold of 80 DDIST
+                    // (5 points) covers both cases with wide safety margin.
+                    // Reference: DrawObject.cp:2885-2911
                     let dist_to_right =
                         (measure_ctx.measure_left - measure_ctx.staff_right).unsigned_abs();
-                    let at_system_end = dist_to_right <= 48;
+                    let at_system_end = dist_to_right <= 80;
                     if !at_system_end {
                         draw_meas_num(
                             score,

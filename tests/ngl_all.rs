@@ -565,23 +565,23 @@ fn test_all_ngl_command_stream_hashes() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
 
     let expected: std::collections::HashMap<&str, u64> = [
-        ("01_me_and_lucy", 12510355520462456820),
-        ("02_cloning_frank_blacks", 48880533281046885),
+        ("01_me_and_lucy", 7267252307578036804),
+        ("02_cloning_frank_blacks", 2842189070404005199),
         ("03_holed_up_in_penjinskya", 8401214545629111926),
-        ("04_eating_humble_pie", 12318685912861221612),
-        ("05_abigail", 2733998001324405226),
-        ("06_melyssa_with_a_y", 13725481160799095141),
+        ("04_eating_humble_pie", 8210933136588262317),
+        ("05_abigail", 2674078322219902524),
+        ("06_melyssa_with_a_y", 10927055102929075819),
         ("07_new_york_debutante", 430521508483066315),
-        ("08_darling_sunshine", 4594060193981495008),
+        ("08_darling_sunshine", 16032056531961774323),
         ("09_swiss_ann", 10068361751498745531),
-        ("10_ghost_of_fusion_bob", 1212599205470897638),
-        ("11_philip", 18239709384817765455),
+        ("10_ghost_of_fusion_bob", 8969700582874331752),
+        ("11_philip", 5296497358385509942),
         ("12_what_do_i_know", 12215294704419352403),
-        ("13_miss_b", 17891402456141843982),
-        ("14_chrome_molly", 9024572138295960618),
-        ("15_selfsame_twin", 3959888207603483466),
-        ("16_esmerelda", 7758998252466356222),
-        ("17_capital_regiment_march", 17220224660135907839),
+        ("13_miss_b", 6088569234742575835),
+        ("14_chrome_molly", 7972563082637278338),
+        ("15_selfsame_twin", 14024244913202830810),
+        ("16_esmerelda", 10565784081727697268),
+        ("17_capital_regiment_march", 8151562389035003173),
     ]
     .into_iter()
     .collect();
