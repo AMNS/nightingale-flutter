@@ -18,9 +18,9 @@ y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=218.4 top=72.0 bottom=96.0
-x=331.5 top=72.0 bottom=96.0
-x=444.6 top=72.0 bottom=96.0
+x=215.7 top=72.0 bottom=96.0
+x=329.8 top=72.0 bottom=96.0
+x=443.8 top=72.0 bottom=96.0
 x=558.0 top=72.0 bottom=96.0
 x=209.2 top=247.0 bottom=271.0
 x=325.4 top=247.0 bottom=271.0

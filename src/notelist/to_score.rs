@@ -49,7 +49,10 @@ use crate::objects::{
     normal_stem_up_down_single, setup_ks_info,
 };
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
-use crate::space_time::{ideal_space_pdur, ideal_space_stdist, stdist_to_ddist};
+use crate::space_time::{
+    min_measure_width_stdist, respace_1bar, stdist_to_ddist, sync_width_left, sync_width_right,
+    NoteWidthInfo, SpaceTimeInfo, CONFIG_SP_AFTER_BAR, J_IT,
+};
 use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
 use std::collections::BTreeSet;
 
@@ -575,27 +578,25 @@ pub fn notelist_to_score_with_config(
         span.event_times.sort();
     }
 
-    // --- Step 3: Compute ideal width per measure (Gourlay fractional spacing) ---
+    // --- Step 3: Respace measures using OG Nightingale Gourlay algorithm ---
     //
-    // Port of GetSpaceInfo + Respace1Bar from SpaceTime.cp:1257-1338 and
-    // SpaceHighLevel.cp:846-967.
+    // Full port of GetSpaceInfo + Respace1Bar + ConsiderWidths from
+    // SpaceTime.cp:1257-1338, SpaceHighLevel.cp:846-967,432-529.
     //
-    // For each event, compute:
-    //   controlling_dur = PDUR ticks of the note that controls spacing
-    //   frac = time_to_next_event / controlling_dur
-    //   space = frac * ideal_space_pdur(controlling_dur)
-    //
-    // The controlling duration is the shortest note at this time slot that
-    // continues until the next event. This prevents held whole notes from
-    // getting excessive space when faster motion exists in another voice.
+    // For each measure:
+    //   1. Build SpaceTimeInfo array with controlling duration + fraction
+    //   2. Compute SymWidthLeft/Right for collision avoidance
+    //   3. Call respace_1bar for Gourlay + collision-avoidance positioning
+    //   4. Store STDIST positions per measure
 
-    /// Collect all (l_dur, dots) pairs at a given event time.
-    fn event_durations(
+    /// Collect note info at a given event time for width calculations.
+    /// Returns (l_dur, dots, is_rest, acc) tuples for all notes/rests at time `et`.
+    fn event_note_info(
         records: &[NotelistRecord],
         et: i32,
         voice_filter: &dyn Fn(i8, i8) -> bool,
-    ) -> Vec<(i8, u8)> {
-        let mut durs = Vec::new();
+    ) -> Vec<(i8, u8, bool, u8)> {
+        let mut infos = Vec::new();
         for record in records {
             match record {
                 NotelistRecord::Note {
@@ -604,9 +605,10 @@ pub fn notelist_to_score_with_config(
                     dots,
                     staff,
                     voice,
+                    acc,
                     ..
                 } if *time == et && voice_filter(*staff, *voice) => {
-                    durs.push((*dur, *dots));
+                    infos.push((*dur, *dots, false, *acc));
                 }
                 NotelistRecord::Rest {
                     time,
@@ -616,38 +618,44 @@ pub fn notelist_to_score_with_config(
                     voice,
                     ..
                 } if *time == et && voice_filter(*staff, *voice) => {
-                    durs.push((*dur, *dots));
+                    infos.push((*dur, *dots, true, 0));
                 }
                 _ => {}
             }
         }
-        durs
+        infos
     }
 
-    let mut measure_ideal_stdist: Vec<f32> = Vec::new();
-    // Also store per-event ideal space for Step 5
-    let mut event_ideal_space: std::collections::HashMap<(usize, i32), f32> =
-        std::collections::HashMap::new();
+    // SpaceProp: RESFACTOR * spacePercent (default 100%) = 50 * 100 = 5000
+    let space_prop = crate::defs::RESFACTOR * 100;
 
-    for (mi, span) in measure_spans.iter().enumerate() {
-        let mut total: f32 = 0.0;
+    // Per-measure: build SpaceTimeInfo, call respace_1bar, store STDIST positions
+    let mut measure_positions_stdist: Vec<Vec<i16>> = Vec::new();
+    let mut measure_total_stdist: Vec<f32> = Vec::new();
+
+    for span in measure_spans.iter() {
         let n_events = span.event_times.len();
 
-        for (ei, &et) in span.event_times.iter().enumerate() {
-            let durs = event_durations(&notelist.records, et, &voice_allowed);
+        if n_events == 0 {
+            // Empty measure: minimum width
+            measure_positions_stdist.push(vec![]);
+            measure_total_stdist.push(min_measure_width_stdist(0) as f32);
+            continue;
+        }
 
-            // Find controlling duration: shortest note at this time
-            // (smallest l_dur code = longest note — we want the one that
-            // ends earliest, which is the LARGEST l_dur code = shortest note)
-            let controlling_pdur = if !durs.is_empty() {
-                // The controlling note is the one that ends earliest.
-                // For single-time-slot analysis: shortest duration = largest l_dur code.
-                // In OG Nightingale, this is more sophisticated (considers notes
-                // continuing from previous syncs), but for Notelist this suffices.
+        // Build SpaceTimeInfo array for this measure
+        let mut space_info: Vec<SpaceTimeInfo> = Vec::with_capacity(n_events);
+
+        for (ei, &et) in span.event_times.iter().enumerate() {
+            let note_infos = event_note_info(&notelist.records, et, &voice_allowed);
+
+            // --- GetSpaceInfo: controlling duration + fraction ---
+            // Port of SpaceTime.cp:1257-1338.
+            let controlling_pdur = if !note_infos.is_empty() {
                 let mut min_pdur = i32::MAX;
-                for &(dur_code, dots) in &durs {
+                for &(dur_code, dots, _, _) in &note_infos {
                     if dur_code <= 0 {
-                        continue; // Skip whole-measure rests (l_dur = -1 or 0)
+                        continue;
                     }
                     let pdur = code_to_l_dur(dur_code, dots);
                     if pdur > 0 && pdur < min_pdur {
@@ -655,19 +663,17 @@ pub fn notelist_to_score_with_config(
                     }
                 }
                 if min_pdur == i32::MAX {
-                    code_to_l_dur(4, 0) // fallback to quarter
+                    code_to_l_dur(4, 0)
                 } else {
                     min_pdur
                 }
             } else {
-                code_to_l_dur(4, 0) // default quarter note
+                code_to_l_dur(4, 0)
             };
 
-            // Compute fraction: time until next event / controlling duration
             let time_to_next = if ei + 1 < n_events {
                 (span.event_times[ei + 1] - et) as f32
             } else {
-                // Last event in measure: use time until measure end
                 (span.end_time - et) as f32
             };
 
@@ -677,39 +683,75 @@ pub fn notelist_to_score_with_config(
                 1.0
             };
 
-            let space = frac * ideal_space_pdur(controlling_pdur);
-            total += space;
-            event_ideal_space.insert((mi, et), space);
+            // --- NoteWidthInfo for SymWidthLeft/Right ---
+            let width_infos: Vec<NoteWidthInfo> = note_infos
+                .iter()
+                .map(|&(dur_code, dots, is_rest, acc)| NoteWidthInfo {
+                    l_dur: dur_code,
+                    ndots: dots,
+                    rest: is_rest,
+                    beamed: false, // Not yet known at spacing time
+                    stem_up: true, // Conservative estimate: stem up gets flag space
+                    x_move_dots: if dur_code <= 2 { 5 } else { 3 }, // Wider for whole/breve
+                    acc,
+                    xmove_acc: DFLT_XMOVEACC as u8,
+                    courtesy_acc: false,
+                    note_to_left: false,
+                    note_to_right: false,
+                })
+                .collect();
+
+            let w_right = sync_width_right(&width_infos, false);
+            let w_left = sync_width_left(&width_infos);
+
+            space_info.push(SpaceTimeInfo {
+                index: ei,
+                start_time: et - span.start_time, // Relative to measure start
+                dur: controlling_pdur,
+                frac,
+                is_sync: true,
+                just_type: J_IT,
+                width_left: w_left,
+                width_right: w_right,
+            });
         }
 
-        // Ensure non-empty measures get at least a quarter-note's space
-        if total < ideal_space_stdist(4) && !span.event_times.is_empty() {
-            total = ideal_space_stdist(4);
-        }
+        // --- Respace1Bar: Gourlay + collision avoidance ---
+        let positions = respace_1bar(&space_info, space_prop, 0);
 
-        // Add clef width for measures that start with a mid-score clef change.
-        // OG Nightingale: clef width = 0.85 * STD_LINEHT * 4 STDIST, with small (mid-measure)
-        // clefs at 75% → 0.85 * 8 * 4 * 0.75 ≈ 20.4 STDIST.
-        // Port of SpaceTime.cp:402-417 (SymWidthRight for CLEFtype).
-        if let Some(&first_time) = span.event_times.first() {
+        // Total measure width in STDIST = last position + right width of last object
+        let total = if let Some(&last_pos) = positions.last() {
+            let last_wr = space_info.last().map_or(0, |s| s.width_right);
+            // Add minimum space before barline
+            (last_pos + last_wr + CONFIG_SP_AFTER_BAR) as f32
+        } else {
+            min_measure_width_stdist(0) as f32
+        };
+        let total = total.max(min_measure_width_stdist(0) as f32);
+
+        // Add clef width for measures starting with mid-score clef changes
+        let clef_extra: f32 = if let Some(&first_time) = span.event_times.first() {
             if mid_score_clefs.iter().any(|&(_, _, _, t)| t == first_time) {
-                const CLEF_WIDTH_SMALL_STDIST: f32 = 0.85 * 8.0 * 4.0 * 0.75; // ~20.4 STDIST
-                total += CLEF_WIDTH_SMALL_STDIST;
+                crate::space_time::clef_width_right(true) as f32 + 4.0
+            } else {
+                0.0
             }
-        }
-        measure_ideal_stdist.push(total);
+        } else {
+            0.0
+        };
+
+        measure_positions_stdist.push(positions);
+        measure_total_stdist.push(total + clef_extra);
     }
 
     // --- Step 4: Scale measures to fit available width (PER SYSTEM) ---
     // Each system has its own preamble. Only system 0 gets timesig; subsequent
-    // systems still get clef at the preamble. For simplicity, use same preamble
-    // width for all systems (timesig is narrow enough not to matter much).
+    // systems still get clef at the preamble.
 
     let mut measure_abs_xd: Vec<Ddist> = Vec::new();
     let mut measure_width_ddist: Vec<Ddist> = Vec::new();
 
     for (sys_idx_sp, &(sys_start, sys_end)) in system_measure_ranges.iter().enumerate() {
-        // Use narrower preamble for continuation systems (no time sig)
         let sys_preamble = if sys_idx_sp == 0 {
             preamble_width
         } else {
@@ -721,81 +763,70 @@ pub fn notelist_to_score_with_config(
             continuation_available
         };
 
-        // Ideal space for measures in this system
-        let sys_ideal: f32 = measure_ideal_stdist[sys_start..sys_end].iter().sum();
+        // Total ideal space for measures in this system
+        let sys_ideal: f32 = measure_total_stdist[sys_start..sys_end].iter().sum();
         let sys_ideal_ddist = stdist_to_ddist(sys_ideal, config.staff_height);
 
-        // Scale factor for this system's measures
+        // Scale factor: stretch/compress to fill system width
         let sys_scale = if sys_ideal_ddist > 0 {
             sys_available as f32 / sys_ideal_ddist as f32
         } else {
             1.0
         };
 
-        // Absolute X positions within this system (relative to system_left)
         let mut x_cursor: Ddist = sys_preamble;
-        #[allow(clippy::needless_range_loop)] // need index into measure_ideal_stdist
+        #[allow(clippy::needless_range_loop)]
         for mi in sys_start..sys_end {
             measure_abs_xd.push(x_cursor);
-            let w = (stdist_to_ddist(measure_ideal_stdist[mi], config.staff_height) as f32
+            let w = (stdist_to_ddist(measure_total_stdist[mi], config.staff_height) as f32
                 * sys_scale) as Ddist;
-            let w = w.max(200); // minimum 200 DDIST per measure
+            let w = w.max(200);
             measure_width_ddist.push(w);
             x_cursor += w;
         }
     }
 
-    // --- Step 5: Compute per-event xd (relative to measure) ---
-    // Within each measure, distribute events proportionally using the
-    // Gourlay fractional spacing computed in Step 3, scaled to the measure's
-    // actual width.
+    // --- Step 5: Compute per-event xd from respace_1bar positions ---
+    // Convert STDIST positions to DDIST, scaled to actual measure width.
 
     let mut event_rel_xd: std::collections::HashMap<i32, Ddist> = std::collections::HashMap::new();
 
-    // Pre-compute which measures have mid-score clef changes at their start time
     let clef_change_times: std::collections::HashSet<i32> =
         mid_score_clefs.iter().map(|&(_, _, _, t)| t).collect();
 
     for (mi, span) in measure_spans.iter().enumerate() {
-        let ideal_total_std = measure_ideal_stdist[mi];
         let actual_width = measure_width_ddist[mi];
+        let ideal_total = measure_total_stdist[mi];
+        let positions = &measure_positions_stdist[mi];
 
-        let inner_scale = if ideal_total_std > 0.0 {
-            actual_width as f32 / stdist_to_ddist(ideal_total_std, config.staff_height) as f32
+        // Scale: actual DDIST width / ideal STDIST-to-DDIST width
+        let ideal_ddist = stdist_to_ddist(ideal_total, config.staff_height);
+        let inner_scale = if ideal_ddist > 0 {
+            actual_width as f32 / ideal_ddist as f32
         } else {
             1.0
         };
 
-        // Leave a small indent from the barline before the first event.
-        // If this measure starts with a mid-score clef change, add the
-        // clef's width (converted to DDIST) as an offset before notes.
-        // OG Nightingale: small clef = 0.85 * STD_LINEHT * 4 * 0.75 STDIST.
-        // Port of SpaceTime.cp:402-417 + SpaceHighLevel.cp:533-590 (J_IP positioning).
+        // Clef indent for mid-score clef changes at measure start
         let has_clef_at_start = span
             .event_times
             .first()
             .map(|t| clef_change_times.contains(t))
             .unwrap_or(false);
         let clef_indent: Ddist = if has_clef_at_start {
-            let clef_w_stdist: f32 = 0.85 * 8.0 * 4.0 * 0.75; // ~20.4 STDIST
-            stdist_to_ddist(clef_w_stdist, config.staff_height)
+            stdist_to_ddist(
+                crate::space_time::clef_width_right(true) as f32 + 4.0,
+                config.staff_height,
+            )
         } else {
             0
         };
-        let indent: Ddist = 100 + clef_indent; // ~6pt base + clef room
-        let mut acc_stdist: f32 = 0.0;
 
-        for &et in &span.event_times {
-            let raw_ddist = stdist_to_ddist(acc_stdist, config.staff_height);
-            let rel = indent + (raw_ddist as f32 * inner_scale) as Ddist;
+        for (ei, &et) in span.event_times.iter().enumerate() {
+            let stdist_pos = positions.get(ei).copied().unwrap_or(0) as f32;
+            let raw_ddist = stdist_to_ddist(stdist_pos, config.staff_height);
+            let rel = clef_indent + (raw_ddist as f32 * inner_scale) as Ddist;
             event_rel_xd.insert(et, rel);
-
-            // Advance by the Gourlay fractional space computed in Step 3
-            let space = event_ideal_space
-                .get(&(mi, et))
-                .copied()
-                .unwrap_or(ideal_space_stdist(4));
-            acc_stdist += space;
         }
     }
 

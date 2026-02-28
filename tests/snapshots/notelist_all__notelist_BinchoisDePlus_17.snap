@@ -38,83 +38,83 @@ y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=165.8 top=72.0 bottom=96.0
-x=165.8 top=132.0 bottom=156.0
-x=165.8 top=192.0 bottom=216.0
-x=298.9 top=72.0 bottom=96.0
-x=298.9 top=132.0 bottom=156.0
-x=298.9 top=192.0 bottom=216.0
-x=427.9 top=72.0 bottom=96.0
-x=427.9 top=132.0 bottom=156.0
-x=427.9 top=192.0 bottom=216.0
+x=168.0 top=72.0 bottom=96.0
+x=168.0 top=132.0 bottom=156.0
+x=168.0 top=192.0 bottom=216.0
+x=296.3 top=72.0 bottom=96.0
+x=296.3 top=132.0 bottom=156.0
+x=296.3 top=192.0 bottom=216.0
+x=420.3 top=72.0 bottom=96.0
+x=420.3 top=132.0 bottom=156.0
+x=420.3 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
 x=558.0 top=132.0 bottom=156.0
 x=558.0 top=192.0 bottom=216.0
-x=213.9 top=247.0 bottom=271.0
-x=213.9 top=307.0 bottom=331.0
-x=213.9 top=367.0 bottom=391.0
-x=315.6 top=247.0 bottom=271.0
-x=315.6 top=307.0 bottom=331.0
-x=315.6 top=367.0 bottom=391.0
-x=427.6 top=247.0 bottom=271.0
-x=427.6 top=307.0 bottom=331.0
-x=427.6 top=367.0 bottom=391.0
+x=208.6 top=247.0 bottom=271.0
+x=208.6 top=307.0 bottom=331.0
+x=208.6 top=367.0 bottom=391.0
+x=305.4 top=247.0 bottom=271.0
+x=305.4 top=307.0 bottom=331.0
+x=305.4 top=367.0 bottom=391.0
+x=422.2 top=247.0 bottom=271.0
+x=422.2 top=307.0 bottom=331.0
+x=422.2 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
 x=558.0 top=307.0 bottom=331.0
 x=558.0 top=367.0 bottom=391.0
-x=211.8 top=422.0 bottom=446.0
-x=211.8 top=482.0 bottom=506.0
-x=211.8 top=542.0 bottom=566.0
-x=314.6 top=422.0 bottom=446.0
-x=314.6 top=482.0 bottom=506.0
-x=314.6 top=542.0 bottom=566.0
-x=432.8 top=422.0 bottom=446.0
-x=432.8 top=482.0 bottom=506.0
-x=432.8 top=542.0 bottom=566.0
+x=205.8 top=422.0 bottom=446.0
+x=205.8 top=482.0 bottom=506.0
+x=205.8 top=542.0 bottom=566.0
+x=302.9 top=422.0 bottom=446.0
+x=302.9 top=482.0 bottom=506.0
+x=302.9 top=542.0 bottom=566.0
+x=426.9 top=422.0 bottom=446.0
+x=426.9 top=482.0 bottom=506.0
+x=426.9 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
 x=558.0 top=482.0 bottom=506.0
 x=558.0 top=542.0 bottom=566.0
-x=169.2 top=72.0 bottom=96.0
-x=169.2 top=132.0 bottom=156.0
-x=169.2 top=192.0 bottom=216.0
-x=219.2 top=72.0 bottom=96.0
-x=219.2 top=132.0 bottom=156.0
-x=219.2 top=192.0 bottom=216.0
-x=386.0 top=72.0 bottom=96.0
-x=386.0 top=132.0 bottom=156.0
-x=386.0 top=192.0 bottom=216.0
+x=152.9 top=72.0 bottom=96.0
+x=152.9 top=132.0 bottom=156.0
+x=152.9 top=192.0 bottom=216.0
+x=186.6 top=72.0 bottom=96.0
+x=186.6 top=132.0 bottom=156.0
+x=186.6 top=192.0 bottom=216.0
+x=377.8 top=72.0 bottom=96.0
+x=377.8 top=132.0 bottom=156.0
+x=377.8 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
 x=558.0 top=132.0 bottom=156.0
 x=558.0 top=192.0 bottom=216.0
-x=226.4 top=247.0 bottom=271.0
-x=226.4 top=307.0 bottom=331.0
-x=226.4 top=367.0 bottom=391.0
-x=338.6 top=247.0 bottom=271.0
-x=338.6 top=307.0 bottom=331.0
-x=338.6 top=367.0 bottom=391.0
-x=435.4 top=247.0 bottom=271.0
-x=435.4 top=307.0 bottom=331.0
-x=435.4 top=367.0 bottom=391.0
+x=225.8 top=247.0 bottom=271.0
+x=225.8 top=307.0 bottom=331.0
+x=225.8 top=367.0 bottom=391.0
+x=337.8 top=247.0 bottom=271.0
+x=337.8 top=307.0 bottom=331.0
+x=337.8 top=367.0 bottom=391.0
+x=423.9 top=247.0 bottom=271.0
+x=423.9 top=307.0 bottom=331.0
+x=423.9 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
 x=558.0 top=307.0 bottom=331.0
 x=558.0 top=367.0 bottom=391.0
-x=418.9 top=422.0 bottom=446.0
-x=418.9 top=482.0 bottom=506.0
-x=418.9 top=542.0 bottom=566.0
+x=450.2 top=422.0 bottom=446.0
+x=450.2 top=482.0 bottom=506.0
+x=450.2 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
 x=558.0 top=482.0 bottom=506.0
 x=558.0 top=542.0 bottom=566.0
 
 === BEAMS ===
-x=[328.6..340.4] y=[361.0..362.0] slope=0.085 thick=3.00
-x=[433.9..445.7] y=[401.0..402.0] slope=0.085 thick=3.00
-x=[476.1..499.8] y=[241.0..243.0] slope=0.084 thick=3.00
-x=[535.3..559.0] y=[253.0..254.0] slope=0.042 thick=3.00
-x=[439.1..451.9] y=[567.0..568.0] slope=0.078 thick=3.00
-x=[448.6..467.9] y=[225.0..224.0] slope=-0.052 thick=3.00
-x=[504.5..517.2] y=[237.0..236.0] slope=-0.078 thick=3.00
-x=[196.9..255.6] y=[416.0..418.0] slope=0.034 thick=3.00
-x=[343.8..402.5] y=[425.0..426.0] slope=0.017 thick=3.00
+x=[314.6..326.9] y=[361.0..362.0] slope=0.081 thick=3.00
+x=[424.6..436.9] y=[401.0..402.0] slope=0.081 thick=3.00
+x=[468.2..492.9] y=[241.0..243.0] slope=0.081 thick=3.00
+x=[529.8..554.4] y=[253.0..254.0] slope=0.041 thick=3.00
+x=[429.5..442.9] y=[567.0..568.0] slope=0.075 thick=3.00
+x=[446.6..468.6] y=[225.0..224.0] slope=-0.045 thick=3.00
+x=[494.6..508.5] y=[237.0..236.0] slope=-0.072 thick=3.00
+x=[203.6..268.2] y=[416.0..418.0] slope=0.031 thick=3.00
+x=[365.2..429.9] y=[425.0..426.0] slope=0.015 thick=3.00
 
 === STEMS: 225 total ===
 

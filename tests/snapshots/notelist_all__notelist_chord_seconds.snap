@@ -21,21 +21,21 @@ y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=422.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=232.5 top=72.0 bottom=96.0
-x=348.0 top=72.0 bottom=96.0
-x=474.0 top=72.0 bottom=96.0
+x=241.8 top=72.0 bottom=96.0
+x=366.6 top=72.0 bottom=96.0
+x=488.2 top=72.0 bottom=96.0
 x=558.0 top=72.0 bottom=96.0
-x=207.0 top=247.0 bottom=271.0
-x=394.1 top=247.0 bottom=271.0
-x=476.0 top=247.0 bottom=271.0
+x=195.8 top=247.0 bottom=271.0
+x=447.9 top=247.0 bottom=271.0
+x=502.9 top=247.0 bottom=271.0
 x=558.0 top=247.0 bottom=271.0
 x=325.5 top=422.0 bottom=446.0
 x=558.0 top=422.0 bottom=446.0
 
 === BEAMS ===
-x=[220.0..246.7] y=[249.0..248.0] slope=-0.037 thick=3.00
-x=[273.4..300.1] y=[243.0..242.0] slope=-0.037 thick=3.00
-x=[326.9..353.6] y=[237.0..236.0] slope=-0.037 thick=3.00
+x=[209.6..245.5] y=[249.0..248.0] slope=-0.028 thick=3.00
+x=[281.4..317.2] y=[243.0..242.0] slope=-0.028 thick=3.00
+x=[353.1..388.9] y=[237.0..236.0] slope=-0.028 thick=3.00
 
 === STEMS: 43 total ===
 
