@@ -8,15 +8,15 @@ Beam: 69
 BeginPage: 2
 Brace: 5
 EndPage: 2
-LedgerLine: 294
-MusicChar: 562
-NoteStem: 203
+LedgerLine: 298
+MusicChar: 565
+NoteStem: 204
 SetMusicSize: 10
 SetWidths: 1
 Slur: 70
 Staff: 10
 TextString: 1
-TOTAL: 1265
+TOTAL: 1273
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -139,7 +139,7 @@ x=[486.8..503.0] y=[697.5..695.5] slope=-0.124 thick=3.00
 x=[427.6..475.4] y=[126.0..126.0] slope=0.000 thick=3.00
 x=[427.6..475.4] y=[35.0..34.0] slope=-0.021 thick=3.00
 
-=== STEMS: 203 total ===
+=== STEMS: 204 total ===
 
 === GLYPHS ===
 Smufl(57424): 14
@@ -147,14 +147,14 @@ Smufl(57442): 7
 Smufl(57478): 2
 Smufl(57480): 2
 Smufl(57507): 14
-Smufl(57508): 228
+Smufl(57508): 229
 Smufl(57831): 38
 Smufl(57920): 23
 Smufl(57921): 12
-Smufl(57922): 7
+Smufl(57922): 8
 Smufl(57923): 3
 Smufl(57952): 41
-Smufl(57953): 97
+Smufl(57953): 98
 Smufl(57954): 34
 Smufl(58597): 9
 Smufl(58598): 22

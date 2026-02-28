@@ -1248,3 +1248,163 @@ fn test_stem_x_between_second_note_columns() {
         "Should find at least one second with stem correctly positioned between columns"
     );
 }
+
+// ============================================================================
+// Grace note rendering tests (VexFlow-style targeted tests)
+// ============================================================================
+
+/// Grace note test: HBD_33.nl contains exactly 2 grace notes (C5, B4) before
+/// the dotted quarter A4 at t=7920. Verify they render as small noteheads with
+/// stems positioned before the parent note.
+///
+/// Port validates: draw_grsync (DrawNRGR.cp:2221), GRACESIZE scaling (70%),
+/// and Notelist G-record parsing → GrSync object creation.
+#[test]
+fn test_grace_notes_hbd33() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use nightingale_core::render::RenderCommand;
+
+    let file =
+        std::fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    // Verify GrSync objects were created in the score
+    assert!(
+        !score.grnotes.is_empty(),
+        "HBD_33 should have grace notes in score.grnotes"
+    );
+
+    // There should be exactly 1 GrSync group with 2 grace notes
+    let total_grnotes: usize = score.grnotes.values().map(|v| v.len()).sum();
+    assert_eq!(
+        total_grnotes, 2,
+        "HBD_33 should have exactly 2 grace notes (C5 and B4)"
+    );
+
+    // Verify grace note pitches: nn=72 (C5) and nn=71 (B4)
+    let grnotes: Vec<_> = score.grnotes.values().flat_map(|v| v.iter()).collect();
+    let pitches: Vec<u8> = grnotes.iter().map(|n| n.note_num).collect();
+    assert!(pitches.contains(&72), "Should have grace note C5 (nn=72)");
+    assert!(pitches.contains(&71), "Should have grace note B4 (nn=71)");
+
+    // Verify grace notes have stems (l_dur=6 → 16th note)
+    for gn in &grnotes {
+        assert_eq!(
+            gn.header.sub_type, 6,
+            "Grace notes should be 16th notes (dur=6)"
+        );
+        assert_ne!(
+            gn.yd, gn.ystem,
+            "Grace notes should have stems (yd != ystem)"
+        );
+    }
+
+    // Now render and verify the drawing commands
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Count music chars at grace-note size (70%) — these are the grace noteheads
+    let grace_noteheads: Vec<_> = commands
+        .iter()
+        .filter(|c| {
+            if let RenderCommand::MusicChar { size_percent, .. } = c {
+                (*size_percent - 70.0).abs() < 0.1
+            } else {
+                false
+            }
+        })
+        .collect();
+
+    // HBD_33 has 2 grace notes → at minimum 2 noteheads at 70% size
+    // (may also have flags at 70%)
+    assert!(
+        grace_noteheads.len() >= 2,
+        "Should have at least 2 glyphs at 70% (grace) size, got {}",
+        grace_noteheads.len()
+    );
+}
+
+/// Grace note test: Schoenberg Op.19 No.1 has 1 grace note (C4 in bass clef).
+/// Verify grace notes render correctly across different clefs.
+#[test]
+fn test_grace_notes_schoenberg() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file = std::fs::File::open("tests/notelist_examples/SchoenbergOp19N1-21.nl")
+        .expect("Failed to open SchoenbergOp19N1-21.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    assert!(
+        !score.grnotes.is_empty(),
+        "Schoenberg Op.19 should have grace notes"
+    );
+
+    let total_grnotes: usize = score.grnotes.values().map(|v| v.len()).sum();
+    assert_eq!(
+        total_grnotes, 1,
+        "Schoenberg should have exactly 1 grace note"
+    );
+
+    let gn = score.grnotes.values().next().unwrap().first().unwrap();
+    assert_eq!(gn.note_num, 48, "Grace note should be C4 (nn=48)");
+    assert_eq!(
+        gn.header.staffn, 2,
+        "Grace note should be on staff 2 (bass)"
+    );
+    assert_eq!(gn.accident, 3, "Grace note should have natural accidental");
+}
+
+/// Grace note test: Mahler Lied von der Erde has 3 grace notes across
+/// different staves and systems, including grace notes that cross barlines.
+#[test]
+fn test_grace_notes_mahler() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file = std::fs::File::open("tests/notelist_examples/MahlerLiedVonDE_25.nl")
+        .expect("Failed to open MahlerLiedVonDE_25.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse");
+    let score = notelist_to_score(&notelist);
+
+    assert!(!score.grnotes.is_empty(), "Mahler should have grace notes");
+
+    let total_grnotes: usize = score.grnotes.values().map(|v| v.len()).sum();
+    assert_eq!(total_grnotes, 3, "Mahler should have exactly 3 grace notes");
+
+    // Grace notes should be positioned before their parent syncs.
+    // Verify all GrSync objects appear in the object list.
+    let grsync_count = score
+        .objects
+        .iter()
+        .filter(|o| o.header.obj_type == 19) // GRSYNC_TYPE
+        .count();
+    assert!(
+        grsync_count >= 2,
+        "Should have at least 2 GrSync objects (one grace note is alone, two are grouped), got {}",
+        grsync_count
+    );
+
+    // Render and verify grace-size glyphs exist
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    let grace_glyphs: usize = commands
+        .iter()
+        .filter(|c| {
+            if let nightingale_core::render::RenderCommand::MusicChar { size_percent, .. } = c {
+                (*size_percent - 70.0).abs() < 0.1
+            } else {
+                false
+            }
+        })
+        .count();
+
+    assert!(
+        grace_glyphs >= 3,
+        "Should have at least 3 grace-size glyphs for 3 grace notes, got {}",
+        grace_glyphs
+    );
+}

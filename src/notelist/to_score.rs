@@ -27,7 +27,7 @@
 //! - No beaming (would need AutoBeam port)
 //! - No cross-system slur rendering
 //! - No dynamics or text rendering
-//! - Grace notes not yet positioned
+//! - Grace notes: basic rendering (positioned left of parent note)
 //! - No page breaks (single-page layout, multi-system)
 //!
 //! ## Reference
@@ -37,7 +37,9 @@
 
 use crate::basic_types::*;
 use crate::beam::{compute_beam_slope, BeamNoteInfo};
-use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TEMPO_TYPE, TIMESIG_TYPE, TUPLET_TYPE};
+use crate::defs::{
+    CLEF_TYPE, EIGHTH_L_DUR, GRSYNC_TYPE, KEYSIG_TYPE, TEMPO_TYPE, TIMESIG_TYPE, TUPLET_TYPE,
+};
 use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
@@ -390,6 +392,40 @@ pub fn notelist_to_score_with_config(
         }
     }
     let has_keysig = key_sigs.iter().skip(1).any(|(n, _)| *n > 0);
+
+    // ===========================================================================
+    // GRACE NOTE PRE-SCAN
+    // Port of ConvertGRNoteRest (NotelistOpen.cp) — grace notes attach to the
+    // NEXT note/rest. Collect G records, grouped by the time of the following
+    // Note/Rest record. Record indices are stored so we can access the fields
+    // later when building ANote structs.
+    // ===========================================================================
+
+    // Map: parent_note_time → Vec<record_index_in_notelist>
+    // Grace notes that precede a barline still attach to the next note after
+    // that barline, so we skip intervening barlines/dynamics/text/etc.
+    let mut grace_note_groups: std::collections::HashMap<i32, Vec<usize>> =
+        std::collections::HashMap::new();
+    {
+        let mut pending_grace_indices: Vec<usize> = Vec::new();
+        for (idx, record) in notelist.records.iter().enumerate() {
+            match record {
+                NotelistRecord::GraceNote { .. } => {
+                    pending_grace_indices.push(idx);
+                }
+                NotelistRecord::Note { time, .. } | NotelistRecord::Rest { time, .. } => {
+                    if !pending_grace_indices.is_empty() {
+                        grace_note_groups
+                            .entry(*time)
+                            .or_default()
+                            .append(&mut pending_grace_indices);
+                    }
+                }
+                _ => {} // Barlines, dynamics, text, etc. — skip, don't flush grace notes
+            }
+        }
+        // Any trailing grace notes with no following note are dropped (shouldn't happen)
+    }
 
     // ===========================================================================
     // MEASURE-BASED PROPORTIONAL SPACING
@@ -828,6 +864,11 @@ pub fn notelist_to_score_with_config(
             staff: i8,
             clef_type: u8,
             xd: Ddist,
+        },
+        GrSync {
+            time: i32,
+            xd: Ddist,
+            record_indices: Vec<usize>, // indices into notelist.records for the G records
         },
     }
 
@@ -1489,6 +1530,31 @@ pub fn notelist_to_score_with_config(
 
                         seen_times.push(*time);
                         let rel_xd = event_rel_xd.get(time).copied().unwrap_or(100);
+
+                        // Insert GrSync BEFORE this Sync if grace notes attach here.
+                        // Port of ConvertGRNoteRest (NotelistOpen.cp): grace notes are
+                        // inserted as a separate GRSync object just before the Sync.
+                        // X position: offset to the LEFT of the parent sync by
+                        // grace_head_width * num_grace_notes (approximate).
+                        // OG reference: SpaceTime.cp SymWidthRight for GRSYNCtype.
+                        if let Some(gr_indices) = grace_note_groups.get(time) {
+                            // Grace note offset: each grace note takes about 0.8 * lnspace.
+                            // OG: GRACESIZE(STD_LINEHT*4/3) ≈ 7.5 STDIST per grace note.
+                            let grace_w_stdist = 7.5_f32 * gr_indices.len() as f32 + 4.0;
+                            let grace_w_ddist =
+                                stdist_to_ddist(grace_w_stdist, config.staff_height);
+                            let gr_xd = (rel_xd - grace_w_ddist).max(0);
+                            let gr_link = next_link();
+                            music_objs.push(MusicObj {
+                                link: gr_link,
+                                kind: MusicObjKind::GrSync {
+                                    time: *time,
+                                    xd: gr_xd,
+                                    record_indices: gr_indices.clone(),
+                                },
+                            });
+                        }
+
                         let link = next_link();
                         music_objs.push(MusicObj {
                             link,
@@ -1560,6 +1626,15 @@ pub fn notelist_to_score_with_config(
                     staff: *staff,
                     clef_type: *clef_type,
                     xd: *xd,
+                },
+                MusicObjKind::GrSync {
+                    time,
+                    xd,
+                    record_indices,
+                } => MusicObjKind::GrSync {
+                    time: *time,
+                    xd: *xd,
+                    record_indices: record_indices.clone(),
                 },
             },
         }));
@@ -2173,6 +2248,182 @@ pub fn notelist_to_score_with_config(
                         data: ObjData::Sync(Sync {
                             header: ObjectHeader::default(),
                             time_stamp: 0,
+                        }),
+                    });
+                }
+
+                // ---- GRSYNC OBJECT (grace notes) ----
+                // Port of ConvertGRNoteRest (NotelistOpen.cp) + IIInsertGRSync.
+                // Grace notes use the same ANote struct (AGrNote = ANote) and are
+                // stored in score.grnotes, rendered by draw_grsync at 70% size.
+                MusicObjKind::GrSync {
+                    time: _gr_time,
+                    xd: grsync_xd,
+                    record_indices,
+                } => {
+                    let gr_sub_link = note_sub_counter;
+                    note_sub_counter += 1;
+
+                    let mut grnotes: Vec<ANote> = Vec::new();
+
+                    for &rec_idx in record_indices {
+                        if let NotelistRecord::GraceNote {
+                            voice,
+                            staff,
+                            dur,
+                            dots,
+                            note_num,
+                            acc,
+                            effective_acc,
+                            velocity,
+                            stem_char,
+                            appear,
+                            ..
+                        } = &notelist.records[rec_idx]
+                        {
+                            let s = *staff as usize;
+                            if s == 0 || s > num_staves {
+                                continue;
+                            }
+
+                            let clef = clef_types[s];
+                            let mid_c_hl = clef_middle_c_half_ln(clef);
+
+                            // Compute Y position (same as regular notes)
+                            let half_ln = nl_midi_to_half_ln(*note_num, *effective_acc, mid_c_hl)
+                                .unwrap_or(4);
+                            let yd = half_ln_to_yd(half_ln, config.staff_height);
+
+                            // Stem direction — grace notes use single-note rules.
+                            // stem_char: '.' = auto, '+' = up, '-' = down
+                            let role = voice_roles
+                                .get(&(*staff, *voice))
+                                .copied()
+                                .unwrap_or(VoiceRole::Single);
+                            let n_staff_lines: i16 = 5;
+                            let stem_down = match stem_char {
+                                '+' => false,
+                                '-' => true,
+                                _ => normal_stem_up_down_single(half_ln, n_staff_lines, role),
+                            };
+
+                            // Compute stem endpoint — CalcYStem with grace note stem length.
+                            // OG: grace note stems use same QSTEMLEN but applied at 70% size.
+                            // However, the stem is drawn in draw_grsync which handles the
+                            // scaling. Here we compute ystem at normal size.
+                            let num_flags = nflags(*dur);
+                            let qtr_sp = match role {
+                                VoiceRole::Single => config.stem_len_normal as i16,
+                                _ => config.stem_len_2v as i16,
+                            };
+
+                            let ystem = if *dur >= 3 {
+                                calc_ystem(
+                                    yd,
+                                    num_flags,
+                                    stem_down,
+                                    config.staff_height,
+                                    n_staff_lines,
+                                    qtr_sp,
+                                    false,
+                                )
+                            } else {
+                                yd
+                            };
+
+                            // X offset within the GrSync: space grace notes evenly.
+                            // OG: grace notes are spaced by GRACESIZE(STD_LINEHT*4/3).
+                            let gr_note_spacing_stdist = 7.5_f32; // ~0.94 interline
+                            let xd_offset = stdist_to_ddist(
+                                gr_note_spacing_stdist * grnotes.len() as f32,
+                                config.staff_height,
+                            );
+
+                            grnotes.push(ANote {
+                                header: SubObjHeader {
+                                    next: NILINK,
+                                    staffn: *staff,
+                                    sub_type: *dur,
+                                    selected: false,
+                                    visible: true,
+                                    soft: false,
+                                },
+                                in_chord: false,
+                                rest: false,
+                                unpitched: false,
+                                beamed: false,
+                                other_stem_side: false,
+                                yqpit: 0,
+                                xd: xd_offset,
+                                yd,
+                                ystem,
+                                play_time_delta: 0,
+                                play_dur: 0,
+                                p_time: 0,
+                                note_num: *note_num,
+                                on_velocity: *velocity,
+                                off_velocity: 64,
+                                tied_l: false,
+                                tied_r: false,
+                                x_move_dots: if *dots > 0 { 3 } else { 0 },
+                                y_move_dots: if *dots > 0 { 2 } else { 0 },
+                                ndots: *dots,
+                                voice: *voice,
+                                rsp_ignore: 0,
+                                accident: *acc,
+                                acc_soft: false,
+                                courtesy_acc: 0,
+                                xmove_acc: DFLT_XMOVEACC as u8,
+                                play_as_cue: false,
+                                micropitch: 0,
+                                merged: 0,
+                                double_dur: 0,
+                                head_shape: *appear,
+                                first_mod: NILINK,
+                                slurred_l: false,
+                                slurred_r: false,
+                                in_tuplet: false,
+                                in_ottava: false,
+                                small: true, // Grace notes are small
+                                temp_flag: 0,
+                                art_harmonic: 0,
+                                user_id: 0,
+                                nh_segment: [0; 6],
+                                reserved_n: 0,
+                            });
+                        }
+                    }
+
+                    if grnotes.is_empty() {
+                        continue;
+                    }
+
+                    let n_entries = grnotes.len() as u8;
+                    score.grnotes.insert(gr_sub_link, grnotes);
+
+                    score.objects.push(InterpretedObject {
+                        index: mobj.link,
+                        header: ObjectHeader {
+                            right,
+                            left,
+                            first_sub_obj: gr_sub_link,
+                            xd: *grsync_xd,
+                            yd: 0,
+                            obj_type: GRSYNC_TYPE as i8,
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                            valid: true,
+                            tweaked: false,
+                            spare_flag: false,
+                            ohdr_filler1: 0,
+                            obj_rect: Rect::default(),
+                            rel_size: 0,
+                            ohdr_filler2: 0,
+                            n_entries,
+                        },
+                        data: ObjData::GrSync(GrSync {
+                            header: ObjectHeader::default(),
                         }),
                     });
                 }

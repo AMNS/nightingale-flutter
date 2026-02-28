@@ -9,13 +9,13 @@ BeginPage: 1
 Brace: 3
 EndPage: 1
 LedgerLine: 32
-MusicChar: 210
-NoteStem: 113
+MusicChar: 214
+NoteStem: 115
 SetMusicSize: 6
 SetWidths: 1
 Slur: 1
 Staff: 6
-TOTAL: 427
+TOTAL: 433
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -82,7 +82,7 @@ x=[270.8..293.3] y=[497.0..496.0] slope=-0.044 thick=3.00
 x=[415.2..437.8] y=[518.0..514.1] slope=-0.175 thick=3.00
 x=[460.3..482.9] y=[494.0..494.0] slope=0.000 thick=3.00
 
-=== STEMS: 113 total ===
+=== STEMS: 115 total ===
 
 === GLYPHS ===
 Smufl(57424): 3
@@ -90,10 +90,11 @@ Smufl(57442): 3
 Smufl(57475): 2
 Smufl(57476): 2
 Smufl(57507): 15
-Smufl(57508): 137
+Smufl(57508): 139
 Smufl(57831): 3
 Smufl(57920): 1
 Smufl(57921): 2
+Smufl(57922): 2
 Smufl(57952): 35
 Smufl(57953): 3
 Smufl(57954): 3
