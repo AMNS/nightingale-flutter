@@ -537,10 +537,10 @@ fn test_all_notelists_command_stream_hashes() {
         ("BinchoisDePlus_17", 9014511885139873333),
         ("chord_seconds", 9966873163114484526),
         ("clef_change", 6350287746106966148),
-        ("Debussy_Images_9", 4772463600514093082),
-        ("GoodbyePorkPieHat", 5399000735702437633),
+        ("Debussy_Images_9", 11578519691323934701),
+        ("GoodbyePorkPieHat", 11652704588504901265),
         ("HBD_33", 1326101233782408599),
-        ("KillingMe_36", 14668128964724946907),
+        ("KillingMe_36", 12032944383962655298),
         ("keysig_d_major", 1882963057310755303),
         ("keysig_eb_major", 11711652780243886394),
         ("MahlerLiedVonDE_25", 3452340270982264035),
@@ -548,9 +548,9 @@ fn test_all_notelists_command_stream_hashes() {
         ("RavelScarbo_15", 2173793435090451996),
         ("SchenkerDiagram_Chopin_6", 18134331091962191258),
         ("SchoenbergOp19N1_21", 4669924141382058724),
-        ("TestMIDIChannels_3", 10668679703911979245),
+        ("TestMIDIChannels_3", 1139093379043682345),
         ("tuplet_triplet", 5438322622780739114),
-        ("Webern_Op5N3_22", 3359598402240301888),
+        ("Webern_Op5N3_22", 18110311118254034002),
     ]
     .into_iter()
     .collect();

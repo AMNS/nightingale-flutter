@@ -1675,7 +1675,12 @@ pub fn draw_tempo(
             .unwrap_or(staff_ctx.staff_left);
         let first_obj_sys_xd = score.sys_rel_xd(tempo.first_obj_l);
         let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
-        let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+        // Use staff_top rather than measure_top: TEMPO objects appear BEFORE
+        // MEASURE objects in the NGL object list, so measure_top may not yet
+        // be set (it gets assigned = staff_top when the MEASURE is processed).
+        // In OG Nightingale, GetContext at the anchor fills measureTop = staffTop.
+        // Reference: DrawUtils.cp:2438-2447, DSUtils.cp:351-435 (PageRelyd)
+        let yd = staff_ctx.staff_top as i32 + obj.header.yd as i32;
         (xd, yd)
     };
 
@@ -1744,8 +1749,9 @@ pub fn draw_tempo(
         if tempo.dotted {
             // Augmentation dot: small gap + dot glyph
             // Reference: DrawObject.cp:2446-2449
+            // SMuFL: U+E1E7 augmentationDot
             let dot_x = xd_after_note + 1.5; // small gap
-            renderer.music_char(dot_x, yd_mm, MusicGlyph::from_char('.'), 80.0);
+            renderer.music_char(dot_x, yd_mm, MusicGlyph::smufl(0xE1E7), 80.0);
             xd_after_note = dot_x + font.size * 0.3;
         } else if tempo.sub_type > QTR_L_DUR {
             // Flagged notes need extra spacing for the flag
@@ -1763,21 +1769,25 @@ pub fn draw_tempo(
     }
 }
 
-/// Map a Tempo subType (l_dur code) to the Sonata music font glyph.
+/// Map a Tempo subType (l_dur code) to a SMuFL "individual note" glyph.
+///
+/// OG Nightingale used Sonata font characters ('q', 'h', 'e', etc.) which are
+/// complete notes with stems. SMuFL equivalents are in the U+E1D0 range.
 ///
 /// Reference: DrawUtils.cp, TempoGlyph(), lines 2383-2411
+/// SMuFL: https://w3c.github.io/smufl/latest/tables/individual-notes.html
 fn tempo_glyph(sub_type: i8) -> Option<MusicGlyph> {
     use crate::defs::*;
     match sub_type {
-        BREVE_L_DUR => Some(MusicGlyph::sonata(0xDD)),
-        WHOLE_L_DUR => Some(MusicGlyph::from_char('w')),
-        HALF_L_DUR => Some(MusicGlyph::from_char('h')),
-        QTR_L_DUR => Some(MusicGlyph::from_char('q')),
-        EIGHTH_L_DUR => Some(MusicGlyph::from_char('e')),
-        SIXTEENTH_L_DUR => Some(MusicGlyph::from_char('x')),
-        THIRTY2ND_L_DUR => Some(MusicGlyph::from_char('r')),
-        SIXTY4TH_L_DUR => Some(MusicGlyph::sonata(0xC6)),
-        ONE28TH_L_DUR => Some(MusicGlyph::sonata(0x8D)),
+        BREVE_L_DUR => Some(MusicGlyph::smufl(0xE0A0)), // noteheadDoubleWhole
+        WHOLE_L_DUR => Some(MusicGlyph::smufl(0xE1D2)), // noteWhole
+        HALF_L_DUR => Some(MusicGlyph::smufl(0xE1D3)),  // noteHalfUp
+        QTR_L_DUR => Some(MusicGlyph::smufl(0xE1D5)),   // noteQuarterUp
+        EIGHTH_L_DUR => Some(MusicGlyph::smufl(0xE1D7)), // note8thUp
+        SIXTEENTH_L_DUR => Some(MusicGlyph::smufl(0xE1D9)), // note16thUp
+        THIRTY2ND_L_DUR => Some(MusicGlyph::smufl(0xE1DB)), // note32ndUp
+        SIXTY4TH_L_DUR => Some(MusicGlyph::smufl(0xE1DD)), // note64thUp
+        ONE28TH_L_DUR => Some(MusicGlyph::smufl(0xE1DF)), // note128thUp
         _ => None,
     }
 }
