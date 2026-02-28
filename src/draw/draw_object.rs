@@ -1406,18 +1406,33 @@ pub fn draw_graphic(
         return;
     }
 
-    // Compute X position using page-relative coordinates.
-    // OG: xd = SysRelxd(firstObj) + LinkXD(pL) + systemLeft
-    // Our model: staff_left + sys_rel_xd(firstObj) + graphic.xd
-    // (staff_left ≈ systemLeft for most staves; includes system_left offset)
-    // Reference: DSUtils.cp:312-320 (PageRelxd for GRAPHICtype)
-    let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
-    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
-
-    // Compute Y position
-    // OG: yd = measureTop + LinkYD(pL)
-    // For text GRAPHICs, yd is relative to the staff's measure_top
-    let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+    // Compute X/Y position.
+    // Two cases based on whether firstObj is a PAGE (page-relative) or not.
+    //
+    // Page-relative GRAPHICs (firstObj is PAGE):
+    //   xd = graphic.xd  (absolute page coordinates, no staff/system offsets)
+    //   yd = graphic.yd
+    //   Reference: DrawUtils.cp:2431-2436 (GetGraphicOrTempoDrawInfo, PageTYPE branch)
+    //
+    // Staff-relative GRAPHICs (firstObj is Sync/Measure/etc.):
+    //   xd = staff_left + SysRelxd(firstObj) + graphic.xd
+    //   yd = measureTop + graphic.yd
+    //   Reference: DSUtils.cp:312-320 (PageRelxd for GRAPHICtype)
+    let (xd, yd) = if score.is_page_type(gfx.first_obj) {
+        // Page-relative: only the GRAPHIC's own offsets, no staff/system positioning.
+        (obj.header.xd as i32, obj.header.yd as i32)
+    } else {
+        // Staff-relative: compute staff_left from the anchor's enclosing system/staff,
+        // NOT from the current ContextState (which may reflect a later system).
+        // Reference: DrawUtils.cp:2438-2447 (GetGraphicOrTempoDrawInfo, staff-relative path)
+        let anchor_staff_left = score
+            .staff_left_at(gfx.first_obj, staffn)
+            .unwrap_or(staff_ctx.staff_left);
+        let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
+        let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+        let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+        (xd, yd)
+    };
 
     let x = ddist_wide_to_render(xd);
     let y = ddist_wide_to_render(yd);
@@ -1648,14 +1663,21 @@ pub fn draw_tempo(
         return;
     }
 
-    // Compute position using page-relative coordinates.
-    // OG: GetGraphicOrTempoDrawInfo → xd = PageRelxd(firstObjL) + LinkXD(pL),
-    //                                 yd = PageRelyd(firstObjL) + LinkYD(pL)
-    // Our model: staff_left + sys_rel_xd(firstObjL) + tempo.xd
-    // Reference: DSUtils.cp:335-344 (PageRelxd for TEMPOtype)
-    let first_obj_sys_xd = score.sys_rel_xd(tempo.first_obj_l);
-    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
-    let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+    // Compute position — same two-case logic as draw_graphic.
+    // Page-relative TEMPOs (firstObj is PAGE): absolute page coordinates.
+    // Staff-relative TEMPOs: staff_left + SysRelxd(firstObj) + tempo.xd.
+    // Reference: DrawUtils.cp:2421-2449 (GetGraphicOrTempoDrawInfo)
+    let (xd, yd) = if score.is_page_type(tempo.first_obj_l) {
+        (obj.header.xd as i32, obj.header.yd as i32)
+    } else {
+        let anchor_staff_left = score
+            .staff_left_at(tempo.first_obj_l, staffn)
+            .unwrap_or(staff_ctx.staff_left);
+        let first_obj_sys_xd = score.sys_rel_xd(tempo.first_obj_l);
+        let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+        let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+        (xd, yd)
+    };
 
     let x = ddist_wide_to_render(xd);
     let y = ddist_wide_to_render(yd);
@@ -1819,14 +1841,20 @@ pub fn draw_ending(
     // OG: xd = SysRelxd(firstObjL) + p->xd + sysLeft
     //     yd = measureTop + p->yd
     // Reference: DrawObject.cp:1415-1418, DSUtils.cp:288 (PageRelxd for ENDINGtype)
+    let anchor_staff_left = score
+        .staff_left_at(ending.first_obj_l, staffn)
+        .unwrap_or(staff_ctx.staff_left);
     let first_obj_sys_xd = score.sys_rel_xd(ending.first_obj_l);
-    let xd = staff_ctx.staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+    let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
     let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
 
     // Compute right end position
     // OG: endxd = SysRelxd(lastObjL) + p->endxd + sysLeft
+    let last_anchor_staff_left = score
+        .staff_left_at(ending.last_obj_l, staffn)
+        .unwrap_or(staff_ctx.staff_left);
     let last_obj_sys_xd = score.sys_rel_xd(ending.last_obj_l);
-    let endxd = staff_ctx.staff_left as i32 + last_obj_sys_xd + ending.endxd as i32;
+    let endxd = last_anchor_staff_left as i32 + last_obj_sys_xd + ending.endxd as i32;
 
     let x1 = ddist_wide_to_render(xd);
     let y1 = ddist_wide_to_render(yd);

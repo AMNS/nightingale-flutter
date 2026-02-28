@@ -500,8 +500,72 @@ impl InterpretedScore {
         result
     }
 
-    /// Count objects by type.
+    /// Check if a link references a PAGE object.
     ///
+    /// Used to detect page-relative GRAPHICs/TEMPOs whose firstObj is a PAGE.
+    /// Reference: InfoDialog.cp:672-680 (PageRelGraphic)
+    pub fn is_page_type(&self, link: Link) -> bool {
+        self.get(link)
+            .is_some_and(|obj| obj.header.obj_type == PAGE_TYPE as i8)
+    }
+
+    /// Compute the page-relative staff_left for a given anchor object and staff.
+    ///
+    /// Walks backward from `anchor_link` through the linked list to find
+    /// the enclosing SYSTEM and STAFF objects, then computes:
+    ///   staff_left = system.systemRect.left + astaff.staffLeft
+    ///
+    /// This mirrors OG `GetContext(doc, relObjL, staffn, &context)` which
+    /// computes context at a specific object, rather than using the running
+    /// ContextState (which may reflect a later system).
+    ///
+    /// Returns None if the enclosing system/staff can't be found.
+    /// Reference: Context.cp:184-420 (GetContext)
+    pub fn staff_left_at(&self, anchor_link: Link, staffn: i8) -> Option<i16> {
+        // Walk left from anchor to find the enclosing STAFF, then SYSTEM.
+        let mut cur = anchor_link;
+        let mut staff_left_rel: Option<i16> = None; // aStaff.staffLeft (relative to system)
+        let mut system_left: Option<i16> = None; // system.systemRect.left
+
+        let mut steps = 0;
+        while cur != NILINK && steps < 10000 {
+            if let Some(obj) = self.get(cur) {
+                match obj.header.obj_type as u8 {
+                    STAFF_TYPE => {
+                        // Look for the AStaff subobject for our staffn
+                        if staff_left_rel.is_none() {
+                            if let Some(astaff_list) = self.staffs.get(&obj.header.first_sub_obj) {
+                                for astaff in astaff_list {
+                                    if astaff.staffn == staffn {
+                                        staff_left_rel = Some(astaff.staff_left);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SYSTEM_TYPE => {
+                        // Found the enclosing system
+                        if let ObjData::System(sys) = &obj.data {
+                            system_left = Some(sys.system_rect.left);
+                        }
+                        break; // System found — stop walking
+                    }
+                    _ => {}
+                }
+                cur = obj.header.left;
+            } else {
+                break;
+            }
+            steps += 1;
+        }
+
+        match (system_left, staff_left_rel) {
+            (Some(sl), Some(stl)) => Some(stl.saturating_add(sl)),
+            _ => None,
+        }
+    }
+
     /// Returns the number of objects with the given type byte.
     pub fn count_by_type(&self, obj_type: u8) -> usize {
         self.objects
