@@ -1186,6 +1186,7 @@ pub struct Context {
     pub clef_type: i8,            // MISC: current clef type
     pub dynamic_type: i8,         // Dynamic marking
     pub ks_info: KsInfo,          // Key signature (WHOLE_KSINFO)
+    pub prev_ks_info: KsInfo,     // Previous key signature (for cancellation naturals)
     pub time_sig_type: i8,        // Current time signature
     pub numerator: i8,
     pub denominator: i8,

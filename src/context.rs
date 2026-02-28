@@ -142,6 +142,7 @@ impl ContextState {
                             // Update stored context from AStaff
                             ctx.clef_type = astaff.clef_type;
                             ctx.dynamic_type = astaff.dynamic_type;
+                            ctx.prev_ks_info = ctx.ks_info;
                             ctx.ks_info = astaff.ks_info;
                             ctx.time_sig_type = astaff.time_sig_type;
                             ctx.numerator = astaff.numerator;
@@ -191,10 +192,14 @@ impl ContextState {
             }
 
             ObjData::KeySig(_keysig) => {
-                // KeySig object: iterate subobjects and update ksInfo per staff
+                // KeySig object: iterate subobjects and update ksInfo per staff.
+                // Save previous ks_info before overwriting — needed for cancellation
+                // naturals when the new key sig has n_ks_items == 0.
+                // Reference: DrawUtils.cp:988 — LSSearch to find previous keysig
                 if let Some(akeysig_list) = score.keysigs.get(&obj.header.first_sub_obj) {
                     for akeysig in akeysig_list {
                         if let Some(ctx) = self.get_mut(akeysig.header.staffn) {
+                            ctx.prev_ks_info = ctx.ks_info;
                             ctx.ks_info = akeysig.ks_info;
                         }
                     }
@@ -271,6 +276,7 @@ impl ContextState {
             clef_type: DFLT_CLEF as i8,
             dynamic_type: DFLT_DYNAMIC as i8,
             ks_info: KsInfo::default(),
+            prev_ks_info: KsInfo::default(),
             time_sig_type: DFLT_TSTYPE,
             numerator: DFLT_NUMER,
             denominator: DFLT_DENOM,

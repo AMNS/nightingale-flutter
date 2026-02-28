@@ -349,3 +349,127 @@ pub fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
         }
     }
 }
+
+/// Map a Sonata font character code to its SMuFL codepoint equivalent.
+///
+/// The Sonata font was the OG Nightingale music font. GRAPHIC text objects
+/// that use the Sonata font contain music character codes, not normal text.
+/// This function maps those codes to SMuFL (Bravura) glyph codepoints.
+///
+/// Reference: defs.h MCH_* constants (lines 137-210), vars.h (lines 325-343)
+///
+/// Returns None for characters that have no SMuFL equivalent or are
+/// space/control characters that should be skipped.
+pub fn sonata_char_to_smufl(ch: u8) -> Option<u32> {
+    match ch {
+        // Clefs
+        0x26 => Some(0xE050), // '&' = MCH_trebleclef -> gClef
+        0x42 => Some(0xE05C), // 'B' = MCH_cclef -> cClef
+        0x3F => Some(0xE062), // '?' = MCH_bassclef -> fClef
+        0x2F => Some(0xE069), // '/' = MCH_percclef -> unpitchedPercussionClef1
+
+        // Accidentals
+        0x23 => Some(0xE262), // '#' = MCH_sharp -> accidentalSharp
+        0x62 => Some(0xE260), // 'b' = MCH_flat -> accidentalFlat
+        0x6E => Some(0xE261), // 'n' = MCH_natural -> accidentalNatural
+        0xBA => Some(0xE264), // SonataAcc[1] = double-flat -> accidentalDoubleFlat
+        0xDC => Some(0xE263), // SonataAcc[5] = double-sharp -> accidentalDoubleSharp
+
+        // Time signatures
+        0x63 => Some(0xE08A), // 'c' = MCH_common -> timeSigCommon
+        0x43 => Some(0xE08B), // 'C' = MCH_cut -> timeSigCutCommon
+
+        // Noteheads
+        0xDD => Some(0xE0A0), // MCH_breveNoteHead -> noteheadDoubleWhole
+        0x77 => Some(0xE0A2), // 'w' = MCH_wholeNoteHead -> noteheadWhole
+        0xFA => Some(0xE0A3), // MCH_halfNoteHead -> noteheadHalf
+        0xCF => Some(0xE0A4), // MCH_quarterNoteHead -> noteheadBlack
+        0xC0 => Some(0xE0A9), // MCH_xShapeHead -> noteheadXBlack
+        0x4F => Some(0xE0D3), // 'O' = MCH_harmonicHead -> noteheadDiamondHalf
+        0xAD => Some(0xE0B9), // MCH_squareHHead -> noteheadSquareWhite
+        0xD0 => Some(0xE0B3), // MCH_squareFHead -> noteheadSquareBlack
+        0xE1 => Some(0xE0D3), // MCH_diamondHHead -> noteheadDiamondHalf
+        0xE2 => Some(0xE0DB), // MCH_diamondFHead -> noteheadDiamondBlack
+
+        // Flags
+        0x6A => Some(0xE240), // 'j' = MCH_eighthFlagUp -> flag8thUp
+        0x4A => Some(0xE241), // 'J' = MCH_eighthFlagDown -> flag8thDown
+        0x6B => Some(0xE242), // 'k' = MCH_16thFlagUp -> flag16thUp
+        0x4B => Some(0xE243), // 'K' = MCH_16thFlagDown -> flag16thDown
+        0xFB => Some(0xE250), // MCH_extendFlagUp -> flagInternalUp
+        0xF0 => Some(0xE251), // MCH_extendFlagDown -> flagInternalDown
+
+        // Augmentation dot
+        0x2E => Some(0xE1E7), // '.' = MCH_dot -> augmentationDot
+
+        // Articulations / Note modifiers
+        0x55 => Some(0xE4C0), // 'U' = MCH_fermata -> fermataAbove
+        0x75 => Some(0xE4C1), // 'u' = MCH_fermataBelow -> fermataBelow
+        0x60 => Some(0xE566), // '`' = MCH_fancyTrill -> ornamentTrill
+        0x3E => Some(0xE4A0), // '>' = MCH_accent -> articAccentAbove
+        0x5E => Some(0xE4AC), // '^' = MCH_heavyAccent -> articMarcatoAbove
+        0x76 => Some(0xE4AD), // 'v' = MCH_heavyAccentBelow -> articMarcatoBelow
+        0xAE => Some(0xE4A2), // MCH_wedge -> articStaccatissimoAbove
+        0x27 => Some(0xE4A3), // '\'' = MCH_wedgeBelow -> articStaccatissimoBelow
+        0x2D => Some(0xE4A4), // '-' = MCH_tenuto -> articTenutoAbove
+        0x4D => Some(0xE56C), // 'M' = MCH_mordent -> ornamentMordent
+        0x6D => Some(0xE56D), // 'm' = MCH_invMordent -> ornamentMordentInverted
+        0x54 => Some(0xE567), // 'T' = MCH_turn -> ornamentTurn
+        0x2B => Some(0xE4AF), // '+' = MCH_plus -> articPlusAbove (stopped horn)
+        0x6F => Some(0xE4AB), // 'o' = MCH_circle -> articHarmonicAbove
+        0xB2 => Some(0xE612), // MCH_upbow -> stringsUpBow
+        0xB3 => Some(0xE610), // MCH_downbow -> stringsDownBow
+        0xAC => Some(0xE4AE), // MCH_heavyAccAndStaccato -> articMarcatoStaccatoAbove
+        0xE8 => Some(0xE4AF), // MCH_heavyAccAndStaccatoBelow -> (approx)
+        0xB5 => Some(0xE56E), // MCH_longInvMordent -> ornamentTremblement
+
+        // Dynamic marks
+        0xB8 => Some(0xE52F), // MCH_ppp -> dynamicPPP
+        0xB9 => Some(0xE531), // MCH_pp -> dynamicPP
+        0x70 => Some(0xE520), // 'p' = MCH_p -> dynamicPiano
+        0x50 => Some(0xE52C), // 'P' = MCH_mp -> dynamicMP
+        0x46 => Some(0xE52D), // 'F' = MCH_mf -> dynamicMF
+        0x66 => Some(0xE522), // 'f' = MCH_f -> dynamicForte
+        0xC4 => Some(0xE52F), // MCH_ff -> dynamicFF
+        0xEC => Some(0xE530), // MCH_fff -> dynamicFFF
+        0x53 => Some(0xE539), // 'S' = MCH_sf -> dynamicSforzando1
+
+        // Repeat dots
+        0x7B => Some(0xE043), // MCH_rptDots -> repeatDots
+
+        // Braces/brackets
+        0xC2 => Some(0xE002), // MCH_topbracket -> bracketTop
+        0x4C => Some(0xE004), // 'L' = MCH_bottombracket -> bracketBottom
+        0xA7 => Some(0xE000), // MCH_braceup -> brace (top half)
+        0xEA => Some(0xE000), // MCH_bracedown -> brace (bottom half)
+
+        // Arpeggio
+        0x67 => Some(0xE63C), // 'g' = MCH_arpeggioSign -> arpeggiato
+
+        // Parentheses (music-context)
+        0x28 => Some(0xE26A), // '(' = MCH_lParen -> accidentalParensLeft
+        0x29 => Some(0xE26B), // ')' = MCH_rParen -> accidentalParensRight
+
+        // Grace note slash
+        0x47 => Some(0xE560), // 'G' = MCH_graceSlash -> graceNoteSlashStemUp
+
+        // ==== Segno and Coda ====
+        // The Sonata font places segno at '%' (0x25) and coda at 0x9E.
+        0x25 => Some(0xE047), // '%' = segno -> segno (SMuFL U+E047)
+        0x9E => Some(0xE048), // coda -> coda (SMuFL U+E048)
+
+        // Rest glyphs (MCH_rests[] from vars.h)
+        0xE3 => Some(0xE4E2), // rests[0] -> restDoubleWhole (breve)
+        0xB7 => Some(0xE4E3), // rests[1] -> restWhole
+        0xEE => Some(0xE4E4), // rests[2] -> restHalf
+        0xCE => Some(0xE4E5), // rests[3] -> restQuarter
+        0xE4 => Some(0xE4E6), // rests[4] -> restEighth
+        0xC5 => Some(0xE4E7), // rests[5] -> rest16th
+        0xA8 => Some(0xE4E8), // rests[6] -> rest32nd
+        0xF4 => Some(0xE4E9), // rests[7] -> rest64th
+        0xE5 => Some(0xE4EA), // rests[8] -> rest128th
+
+        // Space and unmapped characters
+        _ => None,
+    }
+}

@@ -586,15 +586,12 @@ pub fn draw_keysig(
     // SMuFL accidental codes
     const SMUFL_SHARP: u32 = 0xE262; // accidentalSharp
     const SMUFL_FLAT: u32 = 0xE260; // accidentalFlat
+    const SMUFL_NATURAL: u32 = 0xE261; // accidentalNatural
 
     if let Some(akeysig_list) = score.keysigs.get(&obj.header.first_sub_obj) {
         for akeysig in akeysig_list {
             if let Some(ks_ctx) = ctx.get(akeysig.header.staffn) {
                 if !ks_ctx.visible || !akeysig.header.visible {
-                    continue;
-                }
-                let n_items = akeysig.ks_info.n_ks_items;
-                if n_items <= 0 {
                     continue;
                 }
 
@@ -616,16 +613,41 @@ pub fn draw_keysig(
 
                 let staff_top_y = ddist_to_render(ks_ctx.staff_top);
 
-                for k in 0..n_items.min(7) as usize {
-                    let ks_item = &akeysig.ks_info.ks_item[k];
-                    let is_sharp = ks_item.sharp != 0;
-                    let halfln = get_ks_y_offset(ks_ctx.clef_type, ks_item.letcode, is_sharp);
+                let n_items = akeysig.ks_info.n_ks_items;
 
-                    let x = base_x + k as f32 * acc_width;
-                    let y = staff_top_y + (halfln as f32 * lnspace / 2.0);
+                if n_items > 0 {
+                    // Normal key signature: draw sharps/flats
+                    // Reference: DrawUtils.cp:977-987
+                    for k in 0..n_items.min(7) as usize {
+                        let ks_item = &akeysig.ks_info.ks_item[k];
+                        let is_sharp = ks_item.sharp != 0;
+                        let halfln = get_ks_y_offset(ks_ctx.clef_type, ks_item.letcode, is_sharp);
 
-                    let glyph = if is_sharp { SMUFL_SHARP } else { SMUFL_FLAT };
-                    renderer.music_char(x, y, MusicGlyph::smufl(glyph), 100.0);
+                        let x = base_x + k as f32 * acc_width;
+                        let y = staff_top_y + (halfln as f32 * lnspace / 2.0);
+
+                        let glyph = if is_sharp { SMUFL_SHARP } else { SMUFL_FLAT };
+                        renderer.music_char(x, y, MusicGlyph::smufl(glyph), 100.0);
+                    }
+                } else {
+                    // Cancellation key signature: n_ks_items == 0.
+                    // Draw naturals from the previous key signature on this staff.
+                    // Reference: DrawUtils.cp:988-1010 — LSSearch for previous keysig
+                    let prev = &ks_ctx.prev_ks_info;
+                    let prev_n = prev.n_ks_items;
+                    if prev_n > 0 {
+                        for k in 0..prev_n.min(7) as usize {
+                            let ks_item = &prev.ks_item[k];
+                            let is_sharp = ks_item.sharp != 0;
+                            let halfln =
+                                get_ks_y_offset(ks_ctx.clef_type, ks_item.letcode, is_sharp);
+
+                            let x = base_x + k as f32 * acc_width;
+                            let y = staff_top_y + (halfln as f32 * lnspace / 2.0);
+
+                            renderer.music_char(x, y, MusicGlyph::smufl(SMUFL_NATURAL), 100.0);
+                        }
+                    }
                 }
             }
         }
@@ -1457,7 +1479,37 @@ pub fn draw_graphic(
 
     // Determine font from text style or GRAPHIC's own fields
     // Mac fontStyle bits: 0=normal, bit0=bold, bit1=italic, bit2=underline, etc.
+    let is_sonata = is_sonata_font(gfx, score);
     let font = resolve_graphic_font(gfx, score, &gtype, line_space);
+
+    // If the original font is Sonata, render each character as a SMuFL music glyph
+    // rather than as text. Sonata was Nightingale's music font — characters like '%'
+    // are segno symbols, not literal text.
+    // Reference: MusicFont.cp MapMusChar(), defs.h MCH_* constants
+    if is_sonata {
+        use super::draw_utils::sonata_char_to_smufl;
+        use crate::render::types::MusicGlyph;
+
+        // Compute size_percent from font size relative to the music font size
+        // (line_space * 4 is roughly the staff height; standard music font = ~24pt)
+        let size_pct = (font.size / 24.0 * 100.0).max(50.0);
+        let mut char_x = x;
+        for byte in text.bytes() {
+            if byte == 0x20 {
+                // Space: advance by ~0.5 em width
+                char_x += font.size * 0.5;
+                continue;
+            }
+            if let Some(smufl_cp) = sonata_char_to_smufl(byte) {
+                renderer.music_char(char_x, y, MusicGlyph::Smufl(smufl_cp), size_pct);
+                // Advance by approximate glyph width (~1.0 em for most music chars)
+                char_x += font.size * 1.0;
+            }
+            // Skip unmapped characters silently
+        }
+        return;
+    }
+
     // Handle multiline text (lines delimited by CR = '\r')
     // Reference: DrawTextBlock, DrawObject.cp:1808-1969
     if gfx.multi_line != 0 && text.contains('\r') {
@@ -1594,6 +1646,26 @@ fn resolve_graphic_font(
             .bold(bold)
             .italic(italic)
     }
+}
+
+/// Check whether a GRAPHIC object's font is the Sonata music font.
+///
+/// When Sonata is the font, the text characters are music symbol codes
+/// (e.g. '%' = segno, 'U' = fermata) and must be mapped to SMuFL glyphs
+/// rather than rendered as normal text.
+///
+/// Checks the text style font name (via gfx.info index into text_styles[]).
+fn is_sonata_font(gfx: &crate::obj_types::Graphic, score: &InterpretedScore) -> bool {
+    use crate::defs::FONT_THISITEMONLY;
+
+    let style_idx = gfx.info as usize;
+    if style_idx > FONT_THISITEMONLY as usize && (style_idx - 1) < score.text_styles.len() {
+        let ts = &score.text_styles[style_idx - 1];
+        if ts.font_name == "Sonata" {
+            return true;
+        }
+    }
+    false
 }
 
 /// Map OG Nightingale Mac font names to modern equivalents.
