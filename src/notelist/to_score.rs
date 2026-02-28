@@ -26,7 +26,7 @@
 //! - No proportional spacing (uniform X advance per time position)
 //! - No beaming (would need AutoBeam port)
 //! - No cross-system slur rendering
-//! - No dynamics, text, or tempo mark rendering
+//! - No dynamics or text rendering
 //! - Grace notes not yet positioned
 //! - No page breaks (single-page layout, multi-system)
 //!
@@ -37,7 +37,7 @@
 
 use crate::basic_types::*;
 use crate::beam::{compute_beam_slope, BeamNoteInfo};
-use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TIMESIG_TYPE, TUPLET_TYPE};
+use crate::defs::{CLEF_TYPE, EIGHTH_L_DUR, KEYSIG_TYPE, TEMPO_TYPE, TIMESIG_TYPE, TUPLET_TYPE};
 use crate::duration::{beat_l_dur, code_to_l_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
@@ -2934,6 +2934,166 @@ pub fn notelist_to_score_with_config(
             }
 
             rec_idx += 1;
+        }
+    }
+
+    // ---- TEMPO MARKS ----
+    // Convert NotelistRecord::Tempo records into Tempo objects.
+    //
+    // In Notelist format, tempo records (M) don't have a time field — they apply
+    // at the time of the first note/rest that follows them. We walk the records,
+    // find the anchor time for each tempo, then create a Tempo object pointing to
+    // the corresponding sync.
+    //
+    // Reference: NotelistOpen.cp ConvertTempo, DrawObject.cp DrawTEMPO
+    {
+        let mut tempo_link_counter: Link = beam_counter + 200; // Fresh namespace
+
+        for (rec_idx, record) in notelist.records.iter().enumerate() {
+            let (tempo_staff, tempo_str, beat_char, dotted, mm_str) =
+                if let NotelistRecord::Tempo {
+                    staff,
+                    tempo_str,
+                    beat_char,
+                    dotted,
+                    mm_str,
+                } = record
+                {
+                    (
+                        *staff,
+                        tempo_str.clone(),
+                        *beat_char,
+                        *dotted,
+                        mm_str.clone(),
+                    )
+                } else {
+                    continue;
+                };
+
+            // Find the next note/rest after this tempo record to determine anchor time
+            let anchor_time = notelist.records[rec_idx + 1..]
+                .iter()
+                .find_map(|r| match r {
+                    NotelistRecord::Note { time, .. } | NotelistRecord::Rest { time, .. } => {
+                        Some(*time)
+                    }
+                    _ => None,
+                });
+
+            let anchor_time = match anchor_time {
+                Some(t) => t,
+                None => continue, // No notes after this tempo mark — skip
+            };
+
+            // Find the sync at this time
+            let anchor_sync = music_objs
+                .iter()
+                .find(|m| matches!(m.kind, MusicObjKind::Sync { time: t, .. } if t == anchor_time));
+            let anchor_link = match anchor_sync {
+                Some(m) => m.link,
+                None => continue,
+            };
+
+            // Map beat_char to l_dur code
+            // Reference: NotelistOpen.cp + draw_tempo's TempoGlyph mapping
+            use crate::defs::{
+                HALF_L_DUR, NO_L_DUR, QTR_L_DUR, SIXTEENTH_L_DUR, THIRTY2ND_L_DUR, WHOLE_L_DUR,
+            };
+            let sub_type = match beat_char {
+                'w' => WHOLE_L_DUR,
+                'h' => HALF_L_DUR,
+                'q' => QTR_L_DUR,
+                'e' => EIGHTH_L_DUR,
+                'x' => SIXTEENTH_L_DUR,
+                'r' => THIRTY2ND_L_DUR,
+                _ => NO_L_DUR, // No beat unit specified
+            };
+
+            // Determine whether we have a metronome mark
+            let has_mm = !mm_str.is_empty() && sub_type != NO_L_DUR;
+
+            // Y position: above staff 1, about 2 interline spaces above top line.
+            // OG default yd for tempo marks is typically around -2*lineSpace.
+            // lineSpace = staff_height / 4 for 5-line staff.
+            let line_space = config.staff_height / 4;
+            let yd: Ddist = -(line_space * 2);
+
+            let tempo_link = tempo_link_counter;
+            tempo_link_counter += 1;
+
+            let tempo_obj = InterpretedObject {
+                index: tempo_link,
+                header: ObjectHeader {
+                    right: NILINK,
+                    left: NILINK,
+                    first_sub_obj: NILINK,
+                    xd: 0, // Directly above anchor sync
+                    yd,    // Above staff
+                    obj_type: TEMPO_TYPE as i8,
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                    valid: true,
+                    tweaked: false,
+                    spare_flag: false,
+                    ohdr_filler1: 0,
+                    obj_rect: Rect::default(),
+                    rel_size: 0,
+                    ohdr_filler2: 0,
+                    n_entries: 0,
+                },
+                data: ObjData::Tempo(Tempo {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader {
+                        staffn: if tempo_staff > 0 { tempo_staff } else { 1 },
+                    },
+                    sub_type,
+                    expanded: false,
+                    no_mm: !has_mm,
+                    filler: 0,
+                    dotted,
+                    hide_mm: false,
+                    tempo_mm: mm_str.parse::<i16>().unwrap_or(0),
+                    str_offset: 0, // Not used — we use tempo_strings HashMap
+                    first_obj_l: anchor_link,
+                    metro_str_offset: 0,
+                }),
+            };
+
+            // Insert after the anchor sync (same pattern as tuplet/beam insertion)
+            let insert_pos = score
+                .objects
+                .iter()
+                .position(|obj| obj.index == anchor_link)
+                .map(|p| p + 1)
+                .unwrap_or(score.objects.len());
+
+            // Wire links
+            let mut tempo_obj = tempo_obj;
+            tempo_obj.header.left = anchor_link;
+            let right_link = if insert_pos < score.objects.len() {
+                score.objects[insert_pos].index
+            } else {
+                tail_link
+            };
+            tempo_obj.header.right = right_link;
+
+            // Update neighbors
+            if let Some(left_obj) = score
+                .objects
+                .iter_mut()
+                .find(|obj| obj.index == anchor_link)
+            {
+                left_obj.header.right = tempo_link;
+            }
+            if let Some(right_obj) = score.objects.iter_mut().find(|obj| obj.index == right_link) {
+                right_obj.header.left = tempo_link;
+            }
+
+            score.objects.insert(insert_pos, tempo_obj);
+
+            // Store tempo strings for draw_tempo to use
+            score.tempo_strings.insert(tempo_link, (tempo_str, mm_str));
         }
     }
 

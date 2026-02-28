@@ -70,6 +70,12 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **SMuFL glyph braces/brackets**: U+E000 brace glyph with 2× weight boost, U+E002 bracket glyph (both PdfRenderer + BitmapRenderer). Non-uniform text matrix scaling. Bezier/line fallback preserved.
+- [x] **Beam/stem gap fix**: 0.5pt stem extension for beamed notes (port of PS_NoteStem's 8 DDIST, PS_Stdio.cp:1729).
+- [x] **Tuplet bracket orientation fix**: Staff-relative DDIST comparison for bracket_below (was cross-domain comparison).
+- [x] **Notelist tempo mark conversion**: NotelistRecord::Tempo → Tempo objects in to_score.rs. Positional anchoring (tempo applies at next note/rest). beat_char→l_dur mapping, verbal string + metronome mark. 7 .nl files affected (Debussy, GoodbyePorkPieHat, KillingMe, Mendelssohn, Schoenberg, TestMIDI, Webern).
+
+### Recently Completed (previous session)
 - [x] **NGL slur rendering**: Filled tapered Bezier shapes (PS_Stdio.cp:1933 PS_Slur port). Two offset curves with configurable mid-line width (SLURMIDLW_DFLT=30). ASlur spline data from NGL files rendered directly.
 - [x] **Notelist slur rendering**: Endpoint collection from stem_info slurred_l/slurred_r flags (NotelistSave.cp:130). IICreateAllSlurs-style voice-based matching (InternalInput.cp:881). SetSlurCtlPoints port with short/long blending thresholds + RotateSlurCtrlPts for slanted slurs (Slurs.cp:1021-1122). slurCurvature=50 vs tieCurvature=85.
 - [x] **Final barline flush-right fix**: System-boundary and final barlines now use config.content_width() (staff_right) instead of computed measure edge.
@@ -88,7 +94,7 @@
 - [x] **Dynamics**: hairpin crescendo/diminuendo lines + dynamic text (pp, ff, etc.) (DrawDYNAMIC port from DrawObject.cp)
 - [x] **Text attached to notes**: lyrics, expression text, other note-attached annotations (DrawGRAPHIC port from DrawObject.cp)
 - [x] **Part names**: staff labels at start of first system (and abbreviated on continuation systems)
-- [x] **Tempo markings**: TEMPO_5 parsing (38 bytes), verbal tempo string + optional metronome mark (note glyph + dot + "= N"). Font from FONT_TM text style. Port of DrawTEMPO/TempoGlyph/GetGraphicOrTempoDrawInfo from DrawObject.cp/DrawUtils.cp.
+- [x] **Tempo markings**: TEMPO_5 parsing (38 bytes), verbal tempo string + optional metronome mark (note glyph + dot + "= N"). Font from FONT_TM text style. Port of DrawTEMPO/TempoGlyph/GetGraphicOrTempoDrawInfo from DrawObject.cp/DrawUtils.cp. Notelist pipeline: NotelistRecord::Tempo → Tempo objects with positional anchoring in to_score.rs.
 - [x] **Score markings**: fermata, other articulations — all 22 MODNR types implemented (MOD_FERMATA through MOD_LONG_INVMORDENT). Tremolo slashes. Fingerings (0-5) acknowledged but need text rendering. Port of DrawModNR/GetModNRInfo from DrawNRGR.cp/DrawUtils.cp.
 - [x] **Volta brackets (Endings)**: ENDING_5 parsing (32 bytes), horizontal bracket with optional left/right cutoffs, ending number labels. Port of DrawENDING from DrawObject.cp.
 - [ ] **Rehearsal marks**: boxed/circled text above system
