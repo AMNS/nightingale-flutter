@@ -70,6 +70,11 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **Sonata→SMuFL character mapping**: Complete mapping of OG Nightingale Sonata font characters to SMuFL/Bravura codepoints (90+ characters). GRAPHIC text objects using Sonata font (e.g., segno '%', coda, dynamics) now detected and rendered via `music_char()` with correct SMuFL glyphs instead of wrong Helvetica text. Port of MapMusChar() concept from DrawUtils.cp. Covers: clefs, accidentals, time sigs, noteheads, flags, dots, articulations, dynamics, repeat dots, braces/brackets, segno (0x25→U+E047), coda (0x9E→U+E048), rests.
+- [x] **Cancelling key signatures**: When a key signature changes to fewer accidentals (n_ks_items==0), naturals are now drawn at the positions of the previous key signature's accidentals. Port of DrawUtils.cp:988-1010 (LSSearch backward for previous keysig). Added `prev_ks_info` to Context struct, saved before each keysig update. SMUFL_NATURAL (U+E261) glyph rendering. 30 new natural glyphs appear in Capital Regiment March (the fixture with mid-score key changes).
+- [x] **Flutter app revival**: Moved iceboxed `nightingale_app/` back to project root. Rewrote Rust bridge (`score.rs`) to match current 32-variant RenderCommand API with flat DTO (no nested structs). Added `render_notelist_from_text()` for Notelist support. Rewrote Dart `ScorePainter` to handle all 32 command kinds (was 11). Ran `flutter_rust_bridge_codegen` to regenerate bindings. `cargo check` + `flutter analyze` both clean. Removed stale iceboxed tests.
+
+### Recently Completed (previous session)
 - [x] **OG Gourlay spacing pipeline**: Full port of the OG Nightingale spacing engine from SpaceTime.cp and SpaceHighLevel.cp. Replaces simple duration-proportional spacing with the complete Gourlay pipeline:
   - `SymWidthRight/Left` for computing horizontal extent of all object types (sync, grsync, measure, clef, keysig, timesig) in STDIST
   - `FIdealSpace` with spaceProp parameter for duration-proportional ideal widths
