@@ -149,10 +149,12 @@ pub fn draw_part_names(
             first_ctx.staff_height
         };
 
-        // Resolve part name font from text style FONT_PN (index 2).
+        // Resolve part name font from text style FONT_PN.
+        // FONT_PN = 2, but text_styles is 0-indexed so we use index 1.
         // Reference: DrawObject.cp:358 — GetTextSize(doc->relFSizePN, doc->fontSizePN, LNSPACE)
-        let font = if score.text_styles.len() > 2 {
-            let ts = &score.text_styles[2]; // FONT_PN = 2
+        let pn_idx = crate::defs::FONT_PN as usize - 1; // 2 - 1 = 1
+        let font = if score.text_styles.len() > pn_idx {
+            let ts = &score.text_styles[pn_idx];
             let pt_size = if ts.rel_f_size {
                 rel_size_to_pt(ts.font_size, line_space)
             } else {
@@ -435,10 +437,12 @@ fn draw_meas_num(
         staff_height
     };
 
-    // Resolve font from FONT_MN (text_styles[0])
+    // Resolve font from FONT_MN.
+    // FONT_MN = 1, but text_styles is 0-indexed so we use index 0.
     // Reference: DrawObject.cp:2540 — GetTextSize(doc->relFSizeMN, doc->fontSizeMN, LNSPACE)
-    let font = if !score.text_styles.is_empty() {
-        let ts = &score.text_styles[0]; // FONT_MN = 0
+    let mn_idx = crate::defs::FONT_MN as usize - 1; // 1 - 1 = 0
+    let font = if score.text_styles.len() > mn_idx {
+        let ts = &score.text_styles[mn_idx];
         let pt_size = if ts.rel_f_size {
             rel_size_to_pt(ts.font_size, line_space)
         } else {
@@ -1454,7 +1458,6 @@ pub fn draw_graphic(
     // Determine font from text style or GRAPHIC's own fields
     // Mac fontStyle bits: 0=normal, bit0=bold, bit1=italic, bit2=underline, etc.
     let font = resolve_graphic_font(gfx, score, &gtype, line_space);
-
     // Handle multiline text (lines delimited by CR = '\r')
     // Reference: DrawTextBlock, DrawObject.cp:1808-1969
     if gfx.multi_line != 0 && text.contains('\r') {
@@ -1557,9 +1560,12 @@ fn resolve_graphic_font(
 
     let style_idx = gfx.info as usize;
 
-    // Try to use text style from header
-    if style_idx > FONT_THISITEMONLY as usize && style_idx < score.text_styles.len() {
-        let ts = &score.text_styles[style_idx];
+    // Try to use text style from header.
+    // FONT_* constants are 1-based (FONT_MN=1, FONT_PN=2, etc.) but
+    // text_styles[] is 0-indexed, so we use text_styles[style_idx - 1].
+    // Reference: defs.h enum (line 6-18), DrawObject.cp SetFontFromTEXTSTYLE()
+    if style_idx > FONT_THISITEMONLY as usize && (style_idx - 1) < score.text_styles.len() {
+        let ts = &score.text_styles[style_idx - 1];
         let pt_size = if ts.rel_f_size {
             rel_size_to_pt(ts.font_size, line_space)
         } else {
@@ -2152,7 +2158,8 @@ fn ending_label(end_num: u8) -> String {
 fn resolve_tempo_font(score: &InterpretedScore, line_space: i16) -> TextFont {
     use crate::defs::FONT_TM;
 
-    let idx = FONT_TM as usize;
+    // FONT_TM = 8, but text_styles is 0-indexed so we use index 7.
+    let idx = FONT_TM as usize - 1; // 8 - 1 = 7
     if idx < score.text_styles.len() {
         let ts = &score.text_styles[idx];
         let pt_size = if ts.rel_f_size {
