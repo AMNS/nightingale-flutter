@@ -70,7 +70,10 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
-- [x] **Grace note rendering (draw_grsync)**: Port of DrawNRGR.cp DrawGRSYNC()/DrawGRNote(). 70% size noteheads, accidentals, ledger lines, stems, flags, diagonal stem slash on unbeamed eighth grace notes, augmentation dots. Wired into render loop dispatch. No test fixtures currently contain GrSync objects, but NGL parser and rendering code are ready.
+- [x] **Notelist grace note support**: Port of ConvertGRNoteRest (NotelistOpen.cp). Pre-scan G records, group by following Note/Rest time, create GrSync objects with ANote subobjects. Grace notes render at 70% via draw_grsync. Handles cross-barline grace notes. 3 targeted tests (HBD_33, Schoenberg, Mahler) verifying pitches, clefs, accidentals, and 70% rendering.
+
+### Recently Completed (previous session)
+- [x] **Grace note rendering (draw_grsync)**: Port of DrawNRGR.cp DrawGRSYNC()/DrawGRNote(). 70% size noteheads, accidentals, ledger lines, stems, flags, diagonal stem slash on unbeamed eighth grace notes, augmentation dots. Wired into render loop dispatch. NGL parser ready but no NGL fixtures contain GrSync objects.
 - [x] **FONT_* text style off-by-one fix**: FONT_MN=1, FONT_PN=2, etc. are 1-based constants but text_styles[] is 0-indexed. All four lookup sites (graphic text, measure numbers, part names, tempo font) were picking the wrong style. Composer text was rendered as 32pt italic Briard (FONT_R2) instead of 9pt Helvetica (FONT_R1). Fixed: text_styles[constant - 1].
 
 ### Recently Completed (previous session)
@@ -106,7 +109,7 @@
 - [ ] **Rehearsal marks**: boxed/circled text above system
 
 #### Tier 3 — Engraving Polish
-- [ ] **Grace notes**: small grace notes before principal notes (DrawGRSync port)
+- [x] **Grace notes**: small grace notes before principal notes — DrawGRSync rendering + Notelist G-record pipeline
 - [x] **Notehead collision avoidance**: seconds in chords — ported ArrangeChordNotes (PitchUtils.cp) to objects.rs, NoteXLoc offset in draw_nrgr.rs, ChordNoteToLeft for accidental anchoring. Multi-voice X offsets still TODO.
 - [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
 - [x] **Final barline**: double barline at end of piece (already working — BAR_FINALDBL mapped and rendered)
@@ -215,9 +218,9 @@ of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~29,900 |
-| Rust test lines | ~10,300 |
-| Test count | 225 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff) |
+| Rust source lines | ~23,600 |
+| Rust test lines | ~5,500 |
+| Test count | 228 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff + grace note tests) |
 | Test fixture files | 17 .ngl + 20 .nl |
 | Insta snapshots | 37 |
 | Bitmap goldens | 37 (17 NGL + 20 Notelist) |
