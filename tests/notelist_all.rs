@@ -543,13 +543,13 @@ fn test_all_notelists_command_stream_hashes() {
         ("KillingMe_36", 13617168218901401014),
         ("keysig_d_major", 1882963057310755303),
         ("keysig_eb_major", 11711652780243886394),
-        ("MahlerLiedVonDE_25", 1949867841959629579),
+        ("MahlerLiedVonDE_25", 3452340270982264035),
         ("MendelssohnOp7N1_2", 4844829128544076327),
         ("RavelScarbo_15", 2173793435090451996),
         ("SchenkerDiagram_Chopin_6", 18134331091962191258),
         ("SchoenbergOp19N1_21", 14226341295767096451),
         ("TestMIDIChannels_3", 499514329435215668),
-        ("tuplet_triplet", 333779532185352755),
+        ("tuplet_triplet", 5438322622780739114),
         ("Webern_Op5N3_22", 1923671676380278562),
     ]
     .into_iter()

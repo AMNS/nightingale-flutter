@@ -94,8 +94,11 @@ pub fn draw_tuplet(
     // BRACKETUP = STD_LINEHT/2 = 4 STDIST
     let brack_delta = lnspace * 0.5;
 
-    // Adjust bracket Y by brack_delta (above or below)
-    let bracket_below = tup.yd_first > ddist_to_render(staff_ctx.staff_height) as i16;
+    // Determine bracket orientation (above or below notes).
+    // Port of SetTupletYPos (Tuplet.cp): bracketBelow = (firstyd > staffHeight/2)
+    // yd_first is a DDIST offset from staff top; if it exceeds half the staff
+    // height, the bracket sits below (cutoffs point down).
+    let bracket_below = tup.yd_first > staff_ctx.staff_height / 2;
     let first_bracket_y = if bracket_below {
         first_y + brack_delta
     } else {
