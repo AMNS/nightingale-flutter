@@ -70,6 +70,14 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **OG Gourlay spacing pipeline**: Full port of the OG Nightingale spacing engine from SpaceTime.cp and SpaceHighLevel.cp. Replaces simple duration-proportional spacing with the complete Gourlay pipeline:
+  - `SymWidthRight/Left` for computing horizontal extent of all object types (sync, grsync, measure, clef, keysig, timesig) in STDIST
+  - `FIdealSpace` with spaceProp parameter for duration-proportional ideal widths
+  - `ConsiderITWidths` for collision avoidance (ensures accidentals/dots/flags don't overlap)
+  - `Respace1Bar` for per-measure Gourlay spacing with collision resolution
+  - 22 unit tests covering all width functions and the complete pipeline
+  - Integrated into to_score.rs steps 3-5: builds SpaceTimeInfo per measure, calls respace_1bar, scales to system width
+  - All 20 notelist golden bitmaps updated with improved spacing
 - [x] **Notelist grace note support**: Port of ConvertGRNoteRest (NotelistOpen.cp). Pre-scan G records, group by following Note/Rest time, create GrSync objects with ANote subobjects. Grace notes render at 70% via draw_grsync. Handles cross-barline grace notes. 3 targeted tests (HBD_33, Schoenberg, Mahler) verifying pitches, clefs, accidentals, and 70% rendering.
 
 ### Recently Completed (previous session)
@@ -96,7 +104,7 @@
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
 - [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
 - [x] **Slurs**: NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs still TODO.
-- [ ] **System layout / spacing improvements**: duration-proportional spacing (port SymWidthRight/CalcSpaceNeeded from SpaceTime.cp), measure width based on content density
+- [x] **System layout / spacing improvements**: full OG Gourlay pipeline (SymWidthRight/Left, FIdealSpace, ConsiderITWidths, Respace1Bar) — duration-proportional spacing with collision avoidance
 - [x] **Ottava (8va/8vb)**: OTTAVA_5 parsing (40 bytes, bitfields, ANOTEOTTAVA subobjects), draw_ottava() with Sonata italic digit glyphs (MCH_idigits), dashed bracket (hdashed_line), vertical cutoff, alta/bassa distinction. Port of DrawOTTAVA/DrawOctBracket/GetOctTypeNum from Ottava.cp. No test fixtures contain ottavas, but code compiles and is wired into render loop.
 
 #### Tier 2 — Text & Markings
@@ -132,7 +140,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] `music_font.rs` <- MusicFont.cp: stem_space_width_ddist
 - [x] `objects.rs` <- Objects.cp: VoiceRole, normal_stem_up_down_single/chord, get_nc_ystem, setup_ks_info
 - [x] `beam.rs` <- Beam.cp: BeamNoteInfo, compute_beam_slope
-- [x] `space_time.rs` <- SpaceTime.cp: ideal_space_stdist, stdist_to_ddist
+- [x] `space_time.rs` <- SpaceTime.cp + SpaceHighLevel.cp: ideal_space, stdist_to_ddist, SymWidthRight/Left, ConsiderITWidths, Respace1Bar
 
 #### draw/ submodules (1:1 with OG C files)
 - [x] `draw/draw_high_level.rs` <- DrawHighLevel.cp: render_score() main loop
@@ -158,7 +166,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 ## Phase 3: Engraving Engine — PARTIALLY IN PROGRESS
 - [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam.rs (shared)
 - [x] Port Objects.cp NormalStemUpDown -> objects.rs (shared)
-- [x] Port SpaceTime.cp IdealSpace/stdist_to_ddist -> space_time.rs (shared)
+- [x] Port SpaceTime.cp + SpaceHighLevel.cp -> space_time.rs: IdealSpace, SymWidthRight/Left, ConsiderITWidths, Respace1Bar (complete Gourlay pipeline)
 - [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
 - [x] Port Tuplet.cp -> tuplet rendering (DrawTUPLET/DrawPSTupletBracket)
 - [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
@@ -218,9 +226,9 @@ of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~23,600 |
+| Rust source lines | ~24,400 |
 | Rust test lines | ~5,500 |
-| Test count | 228 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff + grace note tests) |
+| Test count | 243 (166 unit + 6 cross-validate + 10 doc_header + 1 golden_diff + 8 ngl_all + 8 notelist_all + 7 read_ngl + 20 render_pdf + 19 render_score + 8 doctest, minus 6 ignored) |
 | Test fixture files | 17 .ngl + 20 .nl |
 | Insta snapshots | 37 |
 | Bitmap goldens | 37 (17 NGL + 20 Notelist) |
