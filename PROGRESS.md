@@ -74,6 +74,8 @@
 - [x] **Beam/stem gap fix**: 0.5pt stem extension for beamed notes (port of PS_NoteStem's 8 DDIST, PS_Stdio.cp:1729).
 - [x] **Tuplet bracket orientation fix**: Staff-relative DDIST comparison for bracket_below (was cross-domain comparison).
 - [x] **Notelist tempo mark conversion**: NotelistRecord::Tempo → Tempo objects in to_score.rs. Positional anchoring (tempo applies at next note/rest). beat_char→l_dur mapping, verbal string + metronome mark. 7 .nl files affected (Debussy, GoodbyePorkPieHat, KillingMe, Mendelssohn, Schoenberg, TestMIDI, Webern).
+- [x] **Tempo SMuFL note glyph fix**: tempo_glyph() was returning Sonata characters (both renderers early-return on Sonata variants). Replaced with SMuFL Individual Notes codepoints (U+E1D0-E1DF): quarter=0xE1D5, half=0xE1D3, etc. Also fixed augmentation dot to SMuFL U+E1E7.
+- [x] **NGL tempo Y positioning fix**: TEMPO objects appear before MEASURE in NGL object list (PAGE→SYSTEM→STAFF→TEMPO→MEASURE→SYNC), so measure_top is still 0 when draw_tempo runs. Fixed by using staff_top directly (equivalent to OG's GetContext at the anchor). All 17 NGL fixtures now render tempo marks.
 
 ### Recently Completed (previous session)
 - [x] **NGL slur rendering**: Filled tapered Bezier shapes (PS_Stdio.cp:1933 PS_Slur port). Two offset curves with configurable mid-line width (SLURMIDLW_DFLT=30). ASlur spline data from NGL files rendered directly.
@@ -209,9 +211,9 @@ of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~24,400 |
-| Rust test lines | ~10,200 |
-| Test count | 223 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff) |
+| Rust source lines | ~29,700 |
+| Rust test lines | ~10,300 |
+| Test count | 225 (unit + integration + cross-validate/render + doctest + notelist_all + ngl_all + bitmap regression + golden_diff) |
 | Test fixture files | 17 .ngl + 20 .nl |
 | Insta snapshots | 37 |
 | Bitmap goldens | 37 (17 NGL + 20 Notelist) |
