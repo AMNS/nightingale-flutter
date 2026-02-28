@@ -814,21 +814,50 @@ impl MusicRenderer for BitmapRenderer {
     }
 
     fn bracket(&mut self, x: f32, y_top: f32, y_bottom: f32) {
-        // Vertical line
+        let height = (y_bottom - y_top).abs();
+        if height < 1.0 {
+            return;
+        }
+
+        // Try SMuFL bracket glyph (U+E002) with non-uniform scaling.
+        // Reference: PS_Stdio.cp, PS_Bracket(), line 1966
+        if let Some(ref mut font) = self.music_font {
+            let bracket_cp: u32 = 0xE002;
+            if let Some(gid) = font.glyph_id(bracket_cp) {
+                if let Some(glyph_path) = font.get_glyph_path(gid) {
+                    let upm = font.units_per_em as f32;
+                    let glyph_height_fu = 997.0_f32;
+
+                    let x_scale = self.state.music_size / upm * self.state.scale_x * self.scale;
+                    let target_height_px = height * self.state.scale_y * self.scale;
+                    let y_scale = target_height_px / glyph_height_fu;
+
+                    let px_x = self.px(x);
+                    let px_y = self.py(y_bottom);
+
+                    let paint = self.make_paint();
+                    let transform = Transform::from_row(x_scale, 0.0, 0.0, -y_scale, px_x, px_y);
+                    if let Some(ref mut pixmap) = self.current_pixmap {
+                        pixmap.fill_path(&glyph_path, &paint, FillRule::Winding, transform, None);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Fallback: vertical line with serifs
         let mut pb = PathBuilder::new();
         pb.move_to(self.px(x), self.py(y_top));
         pb.line_to(self.px(x), self.py(y_bottom));
         if let Some(path) = pb.finish() {
             self.stroke_path(&path, self.pw(2.0), LineCap::Butt);
         }
-        // Top serif
         let mut pb = PathBuilder::new();
         pb.move_to(self.px(x), self.py(y_top));
         pb.line_to(self.px(x + 4.0), self.py(y_top));
         if let Some(path) = pb.finish() {
             self.stroke_path(&path, self.pw(1.5), LineCap::Butt);
         }
-        // Bottom serif
         let mut pb = PathBuilder::new();
         pb.move_to(self.px(x), self.py(y_bottom));
         pb.line_to(self.px(x + 4.0), self.py(y_bottom));
@@ -838,6 +867,50 @@ impl MusicRenderer for BitmapRenderer {
     }
 
     fn brace(&mut self, x: f32, y_top: f32, y_bottom: f32) {
+        let height = (y_bottom - y_top).abs();
+        if height < 1.0 {
+            return;
+        }
+
+        // Try SMuFL brace glyph (U+E000) with non-uniform scaling.
+        // Bravura brace bbox: SW=(0.008, 0.0), NE=(0.328, 3.988) staff spaces.
+        // Glyph origin is at the bottom-left tip (y=0), top tip at y≈3.988 ss.
+        // In design units (UPM=1000): height ≈ 997 units.
+        // Reference: PS_Stdio.cp, PS_Brace(), line 1980
+        if let Some(ref mut font) = self.music_font {
+            let brace_cp: u32 = 0xE000;
+            if let Some(gid) = font.glyph_id(brace_cp) {
+                if let Some(glyph_path) = font.get_glyph_path(gid) {
+                    let upm = font.units_per_em as f32;
+                    // Glyph height in font units: ~997 (bbox NE.y - SW.y ≈ 3.988 * 250)
+                    let glyph_height_fu = 997.0_f32;
+
+                    // X scale: music font size with weight boost (2×) to match
+                    // OG Sonata brace weight — Bravura brace is only 0.328 ss wide.
+                    let x_scale =
+                        self.state.music_size / upm * 2.0 * self.state.scale_x * self.scale;
+                    // Y scale: stretch glyph to target height (in pixels)
+                    let target_height_px = height * self.state.scale_y * self.scale;
+                    let y_scale = target_height_px / glyph_height_fu;
+
+                    let px_x = self.px(x);
+                    // Position at y_bottom (glyph origin is at bottom tip, Y-up in font)
+                    // After Y-flip (0, -y_scale), the glyph extends upward from y_bottom
+                    let px_y = self.py(y_bottom);
+
+                    let paint = self.make_paint();
+                    // Non-uniform transform: scale X normally, scale Y to span height,
+                    // with Y flipped (font Y-up → screen Y-down)
+                    let transform = Transform::from_row(x_scale, 0.0, 0.0, -y_scale, px_x, px_y);
+                    if let Some(ref mut pixmap) = self.current_pixmap {
+                        pixmap.fill_path(&glyph_path, &paint, FillRule::Winding, transform, None);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Fallback: two Bezier curves (when no music font is loaded)
         let mid_y = (y_top + y_bottom) / 2.0;
         let depth = 6.0;
 

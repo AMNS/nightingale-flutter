@@ -336,9 +336,27 @@ fn draw_note(
             anote.yd
         };
 
-        // Stem endpoints: from near notehead to ystem
-        let stem_top = d2r_sum(note_ctx.staff_top, anote.ystem.min(stem_near_yd));
-        let stem_bottom = d2r_sum(note_ctx.staff_top, anote.ystem.max(stem_near_yd));
+        // Stem endpoints: from near notehead to ystem.
+        // For beamed notes, extend the stem slightly past ystem into the beam
+        // to ensure overlap (no visible gap). The OG code adds 8 DDIST (0.5pt)
+        // for beamed up-stems (PS_Stdio.cp:1729) and uses stemFudge at the
+        // notehead end. We add a 0.5pt extension at the beam end.
+        // Reference: PS_Stdio.cp, PS_NoteStem(), line 1725-1731
+        let beam_extend = if anote.beamed { 0.5_f32 } else { 0.0 };
+        let stem_top = if stem_down {
+            // Stem down: ystem is below (larger y), yd is above.
+            // Top = notehead, bottom = ystem + extension
+            d2r_sum(note_ctx.staff_top, anote.ystem.min(stem_near_yd))
+        } else {
+            // Stem up: ystem is above (smaller y), extend further up (subtract)
+            d2r_sum(note_ctx.staff_top, anote.ystem.min(stem_near_yd)) - beam_extend
+        };
+        let stem_bottom = if stem_down {
+            // Stem down: extend further down (add)
+            d2r_sum(note_ctx.staff_top, anote.ystem.max(stem_near_yd)) + beam_extend
+        } else {
+            d2r_sum(note_ctx.staff_top, anote.ystem.max(stem_near_yd))
+        };
 
         // Stem width (default from set_widths)
         let stem_width = 0.8;
