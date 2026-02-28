@@ -273,4 +273,15 @@ pub trait MusicRenderer {
 
     /// Set the current drawing color.
     fn set_color(&mut self, color: Color);
+
+    // ================== Text Measurement (optional) ==================
+
+    /// Measure the width of a text string in points.
+    ///
+    /// Returns `None` if the renderer does not support text measurement
+    /// (e.g., CommandRenderer has no font loaded). Renderers with font access
+    /// (BitmapRenderer) should override this.
+    fn measure_text_width(&self, _text: &str, _font: &TextFont) -> Option<f32> {
+        None
+    }
 }

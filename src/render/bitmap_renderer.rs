@@ -1071,6 +1071,24 @@ impl MusicRenderer for BitmapRenderer {
     fn set_color(&mut self, color: Color) {
         self.state.color = color;
     }
+
+    fn measure_text_width(&self, text: &str, font: &TextFont) -> Option<f32> {
+        let role = Self::text_font_role(font);
+        let font_size = font.size.max(4.0);
+
+        let loaded = self.text_fonts.get(&role)?;
+        let upm = loaded.units_per_em as f32;
+        let font_scale = font_size / upm;
+
+        let mut width = 0.0_f32;
+        for ch in text.chars() {
+            let cp = ch as u32;
+            if let Some(gid) = loaded.glyph_id(cp) {
+                width += loaded.advance_width(gid) as f32 * font_scale;
+            }
+        }
+        Some(width)
+    }
 }
 
 // ── Font classification (shared with pdf_renderer) ──────────────────────

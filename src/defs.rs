@@ -730,6 +730,26 @@ pub fn ending_cutofflen(ln_sp: i16) -> i16 {
     2 * ln_sp
 }
 
+// ============================================================================
+// Graphic Justification Types (from NObjTypes.h:612-617)
+// ============================================================================
+
+/// GRAPHIC text justification: left-aligned (default)
+/// Source: NObjTypes.h:613
+pub const GR_JUST_LEFT: u8 = 1;
+
+/// GRAPHIC text justification: right-aligned
+/// Source: NObjTypes.h:614
+pub const GR_JUST_RIGHT: u8 = 2;
+
+/// GRAPHIC text justification: both (left + right)
+/// Source: NObjTypes.h:615
+pub const GR_JUST_BOTH: u8 = 3;
+
+/// GRAPHIC text justification: centered
+/// Source: NObjTypes.h:616
+pub const GR_JUST_CENTER: u8 = 4;
+
 #[cfg(test)]
 mod tests {
     use super::*;

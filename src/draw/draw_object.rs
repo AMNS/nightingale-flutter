@@ -1446,12 +1446,52 @@ pub fn draw_graphic(
         let line_spacing = font.size * 1.2; // ~120% line spacing
         for (i, line) in text.split('\r').enumerate() {
             if !line.is_empty() {
+                // Apply justification per-line so each line is independently aligned
+                let line_x = apply_text_justification(x, line, &font, gfx.justify, renderer);
                 let line_y = y + (i as f32) * line_spacing;
-                renderer.text_string(x, line_y, line, &font);
+                renderer.text_string(line_x, line_y, line, &font);
             }
         }
     } else {
+        // Apply text justification offset.
+        // Reference: NObjTypes.h:612-617 (GRJustLeft, GRJustRight, GRJustCenter)
+        // For right-justified text, xd marks the right edge; for centered, the center.
+        let x = apply_text_justification(x, text, &font, gfx.justify, renderer);
         renderer.text_string(x, y, text, &font);
+    }
+}
+
+/// Adjust x-position based on GRAPHIC text justification.
+///
+/// For left-justified text (default), x is the left edge.
+/// For right-justified text, x is the right edge — subtract text width.
+/// For centered text, x is the center — subtract half the text width.
+///
+/// If the renderer doesn't support text measurement, falls back to an
+/// approximate width estimate (0.5 × font_size × character count).
+fn apply_text_justification(
+    x: f32,
+    text: &str,
+    font: &crate::render::types::TextFont,
+    justify: u8,
+    renderer: &dyn crate::render::MusicRenderer,
+) -> f32 {
+    use crate::defs::{GR_JUST_CENTER, GR_JUST_RIGHT};
+
+    match justify {
+        GR_JUST_RIGHT => {
+            let w = renderer
+                .measure_text_width(text, font)
+                .unwrap_or(text.len() as f32 * font.size * 0.5);
+            x - w
+        }
+        GR_JUST_CENTER => {
+            let w = renderer
+                .measure_text_width(text, font)
+                .unwrap_or(text.len() as f32 * font.size * 0.5);
+            x - w * 0.5
+        }
+        _ => x, // GR_JUST_LEFT or 0 (default)
     }
 }
 
