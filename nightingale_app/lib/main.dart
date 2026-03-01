@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'src/rust/api/score.dart';
@@ -33,6 +31,58 @@ class NightingaleApp extends StatelessWidget {
   }
 }
 
+// ── Bundled score catalog ──────────────────────────────────────────
+
+/// A bundled score entry with a display title and asset path.
+class _BundledScore {
+  final String title;
+  final String assetPath;
+  final String format; // "ngl" or "nl"
+
+  const _BundledScore({
+    required this.title,
+    required this.assetPath,
+    required this.format,
+  });
+}
+
+/// All bundled scores, grouped by format.
+/// NGL files are loaded as bytes; Notelist files as UTF-8 text.
+const List<_BundledScore> _bundledScores = [
+  // ── NGL fixtures (Geoff's songs) ──
+  _BundledScore(title: 'Me and Lucy', assetPath: 'assets/scores/01_me_and_lucy.ngl', format: 'ngl'),
+  _BundledScore(title: 'Cloning Frank Blacks', assetPath: 'assets/scores/02_cloning_frank_blacks.ngl', format: 'ngl'),
+  _BundledScore(title: 'Holed Up in Penjinskya', assetPath: 'assets/scores/03_holed_up_in_penjinskya.ngl', format: 'ngl'),
+  _BundledScore(title: 'Eating Humble Pie', assetPath: 'assets/scores/04_eating_humble_pie.ngl', format: 'ngl'),
+  _BundledScore(title: 'Abigail', assetPath: 'assets/scores/05_abigail.ngl', format: 'ngl'),
+  _BundledScore(title: 'Melyssa with a Y', assetPath: 'assets/scores/06_melyssa_with_a_y.ngl', format: 'ngl'),
+  _BundledScore(title: 'New York Debutante', assetPath: 'assets/scores/07_new_york_debutante.ngl', format: 'ngl'),
+  _BundledScore(title: 'Darling Sunshine', assetPath: 'assets/scores/08_darling_sunshine.ngl', format: 'ngl'),
+  _BundledScore(title: 'Swiss Ann', assetPath: 'assets/scores/09_swiss_ann.ngl', format: 'ngl'),
+  _BundledScore(title: 'Ghost of Fusion Bob', assetPath: 'assets/scores/10_ghost_of_fusion_bob.ngl', format: 'ngl'),
+  _BundledScore(title: 'Philip', assetPath: 'assets/scores/11_philip.ngl', format: 'ngl'),
+  _BundledScore(title: 'What Do I Know', assetPath: 'assets/scores/12_what_do_i_know.ngl', format: 'ngl'),
+  _BundledScore(title: 'Miss B', assetPath: 'assets/scores/13_miss_b.ngl', format: 'ngl'),
+  _BundledScore(title: 'Chrome Molly', assetPath: 'assets/scores/14_chrome_molly.ngl', format: 'ngl'),
+  _BundledScore(title: 'Selfsame Twin', assetPath: 'assets/scores/15_selfsame_twin.ngl', format: 'ngl'),
+  _BundledScore(title: 'Esmerelda', assetPath: 'assets/scores/16_esmerelda.ngl', format: 'ngl'),
+  _BundledScore(title: 'Capital Regiment March', assetPath: 'assets/scores/17_capital_regiment_march.ngl', format: 'ngl'),
+  // ── Notelist examples (classical/modern repertoire) ──
+  _BundledScore(title: 'Bach: Eb Sonata', assetPath: 'assets/scores/BachEbSonata_20.nl', format: 'nl'),
+  _BundledScore(title: 'Bach: St. Anne', assetPath: 'assets/scores/BachStAnne_63.nl', format: 'nl'),
+  _BundledScore(title: 'Binchois: De Plus en Plus', assetPath: 'assets/scores/BinchoisDePlus-17.nl', format: 'nl'),
+  _BundledScore(title: 'Debussy: Images', assetPath: 'assets/scores/Debussy.Images_9.nl', format: 'nl'),
+  _BundledScore(title: 'Goodbye Pork Pie Hat', assetPath: 'assets/scores/GoodbyePorkPieHat.nl', format: 'nl'),
+  _BundledScore(title: 'Happy Birthday (multivoice)', assetPath: 'assets/scores/HBD_33.nl', format: 'nl'),
+  _BundledScore(title: 'Killing Me Softly', assetPath: 'assets/scores/KillingMe_36.nl', format: 'nl'),
+  _BundledScore(title: 'Mahler: Lied von der Erde', assetPath: 'assets/scores/MahlerLiedVonDE_25.nl', format: 'nl'),
+  _BundledScore(title: 'Mendelssohn: Op. 7 No. 1', assetPath: 'assets/scores/MendelssohnOp7N1_2.nl', format: 'nl'),
+  _BundledScore(title: 'Ravel: Scarbo', assetPath: 'assets/scores/RavelScarbo_15.nl', format: 'nl'),
+  _BundledScore(title: 'Schenker: Chopin Diagram', assetPath: 'assets/scores/SchenkerDiagram_Chopin_6.nl', format: 'nl'),
+  _BundledScore(title: 'Schoenberg: Op. 19 No. 1', assetPath: 'assets/scores/SchoenbergOp19N1-21.nl', format: 'nl'),
+  _BundledScore(title: 'Webern: Op. 5 No. 3', assetPath: 'assets/scores/Webern.Op5N3_22.nl', format: 'nl'),
+];
+
 // ── Score browser: sidebar + viewer ──────────────────────────────
 
 class ScoreBrowser extends StatefulWidget {
@@ -42,192 +92,52 @@ class ScoreBrowser extends StatefulWidget {
   State<ScoreBrowser> createState() => _ScoreBrowserState();
 }
 
-/// Known directories containing test fixture files.
-///
-/// These paths are resolved by:
-/// 1. Checking relative to the current working directory
-/// 2. Using the Rust `find_project_root` function to walk up from
-///    the executable's location to find the project root
-/// 3. Checking common macOS development paths
-List<_ScoreDirectory> _defaultDirectories() {
-  final candidates = <String>[];
-
-  // From nightingale-modernize/ (project root)
-  candidates.add('${Directory.current.path}/tests/fixtures');
-  candidates.add('${Directory.current.path}/tests/notelist_examples');
-
-  // From nightingale_app/ subdirectory
-  candidates.add('${Directory.current.path}/../tests/fixtures');
-  candidates.add('${Directory.current.path}/../tests/notelist_examples');
-
-  // Use Rust helper to find project root from the executable path.
-  // This handles the case where the app is launched from Xcode or
-  // by double-clicking, where cwd is / or the user's home.
-  final exePath = Platform.resolvedExecutable;
-  final projectRoot = findProjectRoot(startPath: exePath);
-  if (projectRoot.isNotEmpty) {
-    candidates.add('$projectRoot/tests/fixtures');
-    candidates.add('$projectRoot/tests/notelist_examples');
-  }
-
-  // Also try from the script/source directory (for `flutter run` from nightingale_app/)
-  final scriptDir = Platform.script.toFilePath();
-  final scriptProjectRoot = findProjectRoot(startPath: scriptDir);
-  if (scriptProjectRoot.isNotEmpty && scriptProjectRoot != projectRoot) {
-    candidates.add('$scriptProjectRoot/tests/fixtures');
-    candidates.add('$scriptProjectRoot/tests/notelist_examples');
-  }
-
-  final dirs = <_ScoreDirectory>[];
-  for (final path in candidates) {
-    final dir = Directory(path);
-    if (dir.existsSync()) {
-      final name = path.contains('notelist') ? 'Notelists' : 'NGL Fixtures';
-      // Resolve to canonical path
-      dirs.add(_ScoreDirectory(name: name, path: dir.resolveSymbolicLinksSync()));
-    }
-  }
-
-  // Deduplicate by resolved path
-  final seen = <String>{};
-  dirs.removeWhere((d) => !seen.add(d.path));
-
-  return dirs;
-}
-
-class _ScoreDirectory {
-  final String name;
-  final String path;
-  const _ScoreDirectory({required this.name, required this.path});
-}
-
 class _ScoreBrowserState extends State<ScoreBrowser> {
-  // Sidebar state
-  List<_ScoreDirectory> _directories = [];
-  _ScoreDirectory? _selectedDirectory;
-  List<ScoreFileEntry> _files = [];
-  ScoreFileEntry? _selectedFile;
-
   // Score display state
   List<RenderCommandDto>? _commands;
-  String _status = 'Select a score file';
+  String _status = 'Select a score';
   bool _loading = false;
   double _scale = 1.5;
-
-  // Page orientation: false = portrait (default), true = landscape
-  bool _landscape = false;
+  int _selectedIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _directories = _defaultDirectories();
-    if (_directories.isNotEmpty) {
-      _selectDirectory(_directories.first);
-    }
+    // Auto-load the first score
+    _loadScore(0);
   }
 
-  void _selectDirectory(_ScoreDirectory dir) {
+  Future<void> _loadScore(int index) async {
+    final score = _bundledScores[index];
     setState(() {
-      _selectedDirectory = dir;
-      _files = listScoreFiles(directory: dir.path);
-    });
-  }
-
-  /// Add a directory by path string (typed or pasted).
-  void _addDirectoryByPath(String path) {
-    final dir = Directory(path);
-    if (!dir.existsSync()) return;
-
-    final resolved = dir.resolveSymbolicLinksSync();
-    // Check if already in list
-    if (_directories.any((d) => d.path == resolved)) {
-      // Just select it
-      final existing = _directories.firstWhere((d) => d.path == resolved);
-      _selectDirectory(existing);
-      return;
-    }
-
-    final name = resolved.split('/').last;
-    final newDir = _ScoreDirectory(name: name, path: resolved);
-    setState(() {
-      _directories.add(newDir);
-      _selectDirectory(newDir);
-    });
-  }
-
-  /// Show dialog to enter a directory path.
-  Future<void> _showOpenDirectoryDialog() async {
-    final controller = TextEditingController();
-    // Pre-fill with a sensible default
-    if (_directories.isNotEmpty) {
-      // Go up from the first known directory
-      final parent = Directory(_directories.first.path).parent.path;
-      controller.text = parent;
-    } else {
-      controller.text = Directory.current.path;
-    }
-
-    final path = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Open Score Directory'),
-        content: SizedBox(
-          width: 500,
-          child: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: '/path/to/directory/with/.ngl/.nl files',
-              border: OutlineInputBorder(),
-              helperText: 'Enter full path to a directory containing .ngl or .nl files',
-            ),
-            onSubmitted: (v) => Navigator.of(context).pop(v),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Open'),
-          ),
-        ],
-      ),
-    );
-
-    if (path != null && path.isNotEmpty) {
-      _addDirectoryByPath(path);
-    }
-  }
-
-  Future<void> _loadFile(ScoreFileEntry file) async {
-    setState(() {
-      _selectedFile = file;
+      _selectedIndex = index;
       _loading = true;
-      _status = 'Rendering ${file.name}...';
+      _status = 'Rendering ${score.title}...';
     });
 
     try {
-      // Use landscape-aware rendering for Notelist files
-      final commands = await renderScoreFromPathLandscape(
-        path: file.path,
-        landscape: _landscape,
-      );
+      List<RenderCommandDto> commands;
+      if (score.format == 'ngl') {
+        final data = await rootBundle.load(score.assetPath);
+        final bytes = data.buffer.asUint8List();
+        commands = await renderNglFromBytes(data: bytes);
+      } else {
+        final text = await rootBundle.loadString(score.assetPath);
+        commands = await renderNotelistFromText(text: text);
+      }
+
       setState(() {
         _commands = commands;
         _loading = false;
         if (commands.isEmpty) {
           _status = 'Error: no render commands produced';
         } else {
-          // Count pages
           int pages = 0;
           for (final cmd in commands) {
             if (cmd.kind == cmdBeginPage) pages++;
           }
-          final orientLabel = _landscape ? ' (landscape)' : '';
-          _status = '${file.name}$orientLabel  |  ${commands.length} commands  |  '
+          final fmt = score.format.toUpperCase();
+          _status = '${score.title}  [$fmt]  |  ${commands.length} commands  |  '
               '${pages > 0 ? pages : 1} page${pages > 1 ? 's' : ''}';
         }
       });
@@ -236,40 +146,6 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
         _loading = false;
         _status = 'Error: $e';
       });
-    }
-  }
-
-  Future<void> _loadBundledAsset() async {
-    setState(() {
-      _loading = true;
-      _status = 'Loading bundled score...';
-    });
-    try {
-      final data = await rootBundle.load('assets/scores/01_me_and_lucy_simple.ngl');
-      final bytes = data.buffer.asUint8List();
-      final commands = await renderNglFromBytes(data: bytes);
-      setState(() {
-        _commands = commands;
-        _loading = false;
-        _selectedFile = null;
-        _status = 'Me and Lucy (bundled)  |  ${commands.length} commands';
-      });
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _status = 'Error: $e';
-      });
-    }
-  }
-
-  /// Toggle landscape/portrait and re-render current file if loaded.
-  void _toggleOrientation() {
-    setState(() {
-      _landscape = !_landscape;
-    });
-    // Re-render current file with new orientation
-    if (_selectedFile != null) {
-      _loadFile(_selectedFile!);
     }
   }
 
@@ -282,12 +158,12 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
         children: [
           // ── Sidebar ─────────────────────────────────────────
           SizedBox(
-            width: 280,
+            width: 260,
             child: Column(
               children: [
                 // App header
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
                   ),
@@ -303,152 +179,83 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                           color: colorScheme.onPrimaryContainer,
                         ),
                       ),
-                      const Spacer(),
-                      // Open directory button
-                      IconButton(
-                        icon: const Icon(Icons.folder_open, size: 20),
-                        tooltip: 'Open score directory',
-                        onPressed: _showOpenDirectoryDialog,
-                      ),
-                      // Bundled asset button
-                      IconButton(
-                        icon: const Icon(Icons.home, size: 20),
-                        tooltip: 'Load bundled score',
-                        onPressed: _loadBundledAsset,
-                      ),
                     ],
                   ),
                 ),
 
-                // Directory tabs
-                if (_directories.isNotEmpty)
-                  SizedBox(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      children: _directories.map((dir) {
-                        final selected = dir.path == _selectedDirectory?.path;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: FilterChip(
-                            label: Text(dir.name, style: const TextStyle(fontSize: 12)),
-                            selected: selected,
-                            onSelected: (_) => _selectDirectory(dir),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-
-                if (_directories.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Text(
-                          'No test fixture directories found.',
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton.icon(
-                          icon: const Icon(Icons.folder_open, size: 16),
-                          label: const Text('Open Directory'),
-                          onPressed: _showOpenDirectoryDialog,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // File list
+                // Score list
                 Expanded(
                   child: ListView.builder(
-                    itemCount: _files.length,
+                    itemCount: _bundledScores.length,
                     itemBuilder: (context, index) {
-                      final file = _files[index];
-                      final selected = file.path == _selectedFile?.path;
-                      return ListTile(
+                      final score = _bundledScores[index];
+                      final selected = index == _selectedIndex;
+
+                      // Section headers: NGL before index 0, Notelist before index 17
+                      Widget? header;
+                      if (index == 0) {
+                        header = _sectionHeader('NGL Scores', colorScheme);
+                      } else if (index == 17) {
+                        header = _sectionHeader('Notelist Scores', colorScheme);
+                      }
+
+                      final tile = ListTile(
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         selected: selected,
+                        selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.5),
                         leading: Icon(
-                          file.format == 'ngl' ? Icons.description : Icons.text_snippet,
+                          score.format == 'ngl' ? Icons.description : Icons.text_snippet,
                           size: 18,
-                          color: file.format == 'ngl'
+                          color: selected
                               ? colorScheme.primary
-                              : colorScheme.tertiary,
+                              : score.format == 'ngl'
+                                  ? colorScheme.primary.withValues(alpha: 0.6)
+                                  : colorScheme.tertiary.withValues(alpha: 0.6),
                         ),
                         title: Text(
-                          file.name,
-                          style: const TextStyle(fontSize: 13),
+                          score.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Text(
-                          file.format.toUpperCase(),
-                          style: TextStyle(fontSize: 10, color: colorScheme.outline),
-                        ),
-                        onTap: () => _loadFile(file),
+                        onTap: () => _loadScore(index),
                       );
+
+                      if (header != null) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [header, tile],
+                        );
+                      }
+                      return tile;
                     },
                   ),
                 ),
 
-                // Orientation + Zoom controls
+                // Zoom slider
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      // Orientation toggle
-                      Row(
-                        children: [
-                          const Text('Page', style: TextStyle(fontSize: 12)),
-                          const SizedBox(width: 8),
-                          SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment(
-                                value: false,
-                                icon: Icon(Icons.crop_portrait, size: 16),
-                                label: Text('Portrait', style: TextStyle(fontSize: 11)),
-                              ),
-                              ButtonSegment(
-                                value: true,
-                                icon: Icon(Icons.crop_landscape, size: 16),
-                                label: Text('Landscape', style: TextStyle(fontSize: 11)),
-                              ),
-                            ],
-                            selected: {_landscape},
-                            onSelectionChanged: (v) {
-                              if (v.first != _landscape) _toggleOrientation();
-                            },
-                            style: ButtonStyle(
-                              visualDensity: VisualDensity.compact,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                        ],
+                      const Text('Zoom', style: TextStyle(fontSize: 12)),
+                      Expanded(
+                        child: Slider(
+                          value: _scale,
+                          min: 0.5,
+                          max: 4.0,
+                          divisions: 14,
+                          label: '${(_scale * 100).round()}%',
+                          onChanged: (v) => setState(() => _scale = v),
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      // Zoom slider
-                      Row(
-                        children: [
-                          const Text('Zoom', style: TextStyle(fontSize: 12)),
-                          Expanded(
-                            child: Slider(
-                              value: _scale,
-                              min: 0.5,
-                              max: 4.0,
-                              divisions: 14,
-                              label: '${(_scale * 100).round()}%',
-                              onChanged: (v) => setState(() => _scale = v),
-                            ),
-                          ),
-                          Text('${(_scale * 100).round()}%',
-                              style: const TextStyle(fontSize: 11)),
-                        ],
-                      ),
+                      Text('${(_scale * 100).round()}%',
+                          style: const TextStyle(fontSize: 11)),
                     ],
                   ),
                 ),
@@ -503,7 +310,7 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                               Icon(Icons.music_note, size: 48, color: colorScheme.outlineVariant),
                               const SizedBox(height: 16),
                               Text(
-                                'Select a score file from the sidebar',
+                                'Select a score from the sidebar',
                                 style: TextStyle(color: colorScheme.outline),
                               ),
                             ],
@@ -526,6 +333,21 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String label, ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.outline,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
