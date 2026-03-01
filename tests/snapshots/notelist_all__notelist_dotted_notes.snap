@@ -1,0 +1,46 @@
+---
+source: tests/notelist_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 4
+Beam: 8
+BeginPage: 1
+EndPage: 1
+LedgerLine: 2
+MusicChar: 31
+NoteStem: 16
+SetMusicSize: 1
+SetWidths: 1
+Staff: 1
+TOTAL: 66
+
+=== STAVES ===
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+
+=== BARLINES ===
+x=187.3 top=72.0 bottom=96.0
+x=306.1 top=72.0 bottom=96.0
+x=476.3 top=72.0 bottom=96.0
+x=558.0 top=72.0 bottom=96.0
+
+=== BEAMS ===
+x=[317.1..343.1] y=[69.0..70.0] slope=0.038 thick=3.00
+x=[343.1..337.1] y=[74.5..74.5] slope=-0.000 thick=3.00
+x=[357.9..383.9] y=[75.0..76.0] slope=0.038 thick=3.00
+x=[383.9..377.9] y=[80.5..80.5] slope=-0.000 thick=3.00
+x=[398.6..424.7] y=[77.0..76.0] slope=-0.038 thick=3.00
+x=[424.7..418.7] y=[80.5..80.5] slope=-0.000 thick=3.00
+x=[439.4..465.4] y=[71.0..70.0] slope=-0.038 thick=3.00
+x=[465.4..459.4] y=[74.5..74.5] slope=-0.000 thick=3.00
+
+=== STEMS: 16 total ===
+
+=== GLYPHS ===
+Smufl(57424): 1
+Smufl(57476): 2
+Smufl(57507): 2
+Smufl(57508): 14
+Smufl(57831): 9
+Smufl(57920): 2
+Smufl(57921): 1

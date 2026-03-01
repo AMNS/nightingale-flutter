@@ -1,0 +1,47 @@
+---
+source: tests/notelist_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 3
+Beam: 12
+BeginPage: 1
+EndPage: 1
+LedgerLine: 2
+MusicChar: 37
+NoteStem: 33
+SetMusicSize: 1
+SetWidths: 1
+Staff: 1
+TOTAL: 92
+
+=== STAVES ===
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+
+=== BARLINES ===
+x=318.9 top=72.0 bottom=96.0
+x=435.2 top=72.0 bottom=96.0
+x=558.0 top=72.0 bottom=96.0
+
+=== BEAMS ===
+x=[127.2..163.6] y=[69.0..66.1] slope=-0.081 thick=3.00
+x=[127.2..163.6] y=[73.5..70.6] slope=-0.081 thick=3.00
+x=[175.8..212.2] y=[57.0..54.1] slope=-0.081 thick=3.00
+x=[175.8..212.2] y=[61.5..58.6] slope=-0.081 thick=3.00
+x=[217.6..254.1] y=[99.0..96.0] slope=-0.082 thick=3.00
+x=[217.6..254.1] y=[94.5..91.5] slope=-0.082 thick=3.00
+x=[266.2..304.4] y=[102.0..104.9] slope=0.077 thick=3.00
+x=[266.2..304.4] y=[97.5..100.4] slope=0.077 thick=3.00
+x=[329.1..414.2] y=[47.1..40.1] slope=-0.082 thick=3.00
+x=[329.1..414.2] y=[51.6..44.6] slope=-0.082 thick=3.00
+x=[445.4..506.2] y=[55.8..52.8] slope=-0.049 thick=3.00
+x=[445.4..506.2] y=[60.3..57.3] slope=-0.049 thick=3.00
+
+=== STEMS: 33 total ===
+
+=== GLYPHS ===
+Smufl(57424): 1
+Smufl(57476): 2
+Smufl(57507): 2
+Smufl(57508): 31
+Smufl(57831): 1

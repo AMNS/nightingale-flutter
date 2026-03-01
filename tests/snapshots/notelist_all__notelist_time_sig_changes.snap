@@ -1,0 +1,38 @@
+---
+source: tests/notelist_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 5
+Beam: 3
+BeginPage: 1
+EndPage: 1
+MusicChar: 24
+NoteStem: 20
+SetMusicSize: 2
+SetWidths: 1
+Staff: 2
+TOTAL: 59
+
+=== STAVES ===
+y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
+y=247.0 x=[72.0..558.0] lines=5 spacing=6.00
+
+=== BARLINES ===
+x=249.9 top=72.0 bottom=96.0
+x=344.8 top=72.0 bottom=96.0
+x=500.9 top=72.0 bottom=96.0
+x=558.0 top=72.0 bottom=96.0
+x=558.0 top=247.0 bottom=271.0
+
+=== BEAMS ===
+x=[356.6..382.6] y=[65.0..64.0] slope=-0.039 thick=3.00
+x=[401.7..427.6] y=[105.0..104.0] slope=-0.039 thick=3.00
+x=[453.4..479.3] y=[99.0..98.0] slope=-0.039 thick=3.00
+
+=== STEMS: 20 total ===
+
+=== GLYPHS ===
+Smufl(57424): 2
+Smufl(57476): 2
+Smufl(57508): 20
