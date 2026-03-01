@@ -555,6 +555,69 @@ pub fn list_score_files(directory: String) -> Vec<ScoreFileEntry> {
     entries
 }
 
+/// Render a score file with landscape orientation (for Notelist files).
+///
+/// NGL files have their own page dimensions embedded, so landscape is ignored.
+/// For Notelist files, landscape swaps page width and height (792x612 instead of 612x792).
+pub fn render_score_from_path_landscape(path: String, landscape: bool) -> Vec<RenderCommandDto> {
+    if path.ends_with(".nl") {
+        match std::fs::read_to_string(&path) {
+            Ok(text) => {
+                use nightingale_core::notelist::{
+                    notelist_to_score_with_config, parse_notelist, NotelistLayoutConfig,
+                };
+                use std::io::Cursor;
+
+                let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
+                    Ok(nl) => nl,
+                    Err(_) => return vec![],
+                };
+                let mut config = NotelistLayoutConfig::default();
+                if landscape {
+                    // Swap width/height for landscape orientation
+                    let w = config.page_width;
+                    let h = config.page_height;
+                    config.page_width = h;
+                    config.page_height = w;
+                    // Recalculate system_right for wider page
+                    let margin_right_pt: i16 = 54;
+                    config.system_right = (config.page_width - margin_right_pt) * 16;
+                    // Allow more measures per system in landscape
+                    config.max_measures = 6;
+                }
+                let score = notelist_to_score_with_config(&notelist, &config);
+                render_to_dtos(&score)
+            }
+            Err(_) => vec![],
+        }
+    } else {
+        // NGL files define their own page size
+        match std::fs::read(&path) {
+            Ok(data) => render_ngl_from_bytes(data),
+            Err(_) => vec![],
+        }
+    }
+}
+
+/// Find the project root directory by searching upward from a starting path
+/// for a directory containing both `Cargo.toml` and a `tests/` subdirectory.
+///
+/// Returns the path string if found, empty string otherwise.
+#[flutter_rust_bridge::frb(sync)]
+pub fn find_project_root(start_path: String) -> String {
+    let mut dir = std::path::PathBuf::from(start_path);
+    for _ in 0..10 {
+        // 10 levels up max
+        if dir.join("Cargo.toml").exists() && dir.join("tests").is_dir() {
+            return dir.to_string_lossy().to_string();
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    String::new()
+}
+
 /// Convenience: return the number of render commands for a given NGL file.
 #[flutter_rust_bridge::frb(sync)]
 pub fn render_command_count(data: Vec<u8>) -> i32 {

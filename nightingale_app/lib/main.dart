@@ -44,21 +44,39 @@ class ScoreBrowser extends StatefulWidget {
 
 /// Known directories containing test fixture files.
 ///
-/// These paths are resolved relative to the executable's location
-/// to find the nightingale-modernize project root. Falls back to
-/// hardcoded absolute paths on macOS during development.
+/// These paths are resolved by:
+/// 1. Checking relative to the current working directory
+/// 2. Using the Rust `find_project_root` function to walk up from
+///    the executable's location to find the project root
+/// 3. Checking common macOS development paths
 List<_ScoreDirectory> _defaultDirectories() {
-  // Find the project root by looking for Cargo.toml relative to the
-  // nightingale_app directory. In development, the working directory
-  // is typically nightingale_app/ or nightingale-modernize/.
-  final candidates = <String>[
-    // From nightingale-modernize/ (project root)
-    '${Directory.current.path}/tests/fixtures',
-    '${Directory.current.path}/tests/notelist_examples',
-    // From nightingale_app/ subdirectory
-    '${Directory.current.path}/../tests/fixtures',
-    '${Directory.current.path}/../tests/notelist_examples',
-  ];
+  final candidates = <String>[];
+
+  // From nightingale-modernize/ (project root)
+  candidates.add('${Directory.current.path}/tests/fixtures');
+  candidates.add('${Directory.current.path}/tests/notelist_examples');
+
+  // From nightingale_app/ subdirectory
+  candidates.add('${Directory.current.path}/../tests/fixtures');
+  candidates.add('${Directory.current.path}/../tests/notelist_examples');
+
+  // Use Rust helper to find project root from the executable path.
+  // This handles the case where the app is launched from Xcode or
+  // by double-clicking, where cwd is / or the user's home.
+  final exePath = Platform.resolvedExecutable;
+  final projectRoot = findProjectRoot(startPath: exePath);
+  if (projectRoot.isNotEmpty) {
+    candidates.add('$projectRoot/tests/fixtures');
+    candidates.add('$projectRoot/tests/notelist_examples');
+  }
+
+  // Also try from the script/source directory (for `flutter run` from nightingale_app/)
+  final scriptDir = Platform.script.toFilePath();
+  final scriptProjectRoot = findProjectRoot(startPath: scriptDir);
+  if (scriptProjectRoot.isNotEmpty && scriptProjectRoot != projectRoot) {
+    candidates.add('$scriptProjectRoot/tests/fixtures');
+    candidates.add('$scriptProjectRoot/tests/notelist_examples');
+  }
 
   final dirs = <_ScoreDirectory>[];
   for (final path in candidates) {
@@ -96,6 +114,9 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
   bool _loading = false;
   double _scale = 1.5;
 
+  // Page orientation: false = portrait (default), true = landscape
+  bool _landscape = false;
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +133,75 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
     });
   }
 
+  /// Add a directory by path string (typed or pasted).
+  void _addDirectoryByPath(String path) {
+    final dir = Directory(path);
+    if (!dir.existsSync()) return;
+
+    final resolved = dir.resolveSymbolicLinksSync();
+    // Check if already in list
+    if (_directories.any((d) => d.path == resolved)) {
+      // Just select it
+      final existing = _directories.firstWhere((d) => d.path == resolved);
+      _selectDirectory(existing);
+      return;
+    }
+
+    final name = resolved.split('/').last;
+    final newDir = _ScoreDirectory(name: name, path: resolved);
+    setState(() {
+      _directories.add(newDir);
+      _selectDirectory(newDir);
+    });
+  }
+
+  /// Show dialog to enter a directory path.
+  Future<void> _showOpenDirectoryDialog() async {
+    final controller = TextEditingController();
+    // Pre-fill with a sensible default
+    if (_directories.isNotEmpty) {
+      // Go up from the first known directory
+      final parent = Directory(_directories.first.path).parent.path;
+      controller.text = parent;
+    } else {
+      controller.text = Directory.current.path;
+    }
+
+    final path = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Open Score Directory'),
+        content: SizedBox(
+          width: 500,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '/path/to/directory/with/.ngl/.nl files',
+              border: OutlineInputBorder(),
+              helperText: 'Enter full path to a directory containing .ngl or .nl files',
+            ),
+            onSubmitted: (v) => Navigator.of(context).pop(v),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Open'),
+          ),
+        ],
+      ),
+    );
+
+    if (path != null && path.isNotEmpty) {
+      _addDirectoryByPath(path);
+    }
+  }
+
   Future<void> _loadFile(ScoreFileEntry file) async {
     setState(() {
       _selectedFile = file;
@@ -120,7 +210,11 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
     });
 
     try {
-      final commands = await renderScoreFromPath(path: file.path);
+      // Use landscape-aware rendering for Notelist files
+      final commands = await renderScoreFromPathLandscape(
+        path: file.path,
+        landscape: _landscape,
+      );
       setState(() {
         _commands = commands;
         _loading = false;
@@ -132,7 +226,8 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
           for (final cmd in commands) {
             if (cmd.kind == cmdBeginPage) pages++;
           }
-          _status = '${file.name}  |  ${commands.length} commands  |  '
+          final orientLabel = _landscape ? ' (landscape)' : '';
+          _status = '${file.name}$orientLabel  |  ${commands.length} commands  |  '
               '${pages > 0 ? pages : 1} page${pages > 1 ? 's' : ''}';
         }
       });
@@ -167,6 +262,17 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
     }
   }
 
+  /// Toggle landscape/portrait and re-render current file if loaded.
+  void _toggleOrientation() {
+    setState(() {
+      _landscape = !_landscape;
+    });
+    // Re-render current file with new orientation
+    if (_selectedFile != null) {
+      _loadFile(_selectedFile!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -198,6 +304,12 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                         ),
                       ),
                       const Spacer(),
+                      // Open directory button
+                      IconButton(
+                        icon: const Icon(Icons.folder_open, size: 20),
+                        tooltip: 'Open score directory',
+                        onPressed: _showOpenDirectoryDialog,
+                      ),
                       // Bundled asset button
                       IconButton(
                         icon: const Icon(Icons.home, size: 20),
@@ -232,10 +344,19 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                 if (_directories.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'No test fixture directories found.\n'
-                      'Run from nightingale-modernize/ root.',
-                      style: TextStyle(color: colorScheme.error, fontSize: 12),
+                    child: Column(
+                      children: [
+                        Text(
+                          'No test fixture directories found.',
+                          style: TextStyle(color: colorScheme.error, fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.folder_open, size: 16),
+                          label: const Text('Open Directory'),
+                          onPressed: _showOpenDirectoryDialog,
+                        ),
+                      ],
                     ),
                   ),
 
@@ -272,27 +393,62 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                   ),
                 ),
 
-                // Zoom controls
+                // Orientation + Zoom controls
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const Text('Zoom', style: TextStyle(fontSize: 12)),
-                      Expanded(
-                        child: Slider(
-                          value: _scale,
-                          min: 0.5,
-                          max: 4.0,
-                          divisions: 14,
-                          label: '${(_scale * 100).round()}%',
-                          onChanged: (v) => setState(() => _scale = v),
-                        ),
+                      // Orientation toggle
+                      Row(
+                        children: [
+                          const Text('Page', style: TextStyle(fontSize: 12)),
+                          const SizedBox(width: 8),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(
+                                value: false,
+                                icon: Icon(Icons.crop_portrait, size: 16),
+                                label: Text('Portrait', style: TextStyle(fontSize: 11)),
+                              ),
+                              ButtonSegment(
+                                value: true,
+                                icon: Icon(Icons.crop_landscape, size: 16),
+                                label: Text('Landscape', style: TextStyle(fontSize: 11)),
+                              ),
+                            ],
+                            selected: {_landscape},
+                            onSelectionChanged: (v) {
+                              if (v.first != _landscape) _toggleOrientation();
+                            },
+                            style: ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text('${(_scale * 100).round()}%',
-                          style: const TextStyle(fontSize: 11)),
+                      const SizedBox(height: 4),
+                      // Zoom slider
+                      Row(
+                        children: [
+                          const Text('Zoom', style: TextStyle(fontSize: 12)),
+                          Expanded(
+                            child: Slider(
+                              value: _scale,
+                              min: 0.5,
+                              max: 4.0,
+                              divisions: 14,
+                              label: '${(_scale * 100).round()}%',
+                              onChanged: (v) => setState(() => _scale = v),
+                            ),
+                          ),
+                          Text('${(_scale * 100).round()}%',
+                              style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
                     ],
                   ),
                 ),

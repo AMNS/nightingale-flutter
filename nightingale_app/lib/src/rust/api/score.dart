@@ -33,6 +33,25 @@ Future<List<RenderCommandDto>> renderScoreFromPath({required String path}) =>
 List<ScoreFileEntry> listScoreFiles({required String directory}) =>
     RustLib.instance.api.crateApiScoreListScoreFiles(directory: directory);
 
+/// Render a score file with landscape orientation (for Notelist files).
+///
+/// NGL files have their own page dimensions embedded, so landscape is ignored.
+/// For Notelist files, landscape swaps page width and height (792x612 instead of 612x792).
+Future<List<RenderCommandDto>> renderScoreFromPathLandscape({
+  required String path,
+  required bool landscape,
+}) => RustLib.instance.api.crateApiScoreRenderScoreFromPathLandscape(
+  path: path,
+  landscape: landscape,
+);
+
+/// Find the project root directory by searching upward from a starting path
+/// for a directory containing both `Cargo.toml` and a `tests/` subdirectory.
+///
+/// Returns the path string if found, empty string otherwise.
+String findProjectRoot({required String startPath}) =>
+    RustLib.instance.api.crateApiScoreFindProjectRoot(startPath: startPath);
+
 /// Convenience: return the number of render commands for a given NGL file.
 int renderCommandCount({required List<int> data}) =>
     RustLib.instance.api.crateApiScoreRenderCommandCount(data: data);
