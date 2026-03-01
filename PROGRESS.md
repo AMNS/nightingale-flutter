@@ -135,7 +135,7 @@
 - [x] **Final barline**: double barline at end of piece (already working — BAR_FINALDBL mapped and rendered)
 - [x] **Anacrusis measure width**: proportional min-width floor for pickup measures — scale floor by `actual_dur / full_measure_dur`, clamped to 25% minimum. Port of implicit fraction-based narrowing in OG Respace1Bar (SpaceHighLevel.cp:899). Affects 3 fixtures: BinchoisDePlus_17, GoodbyePorkPieHat, TestMIDIChannels_3.
 - [x] **Mid-score time signature changes**: pre-scan T records in Notelist pipeline, insert TimeSig objects with `in_measure=true`, Gourlay spacing + indent. Port of ConvertTimesig (NotelistOpen.cp:717-737). Affects 7 fixtures.
-- [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
+- [x] **Ledger line weight**: compute all line widths (staff, ledger, stem, barline) from lnSpace using OG config percentages (8%, 13%, 8%, 10%). Port of PS_Stdio.cp PS_Recompute() lines 2023-2048, Initialize.cp:952-955. Added first_staff_lnspace() helper. Affects all 491 golden bitmaps.
 - [ ] **Rest rendering improvements**: show rests at beat positions without notes
 
 #### Tier 4 — Advanced Layout

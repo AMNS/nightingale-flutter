@@ -72,3 +72,22 @@ pub fn lnspace_for_staff(staff_height: i16, staff_lines: i8) -> f32 {
         8.0
     }
 }
+
+/// Get the line spacing from the first staff in the score.
+///
+/// Pre-scans the object list for the first Staff object and computes lnSpace
+/// from its geometry. Returns a sensible default (6.0pt) if no staff is found.
+///
+/// Reference: PS_Stdio.cp, PS_Recompute(), lines 2023-2048
+pub fn first_staff_lnspace(score: &InterpretedScore) -> f32 {
+    for obj in score.walk() {
+        if let ObjData::Staff(_) = &obj.data {
+            if let Some(astaff_list) = score.staffs.get(&obj.header.first_sub_obj) {
+                if let Some(astaff) = astaff_list.first() {
+                    return lnspace_for_staff(astaff.staff_height, astaff.staff_lines);
+                }
+            }
+        }
+    }
+    6.0 // Default: 24pt music / 4 = 6pt line space
+}

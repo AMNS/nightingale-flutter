@@ -17,7 +17,7 @@ use super::draw_object::{
     draw_staff, draw_tempo, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
-use super::helpers::{count_staves, TieEndpoint};
+use super::helpers::{count_staves, first_staff_lnspace, TieEndpoint};
 
 /// Render an entire score through a MusicRenderer.
 ///
@@ -38,9 +38,16 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
         return;
     }
 
-    // Set default line widths (matches C++ defaults)
-    // Source: PS_Stdio.cp, PS_SetWidths() default values
-    renderer.set_widths(0.8, 0.8, 0.8, 0.8);
+    // Compute line widths from the first staff's lnSpace, matching OG defaults.
+    // OG stores percentages in config struct and computes: width = config_% * lnSpace / 100
+    // Defaults: STAFFLW_DFLT=8, LEDGERLW_DFLT=13, STEMLW_DFLT=8, BARLINELW_DFLT=10
+    // Reference: Initialize.cp:952-955, PS_Stdio.cp PS_Recompute() lines 2023-2048
+    let lnspace = first_staff_lnspace(score);
+    let staff_lw = 0.08 * lnspace; // 8% of lnSpace
+    let ledger_lw = 0.13 * lnspace; // 13% of lnSpace
+    let stem_lw = 0.08 * lnspace; // 8% of lnSpace
+    let bar_lw = 0.10 * lnspace; // 10% of lnSpace
+    renderer.set_widths(staff_lw, ledger_lw, stem_lw, bar_lw);
 
     let mut ctx = ContextState::new(num_staves);
 

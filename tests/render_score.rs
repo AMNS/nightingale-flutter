@@ -278,13 +278,74 @@ fn test_anacrusis_spacing() {
     );
 }
 
-/// Ledger line weight: should match OG config.ledgerLW (13% of lnSpace).
-/// Currently using default stroke width. Port: PS_Stdio.cp line 2211.
+/// Line widths: should match OG config percentages of lnSpace.
+/// OG defaults: staff=8%, ledger=13%, stem=8%, barline=10% of lnSpace.
+/// For Notelist default (24pt staff, lnSpace=6pt):
+///   staff=0.48, ledger=0.78, stem=0.48, barline=0.60
+/// Reference: Initialize.cp:952-955, PS_Stdio.cp PS_Recompute():2023-2048
 #[test]
-#[ignore = "PUNT: ledger line weight from config.ledgerLW (PS_Stdio.cp:2211)"]
-fn test_ledger_line_weight() {
-    // Ledger line thickness should be config.ledgerLW * lnSpace / 100
-    // Default: 13% of line space ≈ 0.26pt for 2pt line space
+fn test_line_widths_from_lnspace() {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    let file =
+        fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse HBD_33.nl");
+    let score = notelist_to_score(&notelist);
+
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+
+    // Find the SetWidths command
+    let set_widths = commands
+        .iter()
+        .find(|c| matches!(c, RenderCommand::SetWidths { .. }))
+        .expect("Should have a SetWidths command");
+
+    if let RenderCommand::SetWidths {
+        staff,
+        ledger,
+        stem,
+        bar,
+    } = set_widths
+    {
+        // Default lnSpace = 6.0pt (24pt staff / 4 lines)
+        let lnspace = 6.0_f32;
+        let expected_staff = 0.08 * lnspace; // 0.48
+        let expected_ledger = 0.13 * lnspace; // 0.78
+        let expected_stem = 0.08 * lnspace; // 0.48
+        let expected_bar = 0.10 * lnspace; // 0.60
+
+        assert!(
+            (*staff - expected_staff).abs() < 0.01,
+            "Staff line width {staff} should be ~{expected_staff} (8% of {lnspace})"
+        );
+        assert!(
+            (*ledger - expected_ledger).abs() < 0.01,
+            "Ledger line width {ledger} should be ~{expected_ledger} (13% of {lnspace})"
+        );
+        assert!(
+            (*stem - expected_stem).abs() < 0.01,
+            "Stem width {stem} should be ~{expected_stem} (8% of {lnspace})"
+        );
+        assert!(
+            (*bar - expected_bar).abs() < 0.01,
+            "Barline width {bar} should be ~{expected_bar} (10% of {lnspace})"
+        );
+
+        // Ledger lines should be thicker than staff lines (13% > 8%)
+        assert!(
+            ledger > staff,
+            "Ledger lines ({ledger}) should be thicker than staff lines ({staff})"
+        );
+        // Barlines should be thicker than stems (10% > 8%)
+        assert!(
+            bar > stem,
+            "Barlines ({bar}) should be thicker than stems ({stem})"
+        );
+    } else {
+        panic!("Expected SetWidths command");
+    }
 }
 
 // ============================================================================
