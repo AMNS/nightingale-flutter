@@ -70,18 +70,21 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **NGL chord symbol normalization**: Port of ChordSym.cp ParseChordSym field structure. NGL chord symbols use 0x7F delimiters to separate 7 fields (root|qual|ext|extStk1|extStk2|extStk3|bass) and Sonata font accidental codes (0xBA=dbl-flat, 0xDC=dbl-sharp). `normalize_chord_symbol()` splits on 0x7F, replaces Sonata accidentals with text equivalents, joins fields with proper separators. 11 unit tests.
+- [x] **Flutter bridge SetPageSize fix**: `render_to_dtos()` was missing the `set_page_size()` call before `render_score()`, causing NGL files to render at wrong page dimensions in the Flutter app.
+- [x] **Rehearsal mark enclosures**: Port of DrawEnclosure (DrawObject.cp:1490-1535). GRAPHIC objects with `enclosure != ENCL_NONE` get a framed rectangle around the text using OG defaults: 2pt margin (ENCLMARGIN_DFLT) and 1pt line width (ENCLLW_DFLT=4 quarter-points). Text width measured via `measure_text_width()` with character-count fallback. Only 17_capital_regiment_march affected (rehearsal marks A-F on 4 pages).
+
+### Recently Completed (previous session)
 - [x] **VexFlow-inspired Notelist test fixtures**: Expanded test coverage from 20 to 41 Notelist fixtures with 21 new focused tests for individual engraving features: accidentals (all 5 types), dotted notes (single/double), rests (all durations), ledger lines (extreme range A2–C7), beamed eighths (ascending/descending/flat/zigzag), mixed durations, whole notes, 16ths/32nds, quintuplet tuplets, grace notes, key signatures (1–7 sharps, 1–7 flats), time signature changes (4/4→3/4→6/8→2/4→5/4), barline types, text annotations, two voices, bass clef melody, wide intervals, chromatic scale, tied notes, and compound meter (6/8, 12/8). Each fixture has golden bitmap, insta snapshot, and command-stream hash for full regression coverage.
 - [x] **Flutter app: file browser + multi-page rendering**: Rewrote the Flutter app from single-hardcoded-file viewer to a full score browser. File browser sidebar with directory tabs (NGL Fixtures / Notelists), auto-discovers test fixture dirs relative to working directory, click-to-render any .ngl or .nl file. Rust bridge additions: `renderScoreFromPath()` (filesystem load), `listScoreFiles()` (directory scan), `ScoreFileEntry` DTO. Multi-page rendering: BeginPage/EndPage commands offset canvas by page index with 16px gaps, page backgrounds with white rectangles/drop shadows. Proper barline rendering: single, double, final (thin+thick), repeat left/right/both with dots. Zoom slider (50%–400%), status bar, dark theme support.
 - [x] **Multi-page bitmap regression**: Extended both NGL and Notelist bitmap tests to loop over ALL pages (was page 1 only). Golden bitmaps go from 58 to 491 PNGs covering every page of every fixture. Full visual regression coverage for multi-page scores.
 - [x] **Page number rendering**: Port of DrawPageNum() from DrawObject.cp. Pages 2+ display a centered page number (10pt Helvetica) at the bottom margin. InterpretedScore gains page_width_pt, page_height_pt, and first_page_number fields (parsed from NGL document header orig_paper_rect or Notelist layout config).
 
-### Recently Completed (previous session)
+### Recently Completed (previous sessions)
 - [x] **Extra measure number fix**: Spurious measure number at the score's final barline in 13 of 17 NGL fixtures. Root cause: final barline's `measure_left` was 72 DDIST (N103) or 64 DDIST (N105) from `staff_right`, exceeding the 48 DDIST suppression threshold. Diagnostic context walk confirmed system-end barlines have dist=1, score-end dist=64-72, mid-system dist≥595. Increased threshold from 48 to 80 DDIST (5 points) — safely between score-end max (72) and mid-system min (595).
 - [x] **Sonata→SMuFL character mapping**: Complete mapping of OG Nightingale Sonata font characters to SMuFL/Bravura codepoints (90+ characters). GRAPHIC text objects using Sonata font (e.g., segno '%', coda, dynamics) now detected and rendered via `music_char()` with correct SMuFL glyphs instead of wrong Helvetica text. Port of MapMusChar() concept from DrawUtils.cp. Covers: clefs, accidentals, time sigs, noteheads, flags, dots, articulations, dynamics, repeat dots, braces/brackets, segno (0x25→U+E047), coda (0x9E→U+E048), rests.
 - [x] **Cancelling key signatures**: When a key signature changes to fewer accidentals (n_ks_items==0), naturals are now drawn at the positions of the previous key signature's accidentals. Port of DrawUtils.cp:988-1010 (LSSearch backward for previous keysig). Added `prev_ks_info` to Context struct, saved before each keysig update. SMUFL_NATURAL (U+E261) glyph rendering. 30 new natural glyphs appear in Capital Regiment March (the fixture with mid-score key changes).
 - [x] **Flutter app revival**: Moved iceboxed `nightingale_app/` back to project root. Rewrote Rust bridge (`score.rs`) to match current 32-variant RenderCommand API with flat DTO (no nested structs). Added `render_notelist_from_text()` for Notelist support. Rewrote Dart `ScorePainter` to handle all 32 command kinds (was 11). Ran `flutter_rust_bridge_codegen` to regenerate bindings. `cargo check` + `flutter analyze` both clean. Removed stale iceboxed tests.
-
-### Recently Completed (previous session)
 - [x] **OG Gourlay spacing pipeline**: Full port of the OG Nightingale spacing engine from SpaceTime.cp and SpaceHighLevel.cp. Replaces simple duration-proportional spacing with the complete Gourlay pipeline:
   - `SymWidthRight/Left` for computing horizontal extent of all object types (sync, grsync, measure, clef, keysig, timesig) in STDIST
   - `FIdealSpace` with spaceProp parameter for duration-proportional ideal widths
@@ -91,12 +94,8 @@
   - Integrated into to_score.rs steps 3-5: builds SpaceTimeInfo per measure, calls respace_1bar, scales to system width
   - All 20 notelist golden bitmaps updated with improved spacing
 - [x] **Notelist grace note support**: Port of ConvertGRNoteRest (NotelistOpen.cp). Pre-scan G records, group by following Note/Rest time, create GrSync objects with ANote subobjects. Grace notes render at 70% via draw_grsync. Handles cross-barline grace notes. 3 targeted tests (HBD_33, Schoenberg, Mahler) verifying pitches, clefs, accidentals, and 70% rendering.
-
-### Recently Completed (previous session)
 - [x] **Grace note rendering (draw_grsync)**: Port of DrawNRGR.cp DrawGRSYNC()/DrawGRNote(). 70% size noteheads, accidentals, ledger lines, stems, flags, diagonal stem slash on unbeamed eighth grace notes, augmentation dots. Wired into render loop dispatch. NGL parser ready but no NGL fixtures contain GrSync objects.
 - [x] **FONT_* text style off-by-one fix**: FONT_MN=1, FONT_PN=2, etc. are 1-based constants but text_styles[] is 0-indexed. All four lookup sites (graphic text, measure numbers, part names, tempo font) were picking the wrong style. Composer text was rendered as 32pt italic Briard (FONT_R2) instead of 9pt Helvetica (FONT_R1). Fixed: text_styles[constant - 1].
-
-### Recently Completed (previous session)
 - [x] **SMuFL glyph braces/brackets**: U+E000 brace glyph with 2× weight boost, U+E002 bracket glyph (both PdfRenderer + BitmapRenderer). Non-uniform text matrix scaling. Bezier/line fallback preserved.
 - [x] **Beam/stem gap fix**: 0.5pt stem extension for beamed notes (port of PS_NoteStem's 8 DDIST, PS_Stdio.cp:1729).
 - [x] **Tuplet bracket orientation fix**: Staff-relative DDIST comparison for bracket_below (was cross-domain comparison).
@@ -126,7 +125,7 @@
 - [x] **Tempo markings**: TEMPO_5 parsing (38 bytes), verbal tempo string + optional metronome mark (note glyph + dot + "= N"). Font from FONT_TM text style. Port of DrawTEMPO/TempoGlyph/GetGraphicOrTempoDrawInfo from DrawObject.cp/DrawUtils.cp. Notelist pipeline: NotelistRecord::Tempo → Tempo objects with positional anchoring in to_score.rs.
 - [x] **Score markings**: fermata, other articulations — all 22 MODNR types implemented (MOD_FERMATA through MOD_LONG_INVMORDENT). Tremolo slashes. Fingerings (0-5) acknowledged but need text rendering. Port of DrawModNR/GetModNRInfo from DrawNRGR.cp/DrawUtils.cp.
 - [x] **Volta brackets (Endings)**: ENDING_5 parsing (32 bytes), horizontal bracket with optional left/right cutoffs, ending number labels. Port of DrawENDING from DrawObject.cp.
-- [ ] **Rehearsal marks**: boxed/circled text above system
+- [x] **Rehearsal marks**: boxed/circled text above system — port of DrawEnclosure (DrawObject.cp:1490-1535), ENCL_BOX type with 2pt margin and 1pt frame. Only 17_capital_regiment_march affected (rehearsal marks A-F on 4 pages).
 
 #### Tier 3 — Engraving Polish
 - [x] **Grace notes**: small grace notes before principal notes — DrawGRSync rendering + Notelist G-record pipeline
@@ -241,7 +240,7 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 |--------|-------|
 | Rust source lines | ~24,600 |
 | Rust test lines | ~5,500 |
-| Test count | 256 (250 passed + 6 ignored) |
+| Test count | 258 (257 passed + 1 ignored) |
 | Test fixture files | 17 .ngl + 41 .nl |
 | Insta snapshots | 59 |
 | Bitmap goldens | 491 (17 NGL + 41 Notelist, all pages) |
