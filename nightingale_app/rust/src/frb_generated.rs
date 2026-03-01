@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1639173956;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -259238892;
 
 // Section: executor
 
@@ -105,6 +105,45 @@ fn wire__crate__api__score__find_project_root_impl(
         },
     )
 }
+fn wire__crate__api__compare__get_comparison_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_comparison",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_project_root = <String>::sse_decode(&mut deserializer);
+            let api_fixture_name = <String>::sse_decode(&mut deserializer);
+            let api_page_num = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::compare::get_comparison(
+                        api_project_root,
+                        api_fixture_name,
+                        api_page_num,
+                    ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__greet_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -163,6 +202,41 @@ fn wire__crate__api__simple__init_app_impl(
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::simple::init_app();
                     })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__compare__list_og_fixtures_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "list_og_fixtures",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_project_root = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::compare::list_og_fixtures(
+                        api_project_root,
+                    ))?;
                     Ok(output_ok)
                 })())
             }
@@ -423,6 +497,38 @@ impl SseDecode for bool {
     }
 }
 
+impl SseDecode for crate::api::compare::ComparisonPageResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_oursRgba = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_oursWidth = <u32>::sse_decode(deserializer);
+        let mut var_oursHeight = <u32>::sse_decode(deserializer);
+        let mut var_ogRgba = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_ogWidth = <u32>::sse_decode(deserializer);
+        let mut var_ogHeight = <u32>::sse_decode(deserializer);
+        let mut var_diffRgba = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_diffWidth = <u32>::sse_decode(deserializer);
+        let mut var_diffHeight = <u32>::sse_decode(deserializer);
+        let mut var_totalPixels = <u64>::sse_decode(deserializer);
+        let mut var_diffPixels = <u64>::sse_decode(deserializer);
+        let mut var_diffPct = <f64>::sse_decode(deserializer);
+        return crate::api::compare::ComparisonPageResult {
+            ours_rgba: var_oursRgba,
+            ours_width: var_oursWidth,
+            ours_height: var_oursHeight,
+            og_rgba: var_ogRgba,
+            og_width: var_ogWidth,
+            og_height: var_ogHeight,
+            diff_rgba: var_diffRgba,
+            diff_width: var_diffWidth,
+            diff_height: var_diffHeight,
+            total_pixels: var_totalPixels,
+            diff_pixels: var_diffPixels,
+            diff_pct: var_diffPct,
+        };
+    }
+}
+
 impl SseDecode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -434,6 +540,20 @@ impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_i32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for Vec<crate::api::compare::OgFixtureInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::compare::OgFixtureInfo>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
     }
 }
 
@@ -486,6 +606,24 @@ impl SseDecode for Vec<crate::api::score::ScoreFileEntry> {
             ));
         }
         return ans_;
+    }
+}
+
+impl SseDecode for crate::api::compare::OgFixtureInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_fixtureName = <String>::sse_decode(deserializer);
+        let mut var_ogPdf = <String>::sse_decode(deserializer);
+        let mut var_ogPageCount = <i32>::sse_decode(deserializer);
+        let mut var_ourPageCount = <i32>::sse_decode(deserializer);
+        let mut var_ogExists = <bool>::sse_decode(deserializer);
+        return crate::api::compare::OgFixtureInfo {
+            fixture_name: var_fixtureName,
+            og_pdf: var_ogPdf,
+            og_page_count: var_ogPageCount,
+            our_page_count: var_ourPageCount,
+            og_exists: var_ogExists,
+        };
     }
 }
 
@@ -582,6 +720,13 @@ impl SseDecode for u32 {
     }
 }
 
+impl SseDecode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -603,24 +748,28 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        4 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__score__render_command_dto_default_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        8 => wire__crate__api__score__render_ngl_from_bytes_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__score__render_notelist_from_text_impl(
+        3 => wire__crate__api__compare__get_comparison_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__compare__list_og_fixtures_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__score__render_command_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         10 => {
+            wire__crate__api__score__render_ngl_from_bytes_impl(port, ptr, rust_vec_len, data_len)
+        }
+        11 => wire__crate__api__score__render_notelist_from_text_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => {
             wire__crate__api__score__render_score_from_path_impl(port, ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__score__render_score_from_path_landscape_impl(
+        13 => wire__crate__api__score__render_score_from_path_landscape_impl(
             port,
             ptr,
             rust_vec_len,
@@ -640,15 +789,70 @@ fn pde_ffi_dispatcher_sync_impl(
     match func_id {
         1 => wire__crate__api__score__bridge_hello_impl(ptr, rust_vec_len, data_len),
         2 => wire__crate__api__score__find_project_root_impl(ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__score__list_score_files_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__score__render_command_count_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__score__list_score_files_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__score__render_command_count_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::compare::ComparisonPageResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ours_rgba.into_into_dart().into_dart(),
+            self.ours_width.into_into_dart().into_dart(),
+            self.ours_height.into_into_dart().into_dart(),
+            self.og_rgba.into_into_dart().into_dart(),
+            self.og_width.into_into_dart().into_dart(),
+            self.og_height.into_into_dart().into_dart(),
+            self.diff_rgba.into_into_dart().into_dart(),
+            self.diff_width.into_into_dart().into_dart(),
+            self.diff_height.into_into_dart().into_dart(),
+            self.total_pixels.into_into_dart().into_dart(),
+            self.diff_pixels.into_into_dart().into_dart(),
+            self.diff_pct.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::compare::ComparisonPageResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::compare::ComparisonPageResult>
+    for crate::api::compare::ComparisonPageResult
+{
+    fn into_into_dart(self) -> crate::api::compare::ComparisonPageResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::compare::OgFixtureInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.fixture_name.into_into_dart().into_dart(),
+            self.og_pdf.into_into_dart().into_dart(),
+            self.og_page_count.into_into_dart().into_dart(),
+            self.our_page_count.into_into_dart().into_dart(),
+            self.og_exists.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::compare::OgFixtureInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::compare::OgFixtureInfo>
+    for crate::api::compare::OgFixtureInfo
+{
+    fn into_into_dart(self) -> crate::api::compare::OgFixtureInfo {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::score::RenderCommandDto {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -737,6 +941,24 @@ impl SseEncode for bool {
     }
 }
 
+impl SseEncode for crate::api::compare::ComparisonPageResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(self.ours_rgba, serializer);
+        <u32>::sse_encode(self.ours_width, serializer);
+        <u32>::sse_encode(self.ours_height, serializer);
+        <Vec<u8>>::sse_encode(self.og_rgba, serializer);
+        <u32>::sse_encode(self.og_width, serializer);
+        <u32>::sse_encode(self.og_height, serializer);
+        <Vec<u8>>::sse_encode(self.diff_rgba, serializer);
+        <u32>::sse_encode(self.diff_width, serializer);
+        <u32>::sse_encode(self.diff_height, serializer);
+        <u64>::sse_encode(self.total_pixels, serializer);
+        <u64>::sse_encode(self.diff_pixels, serializer);
+        <f64>::sse_encode(self.diff_pct, serializer);
+    }
+}
+
 impl SseEncode for f64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -748,6 +970,16 @@ impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for Vec<crate::api::compare::OgFixtureInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::compare::OgFixtureInfo>::sse_encode(item, serializer);
+        }
     }
 }
 
@@ -788,6 +1020,17 @@ impl SseEncode for Vec<crate::api::score::ScoreFileEntry> {
         for item in self {
             <crate::api::score::ScoreFileEntry>::sse_encode(item, serializer);
         }
+    }
+}
+
+impl SseEncode for crate::api::compare::OgFixtureInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.fixture_name, serializer);
+        <String>::sse_encode(self.og_pdf, serializer);
+        <i32>::sse_encode(self.og_page_count, serializer);
+        <i32>::sse_encode(self.our_page_count, serializer);
+        <bool>::sse_encode(self.og_exists, serializer);
     }
 }
 
@@ -842,6 +1085,13 @@ impl SseEncode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u64::<NativeEndian>(self).unwrap();
     }
 }
 

@@ -17,7 +17,9 @@ Future<List<RenderCommandDto>> renderNglFromBytes({required List<int> data}) =>
 
 /// Load a Notelist (.nl) file from UTF-8 text and render it to drawing commands.
 ///
-/// Returns an empty vec on parse/convert failure.
+/// Returns an error string on parse/convert failure (empty string = success).
+/// The first element of the returned tuple is the error message (empty on success),
+/// the second is the command list.
 Future<List<RenderCommandDto>> renderNotelistFromText({required String text}) =>
     RustLib.instance.api.crateApiScoreRenderNotelistFromText(text: text);
 

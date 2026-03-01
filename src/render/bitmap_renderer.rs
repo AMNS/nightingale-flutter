@@ -225,6 +225,11 @@ pub struct BitmapRenderer {
 
     /// Music font (Bravura or other SMuFL font).
     music_font: Option<LoadedFont>,
+    /// Sonata legacy music font (optional; used for OG comparison).
+    sonata_font: Option<LoadedFont>,
+    /// Reverse mapping: SMuFL code point → Sonata char code.
+    /// Built when Sonata font is loaded, used to intercept Smufl glyphs.
+    smufl_to_sonata: HashMap<u32, u32>,
     /// Text fonts keyed by role: "sans", "sans-bold", "serif-italic", etc.
     text_fonts: HashMap<String, LoadedFont>,
 }
@@ -246,6 +251,8 @@ impl BitmapRenderer {
             state: RenderState::default(),
             state_stack: Vec::new(),
             music_font: None,
+            sonata_font: None,
+            smufl_to_sonata: HashMap::new(),
             text_fonts: HashMap::new(),
         }
     }
@@ -265,6 +272,50 @@ impl BitmapRenderer {
     pub fn load_music_font_file(&mut self, path: &Path) -> bool {
         if let Ok(data) = std::fs::read(path) {
             self.load_music_font(data)
+        } else {
+            false
+        }
+    }
+
+    /// Load the Sonata legacy music font for OG comparison.
+    ///
+    /// When loaded, `music_char()` will prefer Sonata over Bravura/SMuFL:
+    /// incoming `MusicGlyph::Smufl(cp)` code points are reverse-mapped to
+    /// Sonata character codes and rendered from this font.
+    ///
+    /// The reverse mapping is built from `draw_utils::sonata_char_to_smufl()`.
+    pub fn load_sonata_font(&mut self, data: Vec<u8>) -> bool {
+        use crate::draw::draw_utils::sonata_char_to_smufl;
+
+        // Sonata glyphs live at regular character positions (0x20..0xFF)
+        if let Some(font) = LoadedFont::load(data, &[0x20..=0xFF]) {
+            // Build reverse mapping: SMuFL code point → Sonata char code
+            let mut rev = HashMap::new();
+            for sonata_ch in 0x20u8..=0xFF {
+                if let Some(smufl_cp) = sonata_char_to_smufl(sonata_ch) {
+                    // Only map if the Sonata font actually has this glyph
+                    if font.glyph_id(sonata_ch as u32).is_some() {
+                        rev.insert(smufl_cp, sonata_ch as u32);
+                    }
+                }
+            }
+            eprintln!(
+                "[bitmap] Sonata font loaded: {} cmap entries, {} reverse mappings",
+                font.cmap.len(),
+                rev.len()
+            );
+            self.smufl_to_sonata = rev;
+            self.sonata_font = Some(font);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Load the Sonata font from a file path.
+    pub fn load_sonata_font_file(&mut self, path: &Path) -> bool {
+        if let Ok(data) = std::fs::read(path) {
+            self.load_sonata_font(data)
         } else {
             false
         }
@@ -960,9 +1011,36 @@ impl MusicRenderer for BitmapRenderer {
         self.page_has_content = true;
         let codepoint = match glyph {
             MusicGlyph::Smufl(cp) => cp,
-            MusicGlyph::Sonata(_) => return,
+            MusicGlyph::Sonata(ch) => ch as u32,
         };
 
+        // If Sonata font is loaded, try to reverse-map SMuFL → Sonata and render
+        if self.sonata_font.is_some() {
+            let sonata_cp = match glyph {
+                MusicGlyph::Sonata(ch) => Some(ch as u32),
+                MusicGlyph::Smufl(cp) => self.smufl_to_sonata.get(&cp).copied(),
+            };
+            if let Some(scp) = sonata_cp {
+                let font = self.sonata_font.as_mut().unwrap();
+                if let Some(gid) = font.glyph_id(scp) {
+                    if let Some(glyph_path) = font.get_glyph_path(gid) {
+                        let font_size = self.state.music_size * size_percent / 100.0;
+                        let upm = font.units_per_em as f32;
+                        let font_scale = font_size / upm * self.state.scale_x * self.scale;
+                        let px_x = self.px(x);
+                        let px_y = self.py(y);
+                        let paint = self.make_paint();
+                        if let Some(ref mut pixmap) = self.current_pixmap {
+                            Self::render_glyph(pixmap, &glyph_path, font_scale, px_x, px_y, &paint);
+                        }
+                        return;
+                    }
+                }
+            }
+            // Sonata font loaded but glyph not found — fall through to SMuFL
+        }
+
+        // Primary path: render from SMuFL music font (Bravura etc.)
         if let Some(ref mut font) = self.music_font {
             if let Some(gid) = font.glyph_id(codepoint) {
                 if let Some(glyph_path) = font.get_glyph_path(gid) {

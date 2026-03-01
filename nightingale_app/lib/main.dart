@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'src/rust/api/score.dart';
 import 'src/rust/frb_generated.dart';
 import 'score_painter.dart';
+import 'compare_screen.dart';
 
 Future<void> main() async {
   await RustLib.init();
@@ -120,17 +121,21 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
       if (score.format == 'ngl') {
         final data = await rootBundle.load(score.assetPath);
         final bytes = data.buffer.asUint8List();
+        debugPrint('[Nightingale] Loading NGL: ${score.assetPath} (${data.lengthInBytes} bytes)');
         commands = await renderNglFromBytes(data: bytes);
       } else {
         final text = await rootBundle.loadString(score.assetPath);
+        debugPrint('[Nightingale] Loading Notelist: ${score.assetPath} (${text.length} chars)');
         commands = await renderNotelistFromText(text: text);
       }
+
+      debugPrint('[Nightingale] Got ${commands.length} render commands for ${score.title}');
 
       setState(() {
         _commands = commands;
         _loading = false;
         if (commands.isEmpty) {
-          _status = 'Error: no render commands produced';
+          _status = 'Error: no render commands produced for ${score.title}';
         } else {
           int pages = 0;
           for (final cmd in commands) {
@@ -141,10 +146,12 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
               '${pages > 0 ? pages : 1} page${pages > 1 ? 's' : ''}';
         }
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[Nightingale] Error loading ${score.title}: $e');
+      debugPrint('[Nightingale] Stack trace: $stackTrace');
       setState(() {
         _loading = false;
-        _status = 'Error: $e';
+        _status = 'Error loading ${score.title}: $e';
       });
     }
   }
@@ -232,6 +239,28 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                       }
                       return tile;
                     },
+                  ),
+                ),
+
+                // QA Compare button
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.compare, size: 16),
+                      label: const Text('QA Compare', style: TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        final root = findProjectRoot(startPath: '/Users/chirgwin/Nightingale-Phoenix/nightingale-modernize');
+                        if (root.isNotEmpty) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => CompareScreen(projectRoot: root),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ),
 

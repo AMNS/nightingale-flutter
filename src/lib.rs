@@ -14,6 +14,7 @@
 
 pub mod basic_types;
 pub mod beam;
+pub mod comparison;
 pub mod context;
 pub mod defs;
 pub mod doc_types;
@@ -25,6 +26,7 @@ pub mod ngl;
 pub mod notelist;
 pub mod obj_types;
 pub mod objects;
+pub mod og_render;
 pub mod pitch_utils;
 pub mod render;
 pub mod space_time;

@@ -474,25 +474,36 @@ fn render_to_dtos(
 pub fn render_ngl_from_bytes(data: Vec<u8>) -> Vec<RenderCommandDto> {
     let ngl = match NglFile::read_from_bytes(&data) {
         Ok(n) => n,
-        Err(_) => return vec![],
+        Err(e) => {
+            eprintln!("[nightingale-bridge] NGL parse error: {e}");
+            return vec![];
+        }
     };
     let score = match interpret_heap(&ngl) {
         Ok(s) => s,
-        Err(_) => return vec![],
+        Err(e) => {
+            eprintln!("[nightingale-bridge] NGL interpret error: {e}");
+            return vec![];
+        }
     };
     render_to_dtos(&score)
 }
 
 /// Load a Notelist (.nl) file from UTF-8 text and render it to drawing commands.
 ///
-/// Returns an empty vec on parse/convert failure.
+/// Returns an error string on parse/convert failure (empty string = success).
+/// The first element of the returned tuple is the error message (empty on success),
+/// the second is the command list.
 pub fn render_notelist_from_text(text: String) -> Vec<RenderCommandDto> {
     use nightingale_core::notelist::{notelist_to_score, parse_notelist};
     use std::io::Cursor;
 
     let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
         Ok(nl) => nl,
-        Err(_) => return vec![],
+        Err(e) => {
+            eprintln!("[nightingale-bridge] Notelist parse error: {e}");
+            return vec![];
+        }
     };
     let score = notelist_to_score(&notelist);
     render_to_dtos(&score)
