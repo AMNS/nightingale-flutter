@@ -9,7 +9,7 @@
 
 use nightingale_core::draw::draw_high_level::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
-use nightingale_core::render::{CommandRenderer, RenderCommand};
+use nightingale_core::render::{CommandRenderer, MusicRenderer, RenderCommand};
 
 // ── Tag constants (must match Dart side) ────────────────────────
 // 32 command types matching the RenderCommand enum variants.
@@ -451,11 +451,17 @@ fn convert(cmd: &RenderCommand) -> RenderCommandDto {
     }
 }
 
-// Helper: render an InterpretedScore to command DTOs
+// Helper: render an InterpretedScore to command DTOs.
+//
+// Prepends a SetPageSize command using the score's page dimensions so the
+// Flutter ScorePainter knows the correct page size (render_score() itself
+// does not emit SetPageSize — test harnesses call set_page_size() on the
+// renderer directly before render_score()).
 fn render_to_dtos(
     score: &nightingale_core::ngl::interpret::InterpretedScore,
 ) -> Vec<RenderCommandDto> {
     let mut renderer = CommandRenderer::new();
+    renderer.set_page_size(score.page_width_pt, score.page_height_pt);
     render_score(score, &mut renderer);
     renderer.commands().iter().map(convert).collect()
 }

@@ -1452,7 +1452,17 @@ pub fn draw_graphic(
         Some(s) if !s.is_empty() => s.as_str(),
         _ => return, // No text to render
     };
-    let text = raw_text.trim_end_matches(['\x7f', '\0']);
+
+    // For chord symbols, normalize the 0x7F-delimited multi-field format and
+    // replace Sonata accidental codes with Unicode equivalents before rendering.
+    // Reference: ChordSym.cp ParseChordSym() + DrawChordSym()
+    let normalized_cs;
+    let text = if gtype == GraphicType::GrChordSym {
+        normalized_cs = normalize_chord_symbol(raw_text);
+        normalized_cs.as_str()
+    } else {
+        raw_text.trim_end_matches(['\x7f', '\0'])
+    };
     if text.is_empty() {
         return;
     }
@@ -1739,6 +1749,139 @@ fn default_font_for_type(gtype: &crate::obj_types::GraphicType) -> String {
         GraphicType::GrRehearsal => "Helvetica".to_string(),
         GraphicType::GrChordSym => "Helvetica".to_string(),
         _ => "Times New Roman".to_string(),
+    }
+}
+
+// =============================================================================
+// CHORD SYMBOL NORMALIZATION
+// =============================================================================
+
+/// Normalize a chord symbol string from OG Nightingale's internal format to
+/// display-ready Unicode text.
+///
+/// OG Nightingale stores chord symbols as 7 fields delimited by 0x7F (ASCII DEL):
+///   rootStr | qualStr | extStr | extStk1 | extStk2 | extStk3 | bassStr
+///
+/// Within root/ext/bass fields, Sonata music font accidental bytes are embedded
+/// inline. After Mac Roman conversion, these become:
+///   - 'b' after A-G  → flat (keep as 'b' — standard jazz chord notation)
+///   - '#' after A-G  → sharp (keep as '#')
+///   - 'n' after A-G  → natural → '♮' (U+266E)
+///   - 'º' (U+00BA)   → double-flat → 'bb'
+///   - 'Ü' (U+00DC)   → double-sharp → '##'
+///
+/// For extension fields (extStr, extStk), only 'b' and '#' are recognized as
+/// accidentals (OG IsCSAcc else-branch). Quality (qualStr) has NO accidental
+/// processing.
+///
+/// Reference: ChordSym.cp ParseChordSym() lines 46-116, DrawChordSym() lines 171-658
+fn normalize_chord_symbol(raw: &str) -> String {
+    // Split on CS_DELIMITER (0x7F). If there are no delimiters, treat the
+    // whole string as a simple chord symbol (old-style, pre-field format).
+    let fields: Vec<&str> = raw.split('\x7f').collect();
+
+    if fields.len() < 7 {
+        // Old-style chord symbol without delimiters, or malformed.
+        // Just strip control chars and return.
+        return raw
+            .replace(['\x7f', '\0'], "")
+            .trim_end_matches(|c: char| c.is_control())
+            .to_string();
+    }
+
+    let root = fields[0];
+    let qual = fields[1];
+    let ext = fields[2];
+    let ext_stk1 = fields[3];
+    let ext_stk2 = fields[4];
+    let ext_stk3 = fields[5];
+    let bass = fields[6].trim_end_matches(|c: char| c.is_control() || c == '\0');
+
+    let mut out = String::with_capacity(raw.len());
+
+    // Root: replace Sonata accidentals (all 5 types after A-G)
+    replace_root_accidentals(root, &mut out);
+
+    // Quality: no accidental processing, just append
+    out.push_str(qual);
+
+    // Extension: only 'b' and '#' are accidentals (not context-dependent)
+    replace_ext_accidentals(ext, &mut out);
+
+    // Extension stack: concatenate non-empty stacked extensions.
+    // OG Nightingale draws these vertically stacked; we render inline in parens.
+    let stk_parts: Vec<&str> = [ext_stk1, ext_stk2, ext_stk3]
+        .iter()
+        .copied()
+        .filter(|s| !s.is_empty())
+        .collect();
+    if !stk_parts.is_empty() {
+        out.push('(');
+        for (i, part) in stk_parts.iter().enumerate() {
+            if i > 0 {
+                out.push('/');
+            }
+            replace_ext_accidentals(part, &mut out);
+        }
+        out.push(')');
+    }
+
+    // Bass: preceded by "/" with same accidental handling as root
+    if !bass.is_empty() {
+        out.push('/');
+        replace_root_accidentals(bass, &mut out);
+    }
+
+    out
+}
+
+/// Replace Sonata accidental codes in a root or bass field.
+///
+/// After A-G, recognize all accidentals:
+///   'b' → 'b' (flat — standard notation), '#' → '#', 'n' → '♮',
+///   'º' (U+00BA) → 'bb' (double-flat), 'Ü' (U+00DC) → '##' (double-sharp)
+///
+/// Outside that context, only 'b' and '#' are accidentals (kept as-is).
+///
+/// Reference: ChordSym.cp IsCSAcc() lines 119-132
+fn replace_root_accidentals(field: &str, out: &mut String) {
+    let chars: Vec<char> = field.chars().collect();
+    for (i, &ch) in chars.iter().enumerate() {
+        let prev_is_note = i > 0 && chars[i - 1] >= 'A' && chars[i - 1] <= 'G';
+        if prev_is_note {
+            // After A-G: all 5 accidental types recognized
+            match ch {
+                // 'b' and '#' stay as standard text (jazz convention)
+                'n' => out.push('♮'),
+                '\u{00BA}' => out.push_str("bb"), // Sonata double-flat (was 0xBA)
+                '\u{00DC}' => out.push_str("##"), // Sonata double-sharp (was 0xDC)
+                other => out.push(other),
+            }
+        } else {
+            // Not after a note letter: only fix the exotic Sonata bytes
+            match ch {
+                '\u{00BA}' => out.push_str("bb"),
+                '\u{00DC}' => out.push_str("##"),
+                other => out.push(other),
+            }
+        }
+    }
+}
+
+/// Replace Sonata accidental codes in extension fields.
+///
+/// In extension context, only 'b' and '#' are recognized as accidentals
+/// (OG IsCSAcc else-branch). These are already standard text chars, so we
+/// only need to fix the exotic Sonata double-flat/sharp bytes.
+///
+/// Reference: ChordSym.cp IsCSAcc() lines 119-132 (else branch)
+fn replace_ext_accidentals(field: &str, out: &mut String) {
+    for ch in field.chars() {
+        match ch {
+            '\u{00BA}' => out.push_str("bb"), // Sonata double-flat
+            '\u{00DC}' => out.push_str("##"), // Sonata double-sharp
+            other => out.push(other),
+        }
     }
 }
 
@@ -2291,5 +2434,94 @@ fn resolve_tempo_font(score: &InterpretedScore, line_space: i16) -> TextFont {
     } else {
         // Fallback: bold 12pt Times
         TextFont::new("Times New Roman", 12.0).bold(true)
+    }
+}
+
+// =============================================================================
+// TESTS
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_chord_symbol_simple() {
+        // Simple chord: "C\x7fmaj\x7f7\x7f\x7f\x7f\x7f"
+        let raw = "C\x7fmaj\x7f7\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "Cmaj7");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_flat_root() {
+        // Bb7: "Bb\x7f\x7f7\x7f\x7f\x7f\x7f"
+        let raw = "Bb\x7f\x7f7\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "Bb7");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_sharp_root() {
+        // F#m: "F#\x7fm\x7f\x7f\x7f\x7f\x7f"
+        let raw = "F#\x7fm\x7f\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "F#m");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_natural() {
+        // Cn (C natural): "Cn\x7f\x7f\x7f\x7f\x7f\x7f"
+        let raw = "Cn\x7f\x7f\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "C\u{266E}");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_double_flat() {
+        // Bbb (B double-flat): "B\u{00BA}\x7f\x7f\x7f\x7f\x7f\x7f"
+        // 0xBA in Mac Roman → U+00BA (masculine ordinal indicator)
+        let raw = "B\u{00BA}\x7f\x7f\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "Bbb");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_double_sharp() {
+        // F## (F double-sharp): "F\u{00DC}\x7f\x7f\x7f\x7f\x7f\x7f"
+        // 0xDC in Mac Roman → U+00DC (U with diaeresis)
+        let raw = "F\u{00DC}\x7f\x7f\x7f\x7f\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "F##");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_with_bass() {
+        // C7/Bb: "C\x7f\x7f7\x7f\x7f\x7f\x7fBb"
+        let raw = "C\x7f\x7f7\x7f\x7f\x7f\x7fBb";
+        assert_eq!(normalize_chord_symbol(raw), "C7/Bb");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_extension_stack() {
+        // Chord with stacked extensions: root=C, qual=, ext=, stk1=7, stk2=b9, stk3=, bass=
+        // 7 fields need 6 delimiters
+        let raw = "C\x7f\x7f\x7f7\x7fb9\x7f\x7f";
+        assert_eq!(normalize_chord_symbol(raw), "C(7/b9)");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_full() {
+        // Full example: Bb7(b9/#11)/Eb
+        let raw = "Bb\x7f\x7f7\x7fb9\x7f#11\x7f\x7fEb";
+        assert_eq!(normalize_chord_symbol(raw), "Bb7(b9/#11)/Eb");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_old_style() {
+        // Old-style without delimiters
+        let raw = "Cmaj7";
+        assert_eq!(normalize_chord_symbol(raw), "Cmaj7");
+    }
+
+    #[test]
+    fn test_normalize_chord_symbol_trailing_nul() {
+        // Trailing NUL bytes stripped from bass field
+        let raw = "C\x7f\x7f7\x7f\x7f\x7f\x7f\x00\x00";
+        assert_eq!(normalize_chord_symbol(raw), "C7");
     }
 }
