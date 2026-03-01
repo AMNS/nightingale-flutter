@@ -10,7 +10,7 @@
 //! - Platform-agnostic rendering commands
 //!
 //! See CLAUDE.md for architecture decisions and porting plan.
-//! See PORTING_ROADMAP.txt for the systematic porting order.
+//! See PROGRESS.md for current status and next steps.
 
 pub mod basic_types;
 pub mod beam;

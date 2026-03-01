@@ -170,7 +170,6 @@ padding. Use raw hex dumps of known-good data to locate fields empirically.
 ## Progress & Roadmap
 
 See `PROGRESS.md` for phase plan, current status, and next steps.
-See `PORTING_ROADMAP.txt` for the detailed layer-by-layer porting roadmap.
 
 ## Task Execution Pattern
 

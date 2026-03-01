@@ -5,7 +5,7 @@
 ## Phase 0: Source Archaeology — COMPLETE
 - [x] Classify core source files by role (DATA_MODEL / ENGRAVING / UI / PLATFORM)
 - [x] Build dependency graph (DEPENDENCY_CHAIN.csv, DEPENDENCY_DIAGRAM.md)
-- [x] Produce porting roadmap (PORTING_ROADMAP.txt)
+- [x] Produce porting roadmap (superseded by this file)
 
 ## Phase 1: Rust Data Model — COMPLETE
 
@@ -170,7 +170,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] ~~Treble clefs render one staff line too high (B instead of G) for NGL files~~ — **Fixed**: NGL files use TRTENOR_CLEF (sub_type=7) not TREBLE_CLEF (3); added all 12 clef types to clef_glyph() and clef_halfline_position()
 
 ### Deferred
-- [ ] Port MapMusChar() (Sonata->SMuFL glyph mapping)
+- [x] Port MapMusChar() (Sonata->SMuFL glyph mapping) — done in draw_utils.rs
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
 - [ ] .ngl binary writer
 - [ ] N105 format test fixtures
