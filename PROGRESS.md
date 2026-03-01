@@ -70,6 +70,9 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **VexFlow-inspired Notelist test fixtures**: Expanded test coverage from 20 to 41 Notelist fixtures with 21 new focused tests for individual engraving features: accidentals (all 5 types), dotted notes (single/double), rests (all durations), ledger lines (extreme range A2–C7), beamed eighths (ascending/descending/flat/zigzag), mixed durations, whole notes, 16ths/32nds, quintuplet tuplets, grace notes, key signatures (1–7 sharps, 1–7 flats), time signature changes (4/4→3/4→6/8→2/4→5/4), barline types, text annotations, two voices, bass clef melody, wide intervals, chromatic scale, tied notes, and compound meter (6/8, 12/8). Each fixture has golden bitmap, insta snapshot, and command-stream hash for full regression coverage.
+
+### Recently Completed (previous session)
 - [x] **Extra measure number fix**: Spurious measure number at the score's final barline in 13 of 17 NGL fixtures. Root cause: final barline's `measure_left` was 72 DDIST (N103) or 64 DDIST (N105) from `staff_right`, exceeding the 48 DDIST suppression threshold. Diagnostic context walk confirmed system-end barlines have dist=1, score-end dist=64-72, mid-system dist≥595. Increased threshold from 48 to 80 DDIST (5 points) — safely between score-end max (72) and mid-system min (595).
 - [x] **Sonata→SMuFL character mapping**: Complete mapping of OG Nightingale Sonata font characters to SMuFL/Bravura codepoints (90+ characters). GRAPHIC text objects using Sonata font (e.g., segno '%', coda, dynamics) now detected and rendered via `music_char()` with correct SMuFL glyphs instead of wrong Helvetica text. Port of MapMusChar() concept from DrawUtils.cp. Covers: clefs, accidentals, time sigs, noteheads, flags, dots, articulations, dynamics, repeat dots, braces/brackets, segno (0x25→U+E047), coda (0x9E→U+E048), rests.
 - [x] **Cancelling key signatures**: When a key signature changes to fewer accidentals (n_ks_items==0), naturals are now drawn at the positions of the previous key signature's accidentals. Port of DrawUtils.cp:988-1010 (LSSearch backward for previous keysig). Added `prev_ks_info` to Context struct, saved before each keysig update. SMUFL_NATURAL (U+E261) glyph rendering. 30 new natural glyphs appear in Capital Regiment March (the fixture with mid-score key changes).
@@ -216,9 +219,9 @@ Interactive diff review tool built in Flutter. Features:
 This replaces the current static HTML diff report and enables rapid human approval
 of intentional rendering changes during the engraving polish phase.
 
-### VexFlow test suite (future)
-Translate VexFlow's visual regression tests to Notelist format for broad coverage
-of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
+### VexFlow test suite — DONE
+21 VexFlow-inspired Notelist test fixtures covering individual engraving features.
+See `tests/notelist_examples/` for the full set (41 total fixtures).
 
 ## Phase 4: Flutter Shell — NOT STARTED
 - [ ] flutter_rust_bridge setup
@@ -232,10 +235,10 @@ of engraving edge cases (beams, tuplets, grace notes, chords, etc.).
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~24,400 |
+| Rust source lines | ~24,600 |
 | Rust test lines | ~5,500 |
-| Test count | 243 (166 unit + 6 cross-validate + 10 doc_header + 1 golden_diff + 8 ngl_all + 8 notelist_all + 7 read_ngl + 20 render_pdf + 19 render_score + 8 doctest, minus 6 ignored) |
-| Test fixture files | 17 .ngl + 20 .nl |
-| Insta snapshots | 37 |
-| Bitmap goldens | 37 (17 NGL + 20 Notelist) |
+| Test count | 256 (250 passed + 6 ignored) |
+| Test fixture files | 17 .ngl + 41 .nl |
+| Insta snapshots | 59 |
+| Bitmap goldens | 58 (17 NGL + 41 Notelist) |
 | Modules | 18 (basic_types, beam, context, defs, doc_types, draw, duration, limits, music_font, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
