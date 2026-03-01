@@ -240,13 +240,42 @@ fn test_accidental_staggering_in_chords() {
 }
 
 /// Anacrusis (pickup measure): first partial measure before the first barline.
-/// Needs proper preamble width calculation to avoid colliding with clef/time sig.
-/// Port: ComputeJustPosns and initial measure spacing from ReformatRaw.cp
+/// The pickup measure should be narrower than a full measure, proportional to
+/// its actual duration vs the time signature's full measure duration.
+/// Port of implicit fraction-based narrowing in OG Respace1Bar
+/// (SpaceHighLevel.cp:899).
 #[test]
-#[ignore = "PUNT: anacrusis lead-in measure spacing"]
 fn test_anacrusis_spacing() {
-    // Pickup beats before the first barline need special spacing treatment
-    // to avoid colliding with clef and time signature objects.
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+
+    // HBD_33 is 3/4 time with a pickup of one quarter note (480 ticks).
+    // Full measure = 1440 ticks, so anacrusis = 1/3 of a measure.
+    // The first measure should be narrower than subsequent full measures.
+    let file =
+        fs::File::open("tests/notelist_examples/HBD_33.nl").expect("Failed to open HBD_33.nl");
+    let notelist = parse_notelist(file).expect("Failed to parse HBD_33.nl");
+    let score = notelist_to_score(&notelist);
+
+    // Get xd positions of the first two measure objects
+    let measures: Vec<_> = score
+        .objects
+        .iter()
+        .filter(|o| o.header.obj_type == nightingale_core::defs::MEASURE_TYPE as i8)
+        .collect();
+    assert!(measures.len() >= 3, "Should have at least 3 measures");
+
+    // Measure widths: xd[i+1] - xd[i]
+    let m0_width = measures[1].header.xd - measures[0].header.xd;
+    let m1_width = measures[2].header.xd - measures[1].header.xd;
+
+    // The anacrusis measure (m0) should be strictly narrower than the first
+    // full measure (m1).
+    assert!(
+        m0_width < m1_width,
+        "Anacrusis measure width ({}) should be less than full measure width ({})",
+        m0_width,
+        m1_width
+    );
 }
 
 /// Ledger line weight: should match OG config.ledgerLW (13% of lnSpace).

@@ -40,7 +40,7 @@ use crate::beam::{compute_beam_slope, BeamNoteInfo};
 use crate::defs::{
     CLEF_TYPE, EIGHTH_L_DUR, GRSYNC_TYPE, KEYSIG_TYPE, TEMPO_TYPE, TIMESIG_TYPE, TUPLET_TYPE,
 };
-use crate::duration::{beat_l_dur, code_to_l_dur};
+use crate::duration::{beat_l_dur, code_to_l_dur, measure_dur};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
@@ -671,7 +671,12 @@ pub fn notelist_to_score_with_config(
     let mut measure_positions_stdist: Vec<Vec<i16>> = Vec::new();
     let mut measure_total_stdist: Vec<f32> = Vec::new();
 
-    for span in measure_spans.iter() {
+    // Compute full-measure duration in PDUR ticks for anacrusis detection.
+    // Use staff 1's time signature (index 1 in the 1-based time_sigs array).
+    let (ts_num, ts_denom) = time_sigs[1.min(time_sigs.len() - 1)];
+    let full_measure_dur = measure_dur(ts_num, ts_denom);
+
+    for (mi, span) in measure_spans.iter().enumerate() {
         let n_events = span.event_times.len();
 
         if n_events == 0 {
@@ -765,7 +770,27 @@ pub fn notelist_to_score_with_config(
         } else {
             min_measure_width_stdist(0) as f32
         };
-        let total = total.max(min_measure_width_stdist(0) as f32);
+
+        // Anacrusis (pickup measure) width narrowing: for the first measure,
+        // if its duration is shorter than the full time-signature measure duration,
+        // scale the minimum width floor proportionally. This prevents pickup
+        // measures from being as wide as full measures.
+        // Port of implicit fraction-based narrowing in OG Respace1Bar
+        // (SpaceHighLevel.cp:899).
+        let min_width_floor = if mi == 0 && full_measure_dur > 0 {
+            let actual_dur = span.end_time - span.start_time;
+            let frac = (actual_dur as f32) / (full_measure_dur as f32);
+            if frac < 1.0 {
+                // Anacrusis: scale floor down, but keep at least 50% to avoid
+                // degenerate tiny measures
+                min_measure_width_stdist(0) as f32 * frac.max(0.25)
+            } else {
+                min_measure_width_stdist(0) as f32
+            }
+        } else {
+            min_measure_width_stdist(0) as f32
+        };
+        let total = total.max(min_width_floor);
 
         // Add clef width for measures starting with mid-score clef changes
         let clef_extra: f32 = if let Some(&first_time) = span.event_times.first() {

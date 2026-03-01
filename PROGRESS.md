@@ -133,8 +133,8 @@
 - [x] **Notehead collision avoidance**: seconds in chords — ported ArrangeChordNotes (PitchUtils.cp) to objects.rs, NoteXLoc offset in draw_nrgr.rs, ChordNoteToLeft for accidental anchoring. Multi-voice X offsets still TODO.
 - [x] **Accidental staggering**: port ArrangeNCAccs (PitchUtils.cp) → arrange_nc_accs (objects.rs)
 - [x] **Final barline**: double barline at end of piece (already working — BAR_FINALDBL mapped and rendered)
-- [ ] **Anacrusis measure width**: narrower to reflect partial duration
-- [ ] **Mid-score time signature changes**: render TimeSig objects within measures
+- [x] **Anacrusis measure width**: proportional min-width floor for pickup measures — scale floor by `actual_dur / full_measure_dur`, clamped to 25% minimum. Port of implicit fraction-based narrowing in OG Respace1Bar (SpaceHighLevel.cp:899). Affects 3 fixtures: BinchoisDePlus_17, GoodbyePorkPieHat, TestMIDIChannels_3.
+- [x] **Mid-score time signature changes**: pre-scan T records in Notelist pipeline, insert TimeSig objects with `in_measure=true`, Gourlay spacing + indent. Port of ConvertTimesig (NotelistOpen.cp:717-737). Affects 7 fixtures.
 - [ ] **Ledger line weight**: config.ledgerLW (13% of lnSpace, PS_Stdio.cp:2211)
 - [ ] **Rest rendering improvements**: show rests at beat positions without notes
 
