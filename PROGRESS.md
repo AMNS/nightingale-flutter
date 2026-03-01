@@ -71,6 +71,7 @@
 
 ### Recently Completed (this session)
 - [x] **VexFlow-inspired Notelist test fixtures**: Expanded test coverage from 20 to 41 Notelist fixtures with 21 new focused tests for individual engraving features: accidentals (all 5 types), dotted notes (single/double), rests (all durations), ledger lines (extreme range A2–C7), beamed eighths (ascending/descending/flat/zigzag), mixed durations, whole notes, 16ths/32nds, quintuplet tuplets, grace notes, key signatures (1–7 sharps, 1–7 flats), time signature changes (4/4→3/4→6/8→2/4→5/4), barline types, text annotations, two voices, bass clef melody, wide intervals, chromatic scale, tied notes, and compound meter (6/8, 12/8). Each fixture has golden bitmap, insta snapshot, and command-stream hash for full regression coverage.
+- [x] **Flutter app: file browser + multi-page rendering**: Rewrote the Flutter app from single-hardcoded-file viewer to a full score browser. File browser sidebar with directory tabs (NGL Fixtures / Notelists), auto-discovers test fixture dirs relative to working directory, click-to-render any .ngl or .nl file. Rust bridge additions: `renderScoreFromPath()` (filesystem load), `listScoreFiles()` (directory scan), `ScoreFileEntry` DTO. Multi-page rendering: BeginPage/EndPage commands offset canvas by page index with 16px gaps, page backgrounds with white rectangles/drop shadows. Proper barline rendering: single, double, final (thin+thick), repeat left/right/both with dots. Zoom slider (50%–400%), status bar, dark theme support.
 
 ### Recently Completed (previous session)
 - [x] **Extra measure number fix**: Spurious measure number at the score's final barline in 13 of 17 NGL fixtures. Root cause: final barline's `measure_left` was 72 DDIST (N103) or 64 DDIST (N105) from `staff_right`, exceeding the 48 DDIST suppression threshold. Diagnostic context walk confirmed system-end barlines have dist=1, score-end dist=64-72, mid-system dist≥595. Increased threshold from 48 to 80 DDIST (5 points) — safely between score-end max (72) and mid-system min (595).
@@ -223,10 +224,11 @@ of intentional rendering changes during the engraving polish phase.
 21 VexFlow-inspired Notelist test fixtures covering individual engraving features.
 See `tests/notelist_examples/` for the full set (41 total fixtures).
 
-## Phase 4: Flutter Shell — NOT STARTED
-- [ ] flutter_rust_bridge setup
-- [ ] FlutterRenderer backend (command-based -> CustomPaint)
-- [ ] Score view widget, tool palette, basic editing
+## Phase 4: Flutter Shell — IN PROGRESS
+- [x] flutter_rust_bridge setup (v2.11.1, flat DTO bridge)
+- [x] FlutterRenderer backend (command-based -> CustomPaint, 32 command types)
+- [x] Score view widget with multi-page rendering, zoom, file browser
+- [ ] Tool palette, basic editing
 
 ## Phase 5: MusicXML — NOT STARTED (de-prioritized)
 - [ ] MusicXML 4.0 export/import
