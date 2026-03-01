@@ -1,0 +1,76 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 85
+Beam: 140
+BeginPage: 2
+EndPage: 2
+LedgerLine: 240
+MusicChar: 785
+NoteStem: 604
+SetMusicSize: 30
+SetWidths: 1
+Slur: 36
+Staff: 30
+TextString: 90
+TOTAL: 2045
+
+=== STAVES ===
+y=115.5 x=[131.0..523.0] lines=5 spacing=3.50
+y=146.2 x=[131.0..523.0] lines=5 spacing=3.50
+y=71.5 x=[131.0..523.0] lines=5 spacing=3.50
+y=244.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=275.1 x=[72.0..523.0] lines=5 spacing=3.50
+y=200.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=373.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=404.1 x=[72.0..523.0] lines=5 spacing=3.50
+y=329.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=502.3 x=[72.0..523.0] lines=5 spacing=3.50
+y=533.0 x=[72.0..523.0] lines=5 spacing=3.50
+y=458.3 x=[72.0..523.0] lines=5 spacing=3.50
+y=631.2 x=[72.0..523.0] lines=5 spacing=3.50
+y=661.9 x=[72.0..523.0] lines=5 spacing=3.50
+y=587.2 x=[72.0..523.0] lines=5 spacing=3.50
+y=115.5 x=[72.0..523.0] lines=5 spacing=3.50
+y=146.2 x=[72.0..523.0] lines=5 spacing=3.50
+y=71.5 x=[72.0..523.0] lines=5 spacing=3.50
+y=244.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=275.1 x=[72.0..523.0] lines=5 spacing=3.50
+y=200.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=373.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=404.1 x=[72.0..523.0] lines=5 spacing=3.50
+y=329.4 x=[72.0..523.0] lines=5 spacing=3.50
+y=502.3 x=[72.0..523.0] lines=5 spacing=3.50
+y=533.0 x=[72.0..523.0] lines=5 spacing=3.50
+y=458.3 x=[72.0..523.0] lines=5 spacing=3.50
+y=631.2 x=[72.0..523.0] lines=5 spacing=3.50
+y=661.9 x=[72.0..523.0] lines=5 spacing=3.50
+y=587.2 x=[72.0..523.0] lines=5 spacing=3.50
+
+=== BARLINES: 85 total ===
+
+=== BEAMS: 140 total ===
+
+=== STEMS: 604 total ===
+
+=== SLURS: 36 total ===
+
+=== GLYPHS ===
+Smufl(57424): 20
+Smufl(57442): 10
+Smufl(57476): 6
+Smufl(57506): 6
+Smufl(57507): 51
+Smufl(57508): 558
+Smufl(57831): 11
+Smufl(57920): 35
+Smufl(57921): 6
+Smufl(57952): 32
+Smufl(57953): 10
+Smufl(57954): 4
+Smufl(58596): 5
+Smufl(58597): 9
+Smufl(58598): 20
+Smufl(58599): 2

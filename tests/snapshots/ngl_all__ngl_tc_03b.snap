@@ -1,0 +1,36 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 2
+BeginPage: 1
+EndPage: 1
+MusicChar: 21
+NoteStem: 8
+SetMusicSize: 2
+SetWidths: 1
+Staff: 2
+TOTAL: 38
+
+=== STAVES ===
+y=60.1 x=[36.0..173.0] lines=5 spacing=4.00
+y=103.6 x=[36.0..173.0] lines=5 spacing=4.00
+
+=== BARLINES: 2 total ===
+
+=== BEAMS: 0 total ===
+
+=== STEMS: 8 total ===
+
+=== GLYPHS ===
+Smufl(57424): 1
+Smufl(57442): 1
+Smufl(57507): 2
+Smufl(57508): 7
+Smufl(57831): 2
+Smufl(57920): 1
+Smufl(57921): 1
+Smufl(57952): 4
+Smufl(57954): 1
+Smufl(58596): 1

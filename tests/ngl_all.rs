@@ -27,8 +27,9 @@ use std::path::Path;
 // ============================================================================
 
 /// NGL fixture files under test.
-/// All 17 fixtures: 16 N103 files + 1 N105 (Capital Regiment March).
+/// Geoff's 17 songs (16 N103 + 1 N105) plus 8 Tim Crawford scores (5 N105 + 2 N103 + 1 N105).
 const ALL_NGL_FILES: &[&str] = &[
+    // ── Geoff Chirgwin's songs ──
     "tests/fixtures/01_me_and_lucy.ngl",
     "tests/fixtures/02_cloning_frank_blacks.ngl",
     "tests/fixtures/03_holed_up_in_penjinskya.ngl",
@@ -46,6 +47,15 @@ const ALL_NGL_FILES: &[&str] = &[
     "tests/fixtures/15_selfsame_twin.ngl",
     "tests/fixtures/16_esmerelda.ngl",
     "tests/fixtures/17_capital_regiment_march.ngl",
+    // ── Tim Crawford's scores (with OG PostScript reference output) ──
+    "tests/fixtures/tc_02.ngl",
+    "tests/fixtures/tc_03a.ngl",
+    "tests/fixtures/tc_03b.ngl",
+    "tests/fixtures/tc_04.ngl",
+    "tests/fixtures/tc_05.ngl",
+    "tests/fixtures/tc_55_1.ngl",
+    "tests/fixtures/tc_ich_bin_ja.ngl",
+    "tests/fixtures/tc_schildt.ngl",
 ];
 
 /// Derive a short test-friendly name from an NGL path.
@@ -582,6 +592,15 @@ fn test_all_ngl_command_stream_hashes() {
         ("15_selfsame_twin", 15722051134169735861),
         ("16_esmerelda", 15191465884306311099),
         ("17_capital_regiment_march", 7288948818666967990),
+        // Tim Crawford scores
+        ("tc_02", 7438146024301840425),
+        ("tc_03a", 8479072139110681431),
+        ("tc_03b", 420980281288933817),
+        ("tc_04", 10807042737599499062),
+        ("tc_05", 17716903645635637287),
+        ("tc_55_1", 12276674724426823702),
+        ("tc_ich_bin_ja", 3996550512377391390),
+        ("tc_schildt", 17999211726465769279),
     ]
     .into_iter()
     .collect();
