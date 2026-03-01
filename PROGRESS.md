@@ -72,6 +72,8 @@
 ### Recently Completed (this session)
 - [x] **VexFlow-inspired Notelist test fixtures**: Expanded test coverage from 20 to 41 Notelist fixtures with 21 new focused tests for individual engraving features: accidentals (all 5 types), dotted notes (single/double), rests (all durations), ledger lines (extreme range A2–C7), beamed eighths (ascending/descending/flat/zigzag), mixed durations, whole notes, 16ths/32nds, quintuplet tuplets, grace notes, key signatures (1–7 sharps, 1–7 flats), time signature changes (4/4→3/4→6/8→2/4→5/4), barline types, text annotations, two voices, bass clef melody, wide intervals, chromatic scale, tied notes, and compound meter (6/8, 12/8). Each fixture has golden bitmap, insta snapshot, and command-stream hash for full regression coverage.
 - [x] **Flutter app: file browser + multi-page rendering**: Rewrote the Flutter app from single-hardcoded-file viewer to a full score browser. File browser sidebar with directory tabs (NGL Fixtures / Notelists), auto-discovers test fixture dirs relative to working directory, click-to-render any .ngl or .nl file. Rust bridge additions: `renderScoreFromPath()` (filesystem load), `listScoreFiles()` (directory scan), `ScoreFileEntry` DTO. Multi-page rendering: BeginPage/EndPage commands offset canvas by page index with 16px gaps, page backgrounds with white rectangles/drop shadows. Proper barline rendering: single, double, final (thin+thick), repeat left/right/both with dots. Zoom slider (50%–400%), status bar, dark theme support.
+- [x] **Multi-page bitmap regression**: Extended both NGL and Notelist bitmap tests to loop over ALL pages (was page 1 only). Golden bitmaps go from 58 to 491 PNGs covering every page of every fixture. Full visual regression coverage for multi-page scores.
+- [x] **Page number rendering**: Port of DrawPageNum() from DrawObject.cp. Pages 2+ display a centered page number (10pt Helvetica) at the bottom margin. InterpretedScore gains page_width_pt, page_height_pt, and first_page_number fields (parsed from NGL document header orig_paper_rect or Notelist layout config).
 
 ### Recently Completed (previous session)
 - [x] **Extra measure number fix**: Spurious measure number at the score's final barline in 13 of 17 NGL fixtures. Root cause: final barline's `measure_left` was 72 DDIST (N103) or 64 DDIST (N105) from `staff_right`, exceeding the 48 DDIST suppression threshold. Diagnostic context walk confirmed system-end barlines have dist=1, score-end dist=64-72, mid-system dist≥595. Increased threshold from 48 to 80 DDIST (5 points) — safely between score-end max (72) and mid-system min (595).
@@ -112,7 +114,7 @@
 #### Tier 1 — High Priority (core engraving completeness)
 - [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
-- [ ] **Pagination**: multi-page layout — break systems across pages, page headers/footers (port PageFixSysRects from SFormat.cp)
+- [ ] **Pagination**: multi-page layout — page numbers on pages 2+ DONE, multi-page bitmap regression DONE. Still TODO: break systems across pages from NGL page data, page headers/footers (port PageFixSysRects from SFormat.cp)
 - [x] **Slurs**: NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs still TODO.
 - [x] **System layout / spacing improvements**: full OG Gourlay pipeline (SymWidthRight/Left, FIdealSpace, ConsiderITWidths, Respace1Bar) — duration-proportional spacing with collision avoidance
 - [x] **Ottava (8va/8vb)**: OTTAVA_5 parsing (40 bytes, bitfields, ANOTEOTTAVA subobjects), draw_ottava() with Sonata italic digit glyphs (MCH_idigits), dashed bracket (hdashed_line), vertical cutoff, alta/bassa distinction. Port of DrawOTTAVA/DrawOctBracket/GetOctTypeNum from Ottava.cp. No test fixtures contain ottavas, but code compiles and is wired into render loop.
@@ -129,7 +131,7 @@
 #### Tier 3 — Engraving Polish
 - [x] **Grace notes**: small grace notes before principal notes — DrawGRSync rendering + Notelist G-record pipeline
 - [x] **Notehead collision avoidance**: seconds in chords — ported ArrangeChordNotes (PitchUtils.cp) to objects.rs, NoteXLoc offset in draw_nrgr.rs, ChordNoteToLeft for accidental anchoring. Multi-voice X offsets still TODO.
-- [ ] **Accidental staggering**: port ChkNoteAccs (DrawNRGR.cp)
+- [x] **Accidental staggering**: port ArrangeNCAccs (PitchUtils.cp) → arrange_nc_accs (objects.rs)
 - [x] **Final barline**: double barline at end of piece (already working — BAR_FINALDBL mapped and rendered)
 - [ ] **Anacrusis measure width**: narrower to reflect partial duration
 - [ ] **Mid-score time signature changes**: render TimeSig objects within measures
@@ -242,5 +244,5 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 | Test count | 256 (250 passed + 6 ignored) |
 | Test fixture files | 17 .ngl + 41 .nl |
 | Insta snapshots | 59 |
-| Bitmap goldens | 58 (17 NGL + 41 Notelist) |
+| Bitmap goldens | 491 (17 NGL + 41 Notelist, all pages) |
 | Modules | 18 (basic_types, beam, context, defs, doc_types, draw, duration, limits, music_font, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
