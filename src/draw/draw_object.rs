@@ -1563,6 +1563,7 @@ pub fn draw_graphic(
 
     // Handle multiline text (lines delimited by CR = '\r')
     // Reference: DrawTextBlock, DrawObject.cp:1808-1969
+    let text_draw_x;
     if gfx.multi_line != 0 && text.contains('\r') {
         let line_spacing = font.size * 1.2; // ~120% line spacing
         for (i, line) in text.split('\r').enumerate() {
@@ -1573,12 +1574,49 @@ pub fn draw_graphic(
                 renderer.text_string(line_x, line_y, line, &font);
             }
         }
+        text_draw_x = x; // approximate for enclosure
     } else {
         // Apply text justification offset.
         // Reference: NObjTypes.h:612-617 (GRJustLeft, GRJustRight, GRJustCenter)
         // For right-justified text, xd marks the right edge; for centered, the center.
-        let x = apply_text_justification(x, text, &font, gfx.justify, renderer);
-        renderer.text_string(x, y, text, &font);
+        text_draw_x = apply_text_justification(x, text, &font, gfx.justify, renderer);
+        renderer.text_string(text_draw_x, y, text, &font);
+    }
+
+    // Draw enclosure (box or circle) around the text if requested.
+    // Reference: DrawObject.cp:2211-2213 (DrawEnclosure call)
+    // Reference: DrawObject.cp:1490-1535 (DrawEnclosure function)
+    //
+    // OG defaults:
+    //   enclLW = 4 quarter-points = 1.0 pt (NDocAndCnfgTypes.h:504, Initialize.cp:956)
+    //   enclMargin = 2 points (NDocAndCnfgTypes.h:585, Initialize.cp:1129)
+    //   enclWidthOffset = 0 points (NDocAndCnfgTypes.h:598)
+    use crate::obj_types::EnclosureType;
+    if gfx.enclosure != EnclosureType::EnclNone as u8 {
+        let encl_margin = 2.0_f32; // points (ENCLMARGIN_DFLT)
+        let encl_lw = 1.0_f32; // points (ENCLLW_DFLT=4 qtr-pts)
+
+        // Compute text bounding box
+        let text_width = renderer
+            .measure_text_width(text, &font)
+            .unwrap_or(text.len() as f32 * font.size * 0.55);
+        // Text height: approximate as font ascent (~0.8 * font size for typical fonts).
+        // The text baseline is at y; text extends upward by ~ascent.
+        let text_height = font.size * 0.8;
+
+        // Build the enclosure rect: text bbox expanded by margin on all sides.
+        // x = text left edge - margin, y = baseline - ascent - margin
+        let rect_x = text_draw_x - encl_margin;
+        let rect_y = y - text_height - encl_margin;
+        let rect_w = text_width + 2.0 * encl_margin;
+        let rect_h = text_height + 2.0 * encl_margin;
+
+        if gfx.enclosure == EnclosureType::EnclBox as u8 {
+            // PS_FrameRect(dBox, dEnclThick)
+            let rect = crate::render::types::RenderRect::new(rect_x, rect_y, rect_w, rect_h);
+            renderer.frame_rect(&rect, encl_lw);
+        }
+        // ENCL_CIRCLE is #ifdef NOTYET in OG — not implemented
     }
 }
 

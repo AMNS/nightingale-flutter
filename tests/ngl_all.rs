@@ -581,7 +581,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("14_chrome_molly", 15007842213336735632),
         ("15_selfsame_twin", 15722051134169735861),
         ("16_esmerelda", 15191465884306311099),
-        ("17_capital_regiment_march", 10710252402633643627),
+        ("17_capital_regiment_march", 7288948818666967990),
     ]
     .into_iter()
     .collect();

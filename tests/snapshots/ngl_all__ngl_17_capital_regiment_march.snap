@@ -7,6 +7,7 @@ BarLine: 765
 Beam: 290
 BeginPage: 14
 EndPage: 14
+FrameRect: 4
 LedgerLine: 361
 Line: 86
 MusicChar: 3691
@@ -16,7 +17,7 @@ SetWidths: 1
 Slur: 276
 Staff: 126
 TextString: 250
-TOTAL: 8119
+TOTAL: 8123
 
 === STAVES ===
 y=78.4 x=[127.0..746.0] lines=5 spacing=4.00
