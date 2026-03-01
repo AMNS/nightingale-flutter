@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `convert`, `render_to_dtos`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 
 /// Load an NGL file from raw bytes and render it to a list of drawing commands.
 ///
@@ -20,6 +20,18 @@ Future<List<RenderCommandDto>> renderNglFromBytes({required List<int> data}) =>
 /// Returns an empty vec on parse/convert failure.
 Future<List<RenderCommandDto>> renderNotelistFromText({required String text}) =>
     RustLib.instance.api.crateApiScoreRenderNotelistFromText(text: text);
+
+/// Render a score file from a filesystem path (auto-detects .ngl vs .nl).
+///
+/// Returns an empty vec on failure.
+Future<List<RenderCommandDto>> renderScoreFromPath({required String path}) =>
+    RustLib.instance.api.crateApiScoreRenderScoreFromPath(path: path);
+
+/// List score files (.ngl and .nl) in a directory.
+///
+/// Returns entries sorted by name. Non-recursive.
+List<ScoreFileEntry> listScoreFiles({required String directory}) =>
+    RustLib.instance.api.crateApiScoreListScoreFiles(directory: directory);
 
 /// Convenience: return the number of render commands for a given NGL file.
 int renderCommandCount({required List<int> data}) =>
@@ -176,4 +188,34 @@ class RenderCommandDto {
           italic == other.italic &&
           text == other.text &&
           fontName == other.fontName;
+}
+
+/// A score file entry for the file browser.
+class ScoreFileEntry {
+  /// Display name (filename without path).
+  final String name;
+
+  /// Full absolute path.
+  final String path;
+
+  /// "ngl" or "nl"
+  final String format;
+
+  const ScoreFileEntry({
+    required this.name,
+    required this.path,
+    required this.format,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ path.hashCode ^ format.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScoreFileEntry &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          path == other.path &&
+          format == other.format;
 }

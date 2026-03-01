@@ -90,6 +90,14 @@ class ScorePainter extends CustomPainter {
   double _scaleX = 1.0;
   double _scaleY = 1.0;
 
+  // Multi-page state
+  double _pageWidth = 612.0;
+  double _pageHeight = 792.0;
+  int _currentPage = 0;
+
+  /// Gap between pages in scaled pixels.
+  static const double pageGap = 16.0;
+
   @override
   void paint(Canvas canvas, Size size) {
     // Reset state
@@ -108,6 +116,9 @@ class ScorePainter extends CustomPainter {
     _translateY = 0.0;
     _scaleX = 1.0;
     _scaleY = 1.0;
+    _pageWidth = 612.0;
+    _pageHeight = 792.0;
+    _currentPage = 0;
 
     if (debug) {
       debugPrint('ScorePainter: painting ${commands.length} commands, scale=$scale');
@@ -189,12 +200,20 @@ class ScorePainter extends CustomPainter {
           _musicSizePercent = cmd.sizePercent;
           break;
         case cmdSetPageSize:
-          // Page size used by ScoreView for layout, not painting.
+          _pageWidth = cmd.width > 0 ? cmd.width : 612;
+          _pageHeight = cmd.height > 0 ? cmd.height : 792;
           break;
         case cmdBeginPage:
-          // For single-page, a no-op. Multi-page would offset here.
+          // Multi-page: offset canvas Y for each page, with a gap between.
+          canvas.save();
+          final pageY = _currentPage * (_pageHeight * scale + pageGap);
+          canvas.translate(0, pageY);
+          // Draw page background and shadow
+          _drawPageBackground(canvas);
+          _currentPage++;
           break;
         case cmdEndPage:
+          canvas.restore();
           break;
         case cmdSaveState:
           canvas.save();
@@ -250,6 +269,31 @@ class ScorePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScorePainter oldDelegate) {
     return commands != oldDelegate.commands || scale != oldDelegate.scale;
+  }
+
+  // ── Page background ─────────────────────────────────────────────
+
+  void _drawPageBackground(Canvas canvas) {
+    final w = _pageWidth * scale;
+    final h = _pageHeight * scale;
+    // Drop shadow
+    canvas.drawRect(
+      Rect.fromLTWH(2, 2, w, h),
+      Paint()..color = Colors.black.withValues(alpha: 0.08),
+    );
+    // White page
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()..color = Colors.white,
+    );
+    // Border
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()
+        ..color = Colors.grey.shade300
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.5,
+    );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
@@ -388,15 +432,75 @@ class ScorePainter extends CustomPainter {
   }
 
   void _drawBarLine(Canvas canvas, RenderCommandDto cmd) {
-    // barType: 0=single, 1=double, 2=finalDouble, 3=repeatLeft, 4=repeatRight, 5=repeatBoth
+    // barType: 0=single, 1=double, 2=finalDouble,
+    //          3=repeatLeft, 4=repeatRight, 5=repeatBoth
     final x = cmd.x0 * scale;
     final top = cmd.y0 * scale;
     final bottom = cmd.y1 * scale;
-    final paint = _strokePaint(_barLineWidth);
+    final thinPaint = _strokePaint(_barLineWidth);
+    final thinW = _barLineWidth * scale;
+    final thickW = thinW * 3;
+    final gap = thinW * 2;
 
-    // For now, draw a single thin line for all bar types.
-    // TODO: implement full barline rendering (double, final, repeats).
-    canvas.drawLine(Offset(x, top), Offset(x, bottom), paint);
+    switch (cmd.barType) {
+      case 0: // Single
+        canvas.drawLine(Offset(x, top), Offset(x, bottom), thinPaint);
+        break;
+      case 1: // Double (two thin lines)
+        canvas.drawLine(Offset(x - gap, top), Offset(x - gap, bottom), thinPaint);
+        canvas.drawLine(Offset(x, top), Offset(x, bottom), thinPaint);
+        break;
+      case 2: // Final double (thin + thick)
+        canvas.drawLine(Offset(x - gap - thickW / 2, top),
+            Offset(x - gap - thickW / 2, bottom), thinPaint);
+        canvas.drawRect(
+          Rect.fromLTRB(x - thickW / 2, top, x + thickW / 2, bottom),
+          _fillPaint(),
+        );
+        break;
+      case 3: // Repeat left (thick + thin + dots)
+        canvas.drawRect(
+          Rect.fromLTRB(x, top, x + thickW, bottom),
+          _fillPaint(),
+        );
+        canvas.drawLine(Offset(x + thickW + gap, top),
+            Offset(x + thickW + gap, bottom), thinPaint);
+        _drawRepeatDotsAt(canvas, x + thickW + gap + gap, top, bottom);
+        break;
+      case 4: // Repeat right (dots + thin + thick)
+        _drawRepeatDotsAt(canvas, x - gap - gap, top, bottom);
+        canvas.drawLine(Offset(x - gap, top),
+            Offset(x - gap, bottom), thinPaint);
+        canvas.drawRect(
+          Rect.fromLTRB(x - thickW / 2, top, x + thickW / 2, bottom),
+          _fillPaint(),
+        );
+        break;
+      case 5: // Repeat both
+        _drawRepeatDotsAt(canvas, x - gap * 3, top, bottom);
+        canvas.drawLine(Offset(x - gap, top),
+            Offset(x - gap, bottom), thinPaint);
+        canvas.drawRect(
+          Rect.fromLTRB(x - thickW / 2, top, x + thickW / 2, bottom),
+          _fillPaint(),
+        );
+        canvas.drawLine(Offset(x + gap, top),
+            Offset(x + gap, bottom), thinPaint);
+        _drawRepeatDotsAt(canvas, x + gap * 3, top, bottom);
+        break;
+      default:
+        canvas.drawLine(Offset(x, top), Offset(x, bottom), thinPaint);
+    }
+  }
+
+  /// Draw two repeat dots between top and bottom at x (in screen coords).
+  void _drawRepeatDotsAt(Canvas canvas, double x, double top, double bottom) {
+    final midY = (top + bottom) / 2;
+    final staffSpacing = (bottom - top) / 4; // approximate for 5-line staff
+    final dotRadius = staffSpacing * 0.2;
+    final paint = _fillPaint();
+    canvas.drawCircle(Offset(x, midY - staffSpacing * 0.5), dotRadius, paint);
+    canvas.drawCircle(Offset(x, midY + staffSpacing * 0.5), dotRadius, paint);
   }
 
   void _drawConnectorLine(Canvas canvas, RenderCommandDto cmd) {
@@ -637,7 +741,7 @@ class _SavedState {
 /// Widget that displays a rendered score.
 ///
 /// Extracts page dimensions from SetPageSize commands and stacks pages
-/// vertically with scrolling.
+/// vertically with scrolling, including gaps between pages.
 class ScoreView extends StatelessWidget {
   final List<RenderCommandDto> commands;
   final double scale;
@@ -667,19 +771,28 @@ class ScoreView extends StatelessWidget {
     }
     if (pageCount == 0) pageCount = 1;
 
-    final totalWidth = pageWidth * scale;
-    final totalHeight = pageHeight * pageCount * scale;
+    // Account for page gaps and padding
+    const padding = 24.0;
+    final totalWidth = pageWidth * scale + padding * 2;
+    final totalHeight =
+        pageCount * (pageHeight * scale + ScorePainter.pageGap) + padding * 2;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
+    return Container(
+      color: Colors.grey.shade200,
       child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: CustomPaint(
-          size: Size(totalWidth, totalHeight),
-          painter: ScorePainter(
-            commands: commands,
-            scale: scale,
-            debug: debug,
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: const EdgeInsets.all(padding),
+            child: CustomPaint(
+              size: Size(totalWidth - padding * 2, totalHeight - padding * 2),
+              painter: ScorePainter(
+                commands: commands,
+                scale: scale,
+                debug: debug,
+              ),
+            ),
           ),
         ),
       ),

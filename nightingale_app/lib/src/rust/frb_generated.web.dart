@@ -46,7 +46,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RenderCommandDto> dco_decode_list_render_command_dto(dynamic raw);
 
   @protected
+  List<ScoreFileEntry> dco_decode_list_score_file_entry(dynamic raw);
+
+  @protected
   RenderCommandDto dco_decode_render_command_dto(dynamic raw);
+
+  @protected
+  ScoreFileEntry dco_decode_score_file_entry(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -84,7 +90,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ScoreFileEntry> sse_decode_list_score_file_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RenderCommandDto sse_decode_render_command_dto(SseDeserializer deserializer);
+
+  @protected
+  ScoreFileEntry sse_decode_score_file_entry(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -129,8 +143,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_score_file_entry(
+    List<ScoreFileEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_render_command_dto(
     RenderCommandDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_score_file_entry(
+    ScoreFileEntry self,
     SseSerializer serializer,
   );
 

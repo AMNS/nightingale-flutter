@@ -67,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1648007234;
+  int get rustContentHash => 555208452;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -84,6 +84,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiSimpleInitApp();
 
+  List<ScoreFileEntry> crateApiScoreListScoreFiles({required String directory});
+
   int crateApiScoreRenderCommandCount({required List<int> data});
 
   Future<RenderCommandDto> crateApiScoreRenderCommandDtoDefault();
@@ -94,6 +96,10 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<RenderCommandDto>> crateApiScoreRenderNotelistFromText({
     required String text,
+  });
+
+  Future<List<RenderCommandDto>> crateApiScoreRenderScoreFromPath({
+    required String path,
   });
 }
 
@@ -178,13 +184,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  List<ScoreFileEntry> crateApiScoreListScoreFiles({
+    required String directory,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(directory, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_score_file_entry,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiScoreListScoreFilesConstMeta,
+        argValues: [directory],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiScoreListScoreFilesConstMeta =>
+      const TaskConstMeta(
+        debugName: "list_score_files",
+        argNames: ["directory"],
+      );
+
+  @override
   int crateApiScoreRenderCommandCount({required List<int> data}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(data, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_32,
@@ -212,7 +246,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -245,7 +279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -278,7 +312,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -297,6 +331,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "render_notelist_from_text",
         argNames: ["text"],
+      );
+
+  @override
+  Future<List<RenderCommandDto>> crateApiScoreRenderScoreFromPath({
+    required String path,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_render_command_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiScoreRenderScoreFromPathConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiScoreRenderScoreFromPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "render_score_from_path",
+        argNames: ["path"],
       );
 
   @protected
@@ -348,6 +415,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ScoreFileEntry> dco_decode_list_score_file_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_score_file_entry).toList();
+  }
+
+  @protected
   RenderCommandDto dco_decode_render_command_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -386,6 +459,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       italic: dco_decode_bool(arr[29]),
       text: dco_decode_String(arr[30]),
       fontName: dco_decode_String(arr[31]),
+    );
+  }
+
+  @protected
+  ScoreFileEntry dco_decode_score_file_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ScoreFileEntry(
+      name: dco_decode_String(arr[0]),
+      path: dco_decode_String(arr[1]),
+      format: dco_decode_String(arr[2]),
     );
   }
 
@@ -468,6 +554,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ScoreFileEntry> sse_decode_list_score_file_entry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ScoreFileEntry>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_score_file_entry(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   RenderCommandDto sse_decode_render_command_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_u_8(deserializer);
@@ -536,6 +636,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       text: var_text,
       fontName: var_fontName,
     );
+  }
+
+  @protected
+  ScoreFileEntry sse_decode_score_file_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_path = sse_decode_String(deserializer);
+    var var_format = sse_decode_String(deserializer);
+    return ScoreFileEntry(name: var_name, path: var_path, format: var_format);
   }
 
   @protected
@@ -624,6 +733,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_score_file_entry(
+    List<ScoreFileEntry> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_score_file_entry(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_render_command_dto(
     RenderCommandDto self,
     SseSerializer serializer,
@@ -661,6 +782,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.italic, serializer);
     sse_encode_String(self.text, serializer);
     sse_encode_String(self.fontName, serializer);
+  }
+
+  @protected
+  void sse_encode_score_file_entry(
+    ScoreFileEntry self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.path, serializer);
+    sse_encode_String(self.format, serializer);
   }
 
   @protected

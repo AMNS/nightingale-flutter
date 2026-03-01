@@ -102,68 +102,121 @@ fn convert(cmd: &RenderCommand) -> RenderCommandDto {
 
     match cmd {
         RenderCommand::Line {
-            x0, y0, x1, y1, width,
+            x0,
+            y0,
+            x1,
+            y1,
+            width,
         } => RenderCommandDto {
             kind: CMD_LINE,
-            x0: *x0 as f64, y0: *y0 as f64, x1: *x1 as f64, y1: *y1 as f64,
+            x0: *x0 as f64,
+            y0: *y0 as f64,
+            x1: *x1 as f64,
+            y1: *y1 as f64,
             width: *width as f64,
             ..Default::default()
         },
         RenderCommand::LineVerticalThick {
-            x0, y0, x1, y1, width,
+            x0,
+            y0,
+            x1,
+            y1,
+            width,
         } => RenderCommandDto {
             kind: CMD_LINE_VERTICAL_THICK,
-            x0: *x0 as f64, y0: *y0 as f64, x1: *x1 as f64, y1: *y1 as f64,
+            x0: *x0 as f64,
+            y0: *y0 as f64,
+            x1: *x1 as f64,
+            y1: *y1 as f64,
             width: *width as f64,
             ..Default::default()
         },
         RenderCommand::LineHorizontalThick {
-            x0, y0, x1, y1, width,
+            x0,
+            y0,
+            x1,
+            y1,
+            width,
         } => RenderCommandDto {
             kind: CMD_LINE_HORIZONTAL_THICK,
-            x0: *x0 as f64, y0: *y0 as f64, x1: *x1 as f64, y1: *y1 as f64,
+            x0: *x0 as f64,
+            y0: *y0 as f64,
+            x1: *x1 as f64,
+            y1: *y1 as f64,
             width: *width as f64,
             ..Default::default()
         },
         RenderCommand::HDashedLine {
-            x0, y, x1, width, dash_len,
+            x0,
+            y,
+            x1,
+            width,
+            dash_len,
         } => RenderCommandDto {
             kind: CMD_HDASHED_LINE,
-            x0: *x0 as f64, y0: *y as f64, x1: *x1 as f64,
-            width: *width as f64, dash_len: *dash_len as f64,
+            x0: *x0 as f64,
+            y0: *y as f64,
+            x1: *x1 as f64,
+            width: *width as f64,
+            dash_len: *dash_len as f64,
             ..Default::default()
         },
         RenderCommand::VDashedLine {
-            x, y0, y1, width, dash_len,
+            x,
+            y0,
+            y1,
+            width,
+            dash_len,
         } => RenderCommandDto {
             kind: CMD_VDASHED_LINE,
-            x0: *x as f64, y0: *y0 as f64, y1: *y1 as f64,
-            width: *width as f64, dash_len: *dash_len as f64,
+            x0: *x as f64,
+            y0: *y0 as f64,
+            y1: *y1 as f64,
+            width: *width as f64,
+            dash_len: *dash_len as f64,
             ..Default::default()
         },
         RenderCommand::FrameRect { rect, width } => RenderCommandDto {
             kind: CMD_FRAME_RECT,
-            x0: rect.x as f64, y0: rect.y as f64,
-            width: rect.width as f64, height: rect.height as f64,
+            x0: rect.x as f64,
+            y0: rect.y as f64,
+            width: rect.width as f64,
+            height: rect.height as f64,
             thickness: *width as f64,
             ..Default::default()
         },
         RenderCommand::StaffLine { y, x0, x1 } => RenderCommandDto {
             kind: CMD_STAFF_LINE,
-            y0: *y as f64, x0: *x0 as f64, x1: *x1 as f64,
+            y0: *y as f64,
+            x0: *x0 as f64,
+            x1: *x1 as f64,
             ..Default::default()
         },
         RenderCommand::Staff {
-            y, x0, x1, n_lines, line_spacing,
+            y,
+            x0,
+            x1,
+            n_lines,
+            line_spacing,
         } => RenderCommandDto {
             kind: CMD_STAFF,
-            y0: *y as f64, x0: *x0 as f64, x1: *x1 as f64,
-            n_lines: *n_lines, line_spacing: *line_spacing as f64,
+            y0: *y as f64,
+            x0: *x0 as f64,
+            x1: *x1 as f64,
+            n_lines: *n_lines,
+            line_spacing: *line_spacing as f64,
             ..Default::default()
         },
-        RenderCommand::BarLine { top, bottom, x, bar_type } => RenderCommandDto {
+        RenderCommand::BarLine {
+            top,
+            bottom,
+            x,
+            bar_type,
+        } => RenderCommandDto {
             kind: CMD_BAR_LINE,
-            y0: *top as f64, y1: *bottom as f64, x0: *x as f64,
+            y0: *top as f64,
+            y1: *bottom as f64,
+            x0: *x as f64,
             bar_type: match bar_type {
                 BarLineType::Single => 0,
                 BarLineType::Double => 1,
@@ -176,110 +229,191 @@ fn convert(cmd: &RenderCommand) -> RenderCommandDto {
         },
         RenderCommand::ConnectorLine { top, bottom, x } => RenderCommandDto {
             kind: CMD_CONNECTOR_LINE,
-            y0: *top as f64, y1: *bottom as f64, x0: *x as f64,
+            y0: *top as f64,
+            y1: *bottom as f64,
+            x0: *x as f64,
             ..Default::default()
         },
-        RenderCommand::LedgerLine { y, x_center, half_width } => RenderCommandDto {
+        RenderCommand::LedgerLine {
+            y,
+            x_center,
+            half_width,
+        } => RenderCommandDto {
             kind: CMD_LEDGER_LINE,
-            y0: *y as f64, x0: *x_center as f64, width: *half_width as f64,
+            y0: *y as f64,
+            x0: *x_center as f64,
+            width: *half_width as f64,
             ..Default::default()
         },
         RenderCommand::RepeatDots { top, bottom, x } => RenderCommandDto {
             kind: CMD_REPEAT_DOTS,
-            y0: *top as f64, y1: *bottom as f64, x0: *x as f64,
+            y0: *top as f64,
+            y1: *bottom as f64,
+            x0: *x as f64,
             ..Default::default()
         },
         RenderCommand::Beam {
-            x0, y0, x1, y1, thickness, up0, up1,
+            x0,
+            y0,
+            x1,
+            y1,
+            thickness,
+            up0,
+            up1,
         } => RenderCommandDto {
             kind: CMD_BEAM,
-            x0: *x0 as f64, y0: *y0 as f64, x1: *x1 as f64, y1: *y1 as f64,
-            thickness: *thickness as f64, up0: *up0, up1: *up1,
+            x0: *x0 as f64,
+            y0: *y0 as f64,
+            x1: *x1 as f64,
+            y1: *y1 as f64,
+            thickness: *thickness as f64,
+            up0: *up0,
+            up1: *up1,
             ..Default::default()
         },
-        RenderCommand::Slur { p0, c1, c2, p3, dashed } => RenderCommandDto {
+        RenderCommand::Slur {
+            p0,
+            c1,
+            c2,
+            p3,
+            dashed,
+        } => RenderCommandDto {
             kind: CMD_SLUR,
-            x0: p0.x as f64, y0: p0.y as f64,
-            x1: c1.x as f64, y1: c1.y as f64,
-            x2: c2.x as f64, y2: c2.y as f64,
-            x3: p3.x as f64, y3: p3.y as f64,
+            x0: p0.x as f64,
+            y0: p0.y as f64,
+            x1: c1.x as f64,
+            y1: c1.y as f64,
+            x2: c2.x as f64,
+            y2: c2.y as f64,
+            x3: p3.x as f64,
+            y3: p3.y as f64,
             dashed: *dashed,
             ..Default::default()
         },
         RenderCommand::Bracket { x, y_top, y_bottom } => RenderCommandDto {
             kind: CMD_BRACKET,
-            x0: *x as f64, y0: *y_top as f64, y1: *y_bottom as f64,
+            x0: *x as f64,
+            y0: *y_top as f64,
+            y1: *y_bottom as f64,
             ..Default::default()
         },
         RenderCommand::Brace { x, y_top, y_bottom } => RenderCommandDto {
             kind: CMD_BRACE,
-            x0: *x as f64, y0: *y_top as f64, y1: *y_bottom as f64,
+            x0: *x as f64,
+            y0: *y_top as f64,
+            y1: *y_bottom as f64,
             ..Default::default()
         },
-        RenderCommand::NoteStem { x, y_top, y_bottom, width } => RenderCommandDto {
+        RenderCommand::NoteStem {
+            x,
+            y_top,
+            y_bottom,
+            width,
+        } => RenderCommandDto {
             kind: CMD_NOTE_STEM,
-            x0: *x as f64, y0: *y_top as f64, y1: *y_bottom as f64,
+            x0: *x as f64,
+            y0: *y_top as f64,
+            y1: *y_bottom as f64,
             width: *width as f64,
             ..Default::default()
         },
-        RenderCommand::MusicChar { x, y, glyph, size_percent } => {
+        RenderCommand::MusicChar {
+            x,
+            y,
+            glyph,
+            size_percent,
+        } => {
             let code = match glyph {
                 MusicGlyph::Smufl(cp) => *cp,
                 MusicGlyph::Sonata(ch) => *ch as u32,
             };
             RenderCommandDto {
                 kind: CMD_MUSIC_CHAR,
-                x0: *x as f64, y0: *y as f64,
-                glyph_code: code, size_percent: *size_percent as f64,
+                x0: *x as f64,
+                y0: *y as f64,
+                glyph_code: code,
+                size_percent: *size_percent as f64,
                 ..Default::default()
             }
         }
-        RenderCommand::MusicString { x, y, glyphs, size_percent } => {
-            let codes: Vec<u32> = glyphs.iter().map(|g| match g {
-                MusicGlyph::Smufl(cp) => *cp,
-                MusicGlyph::Sonata(ch) => *ch as u32,
-            }).collect();
+        RenderCommand::MusicString {
+            x,
+            y,
+            glyphs,
+            size_percent,
+        } => {
+            let codes: Vec<u32> = glyphs
+                .iter()
+                .map(|g| match g {
+                    MusicGlyph::Smufl(cp) => *cp,
+                    MusicGlyph::Sonata(ch) => *ch as u32,
+                })
+                .collect();
             RenderCommandDto {
                 kind: CMD_MUSIC_STRING,
-                x0: *x as f64, y0: *y as f64,
-                glyph_codes: codes, size_percent: *size_percent as f64,
+                x0: *x as f64,
+                y0: *y as f64,
+                glyph_codes: codes,
+                size_percent: *size_percent as f64,
                 ..Default::default()
             }
         }
         RenderCommand::TextString { x, y, text, font } => RenderCommandDto {
             kind: CMD_TEXT_STRING,
-            x0: *x as f64, y0: *y as f64,
-            text: text.clone(), font_name: font.name.clone(),
-            font_size: font.size as f64, bold: font.bold, italic: font.italic,
+            x0: *x as f64,
+            y0: *y as f64,
+            text: text.clone(),
+            font_name: font.name.clone(),
+            font_size: font.size as f64,
+            bold: font.bold,
+            italic: font.italic,
             ..Default::default()
         },
-        RenderCommand::MusicColon { x, y, size_percent, line_space } => RenderCommandDto {
+        RenderCommand::MusicColon {
+            x,
+            y,
+            size_percent,
+            line_space,
+        } => RenderCommandDto {
             kind: CMD_MUSIC_COLON,
-            x0: *x as f64, y0: *y as f64,
-            size_percent: *size_percent as f64, line_spacing: *line_space as f64,
+            x0: *x as f64,
+            y0: *y as f64,
+            size_percent: *size_percent as f64,
+            line_spacing: *line_space as f64,
             ..Default::default()
         },
         RenderCommand::SetLineWidth(w) => RenderCommandDto {
-            kind: CMD_SET_LINE_WIDTH, width: *w as f64,
+            kind: CMD_SET_LINE_WIDTH,
+            width: *w as f64,
             ..Default::default()
         },
-        RenderCommand::SetWidths { staff, ledger, stem, bar } => RenderCommandDto {
+        RenderCommand::SetWidths {
+            staff,
+            ledger,
+            stem,
+            bar,
+        } => RenderCommandDto {
             kind: CMD_SET_WIDTHS,
-            x0: *staff as f64, x1: *ledger as f64,
-            x2: *stem as f64, x3: *bar as f64,
+            x0: *staff as f64,
+            x1: *ledger as f64,
+            x2: *stem as f64,
+            x3: *bar as f64,
             ..Default::default()
         },
         RenderCommand::SetMusicSize(s) => RenderCommandDto {
-            kind: CMD_SET_MUSIC_SIZE, size_percent: *s as f64,
+            kind: CMD_SET_MUSIC_SIZE,
+            size_percent: *s as f64,
             ..Default::default()
         },
         RenderCommand::SetPageSize { width, height } => RenderCommandDto {
             kind: CMD_SET_PAGE_SIZE,
-            width: *width as f64, height: *height as f64,
+            width: *width as f64,
+            height: *height as f64,
             ..Default::default()
         },
         RenderCommand::BeginPage(n) => RenderCommandDto {
-            kind: CMD_BEGIN_PAGE, page_number: *n,
+            kind: CMD_BEGIN_PAGE,
+            page_number: *n,
             ..Default::default()
         },
         RenderCommand::EndPage => RenderCommandDto {
@@ -295,17 +429,23 @@ fn convert(cmd: &RenderCommand) -> RenderCommandDto {
             ..Default::default()
         },
         RenderCommand::Translate { dx, dy } => RenderCommandDto {
-            kind: CMD_TRANSLATE, x0: *dx as f64, y0: *dy as f64,
+            kind: CMD_TRANSLATE,
+            x0: *dx as f64,
+            y0: *dy as f64,
             ..Default::default()
         },
         RenderCommand::Scale { sx, sy } => RenderCommandDto {
-            kind: CMD_SCALE, x0: *sx as f64, y0: *sy as f64,
+            kind: CMD_SCALE,
+            x0: *sx as f64,
+            y0: *sy as f64,
             ..Default::default()
         },
         RenderCommand::SetColor(c) => RenderCommandDto {
             kind: CMD_SET_COLOR,
-            color_r: c.r as f64, color_g: c.g as f64,
-            color_b: c.b as f64, color_a: c.a as f64,
+            color_r: c.r as f64,
+            color_g: c.g as f64,
+            color_b: c.b as f64,
+            color_a: c.a as f64,
             ..Default::default()
         },
     }
@@ -341,7 +481,7 @@ pub fn render_ngl_from_bytes(data: Vec<u8>) -> Vec<RenderCommandDto> {
 ///
 /// Returns an empty vec on parse/convert failure.
 pub fn render_notelist_from_text(text: String) -> Vec<RenderCommandDto> {
-    use nightingale_core::notelist::{parse_notelist, notelist_to_score};
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
     use std::io::Cursor;
 
     let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
@@ -350,6 +490,69 @@ pub fn render_notelist_from_text(text: String) -> Vec<RenderCommandDto> {
     };
     let score = notelist_to_score(&notelist);
     render_to_dtos(&score)
+}
+
+/// Render a score file from a filesystem path (auto-detects .ngl vs .nl).
+///
+/// Returns an empty vec on failure.
+pub fn render_score_from_path(path: String) -> Vec<RenderCommandDto> {
+    if path.ends_with(".nl") {
+        match std::fs::read_to_string(&path) {
+            Ok(text) => render_notelist_from_text(text),
+            Err(_) => vec![],
+        }
+    } else {
+        match std::fs::read(&path) {
+            Ok(data) => render_ngl_from_bytes(data),
+            Err(_) => vec![],
+        }
+    }
+}
+
+/// A score file entry for the file browser.
+#[derive(Debug, Clone)]
+pub struct ScoreFileEntry {
+    /// Display name (filename without path).
+    pub name: String,
+    /// Full absolute path.
+    pub path: String,
+    /// "ngl" or "nl"
+    pub format: String,
+}
+
+/// List score files (.ngl and .nl) in a directory.
+///
+/// Returns entries sorted by name. Non-recursive.
+#[flutter_rust_bridge::frb(sync)]
+pub fn list_score_files(directory: String) -> Vec<ScoreFileEntry> {
+    let dir = std::path::Path::new(&directory);
+    let mut entries = Vec::new();
+
+    if let Ok(read_dir) = std::fs::read_dir(dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let ext = path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase();
+
+            if ext == "ngl" || ext == "nl" {
+                entries.push(ScoreFileEntry {
+                    name,
+                    path: path.to_string_lossy().to_string(),
+                    format: ext,
+                });
+            }
+        }
+    }
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    entries
 }
 
 /// Convenience: return the number of render commands for a given NGL file.
