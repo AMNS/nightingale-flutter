@@ -135,13 +135,17 @@ pub fn resolve_rest_l_dur(l_dur: i8) -> i8 {
 /// Map l_dur (logical duration) to rest glyph.
 ///
 /// Reference: DrawNRGR.cp, DrawRest() (line 1402)
-/// SMuFL rests:
-/// - BREVE_L_DUR (1): 0xE4E2 (restDoubleWhole)
-/// - WHOLE_L_DUR (2): 0xE4E3 (restWhole)
-/// - HALF_L_DUR (3): 0xE4E4 (restHalf)
-/// - QTR_L_DUR (4): 0xE4E5 (restQuarter)
-/// - EIGHTH_L_DUR (5): 0xE4E6 (restEighth)
-/// - SIXTEENTH_L_DUR (6): 0xE4E7 (rest16th)
+/// OG Sonata glyphs: MCH_rests[] in vars.h:337
+/// SMuFL rests (U+E4E2..U+E4EA):
+/// - BREVE_L_DUR (1): U+E4E2 (restDoubleWhole)
+/// - WHOLE_L_DUR (2): U+E4E3 (restWhole)
+/// - HALF_L_DUR (3): U+E4E4 (restHalf)
+/// - QTR_L_DUR (4): U+E4E5 (restQuarter)
+/// - EIGHTH_L_DUR (5): U+E4E6 (rest8th)
+/// - SIXTEENTH_L_DUR (6): U+E4E7 (rest16th)
+/// - THIRTY2ND_L_DUR (7): U+E4E8 (rest32nd)
+/// - SIXTY4TH_L_DUR (8): U+E4E9 (rest64th)
+/// - ONE28TH_L_DUR (9): U+E4EA (rest128th)
 pub fn rest_glyph_for_duration(l_dur: i8) -> u32 {
     match l_dur {
         x if x == BREVE_L_DUR => 0xE4E2,
@@ -150,6 +154,9 @@ pub fn rest_glyph_for_duration(l_dur: i8) -> u32 {
         x if x == QTR_L_DUR => 0xE4E5,
         x if x == EIGHTH_L_DUR => 0xE4E6,
         x if x == SIXTEENTH_L_DUR => 0xE4E7,
+        x if x == THIRTY2ND_L_DUR => 0xE4E8,
+        x if x == SIXTY4TH_L_DUR => 0xE4E9,
+        x if x == ONE28TH_L_DUR => 0xE4EA,
         _ => 0xE4E5, // Default to quarter rest
     }
 }

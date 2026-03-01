@@ -136,7 +136,7 @@
 - [x] **Anacrusis measure width**: proportional min-width floor for pickup measures — scale floor by `actual_dur / full_measure_dur`, clamped to 25% minimum. Port of implicit fraction-based narrowing in OG Respace1Bar (SpaceHighLevel.cp:899). Affects 3 fixtures: BinchoisDePlus_17, GoodbyePorkPieHat, TestMIDIChannels_3.
 - [x] **Mid-score time signature changes**: pre-scan T records in Notelist pipeline, insert TimeSig objects with `in_measure=true`, Gourlay spacing + indent. Port of ConvertTimesig (NotelistOpen.cp:717-737). Affects 7 fixtures.
 - [x] **Ledger line weight**: compute all line widths (staff, ledger, stem, barline) from lnSpace using OG config percentages (8%, 13%, 8%, 10%). Port of PS_Stdio.cp PS_Recompute() lines 2023-2048, Initialize.cp:952-955. Added first_staff_lnspace() helper. Affects all 491 golden bitmaps.
-- [ ] **Rest rendering improvements**: show rests at beat positions without notes
+- [x] **Rest rendering improvements**: added missing 32nd/64th/128th rest glyph mappings (SMuFL U+E4E8–E4EA), added pseudo-ledger lines for whole/half rests positioned outside the staff (port of DrawNRGR.cp lines 1329-1342). All rest durations breve through 128th now render correctly.
 
 #### Tier 4 — Advanced Layout
 - [ ] **Cross-bar (cross-measure) beams**: beams that span across barlines — OG Nightingale handles these via beam subobjects that reference notes in different measures (see Esmerelda p.15 for example). Port relevant logic from Beam.cp, including `DrawBEAMSET`'s handling of beam subobjects crossing measure boundaries. Currently beams break at measure boundaries.

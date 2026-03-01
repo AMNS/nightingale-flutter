@@ -124,7 +124,16 @@ pub fn draw_sync(
                         );
                     } else {
                         // === RESTS ===
-                        draw_rest(anote, note_x, note_y, l_dur, lnspace, half_sp, renderer);
+                        draw_rest(
+                            anote,
+                            note_x,
+                            note_y,
+                            l_dur,
+                            lnspace,
+                            half_sp,
+                            note_ctx.staff_height,
+                            renderer,
+                        );
                     }
 
                     // === MODIFIERS (articulations, ornaments, etc.) ===
@@ -429,9 +438,9 @@ fn draw_aug_dots_note(
     }
 }
 
-/// Draw a rest glyph with augmentation dots.
+/// Draw a rest glyph with augmentation dots and pseudo-ledger lines.
 ///
-/// Reference: DrawNRGR.cp, DrawRest() (line 1402)
+/// Reference: DrawNRGR.cp, DrawRest() (line 1273-1470)
 #[allow(clippy::too_many_arguments)]
 fn draw_rest(
     anote: &crate::obj_types::ANote,
@@ -440,6 +449,7 @@ fn draw_rest(
     l_dur: i8,
     lnspace: f32,
     half_sp: f32,
+    staff_height: i16,
     renderer: &mut dyn MusicRenderer,
 ) {
     // Resolve effective drawing l_dur for rests.
@@ -468,6 +478,44 @@ fn draw_rest(
     // Draw rest glyph
     let rest_glyph = rest_glyph_for_duration(draw_l_dur);
     renderer.music_char(note_x, rest_y, MusicGlyph::smufl(rest_glyph), 100.0);
+
+    // Draw pseudo-ledger line for whole/half rests outside the staff.
+    // OG Nightingale draws a short horizontal line when the rest sits on or
+    // hangs from a position beyond the staff boundaries, so the performer
+    // can tell which line it's referencing.
+    // Reference: DrawNRGR.cp, DrawRest() lines 1329-1342
+    if draw_l_dur == HALF_L_DUR || draw_l_dur == WHOLE_L_DUR {
+        // yrest = rest yd relative to staff top (DDIST space)
+        // For half rest: check the yd directly (rest sits ON the line at yd)
+        // For whole rest: check yd - lnSpace (rest hangs BELOW the line)
+        let yrest_ddist = if draw_l_dur == HALF_L_DUR {
+            anote.yd as i32
+        } else {
+            // Whole rest: the line it hangs from is one lnSpace above the yd
+            anote.yd as i32 - (staff_height as i32 / 4) // lnSpace = staffHeight/4 for 5-line staff
+        };
+
+        if yrest_ddist < 0 || yrest_ddist > staff_height as i32 {
+            // LedgerOtherLen(lnSpace) - (lnSpace/12): slightly shorter than a note ledger
+            // Reference: DrawNRGR.cp line 1337 — xledg = LedgerOtherLen(lnSpace) - (lnSpace/12)
+            let ledg_half_width = lnspace * 0.65;
+            // The ledger line Y is at the line the rest references.
+            // Half rest: sits on note_y (the rest baseline)
+            // Whole rest: hangs from note_y + lnSpace (below the line = note_y)
+            let ledg_y = if draw_l_dur == HALF_L_DUR {
+                note_y + rest_y_off
+            } else {
+                // Whole rest: line is at rest_y + lnSpace (above the hanging block)
+                // Actually rest_y already has the SMuFL correction applied.
+                // The ledger line goes through the TOP of the whole rest block.
+                rest_y
+            };
+            // x_center: center the ledger line on the rest glyph
+            // The rest glyph is roughly 1 lnSpace wide, so center at note_x + lnspace/2
+            let ledg_x_center = note_x + lnspace / 2.0;
+            renderer.ledger_line(ledg_y, ledg_x_center, ledg_half_width);
+        }
+    }
 
     // Draw augmentation dots on rests
     // Port of DrawAugDots (DrawNRGR.cp:1388/1458) for rests
