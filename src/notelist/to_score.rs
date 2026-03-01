@@ -375,6 +375,44 @@ pub fn notelist_to_score_with_config(
         }
     }
 
+    // Pre-scan for mid-score time signature changes.
+    // Pattern mirrors mid_score_clefs: skip the first T record per staff (preamble),
+    // then collect subsequent T records that change the time signature.
+    // Format: (record_index, staff, numerator, denominator, time)
+    // Port of ConvertTimesig (NotelistOpen.cp:717-737): IsFirstTimesig() skips first.
+    let mut mid_score_timesigs: Vec<(usize, i8, i8, i8, i32)> = Vec::new();
+    {
+        let mut current_ts: Vec<(i8, i8)> = time_sigs.clone(); // current state per staff
+        let mut first_ts_seen: Vec<bool> = vec![false; num_staves + 1];
+        for (idx, record) in notelist.records.iter().enumerate() {
+            if let NotelistRecord::TimeSig {
+                staff,
+                numerator,
+                denominator,
+            } = record
+            {
+                let s = *staff as usize;
+                if s > 0 && s <= num_staves {
+                    if !first_ts_seen[s] {
+                        first_ts_seen[s] = true; // skip preamble time sig
+                    } else if (*numerator, *denominator) != current_ts[s] {
+                        // Actual time sig change — find the time from the next note/rest
+                        let time = notelist.records[idx + 1..]
+                            .iter()
+                            .find_map(|r| match r {
+                                NotelistRecord::Note { time, .. }
+                                | NotelistRecord::Rest { time, .. } => Some(*time),
+                                _ => None,
+                            })
+                            .unwrap_or(0);
+                        mid_score_timesigs.push((idx, *staff, *numerator, *denominator, time));
+                        current_ts[s] = (*numerator, *denominator);
+                    }
+                }
+            }
+        }
+    }
+
     // Collect key signature assignments (staff→(n_items, is_sharp))
     // Use the FIRST key signature per staff (initial key sig).
     // Port of SetupKeySig (Objects.cp:1083-1144): sharps=F C G D A E B, flats=B E A D G C F.
@@ -740,8 +778,23 @@ pub fn notelist_to_score_with_config(
             0.0
         };
 
+        // Add time signature width for measures starting with mid-score timesig changes
+        // Port of SymWidthRight TIMESIGtype case (SpaceTime.cp:438-457)
+        let timesig_extra: f32 = if let Some(&first_time) = span.event_times.first() {
+            if let Some(&(_, _, num, denom, _)) = mid_score_timesigs
+                .iter()
+                .find(|&&(_, _, _, _, t)| t == first_time)
+            {
+                crate::space_time::timesig_width_right(num as u8, denom as u8) as f32 + 4.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
         measure_positions_stdist.push(positions);
-        measure_total_stdist.push(total + clef_extra);
+        measure_total_stdist.push(total + clef_extra + timesig_extra);
     }
 
     // --- Step 4: Scale measures to fit available width (PER SYSTEM) ---
@@ -793,6 +846,10 @@ pub fn notelist_to_score_with_config(
 
     let clef_change_times: std::collections::HashSet<i32> =
         mid_score_clefs.iter().map(|&(_, _, _, t)| t).collect();
+    let timesig_change_times: std::collections::HashMap<i32, (i8, i8)> = mid_score_timesigs
+        .iter()
+        .map(|&(_, _, num, denom, t)| (t, (num, denom)))
+        .collect();
 
     for (mi, span) in measure_spans.iter().enumerate() {
         let actual_width = measure_width_ddist[mi];
@@ -822,10 +879,23 @@ pub fn notelist_to_score_with_config(
             0
         };
 
+        // TimeSig indent for mid-score time signature changes at measure start
+        let timesig_indent: Ddist = span
+            .event_times
+            .first()
+            .and_then(|t| timesig_change_times.get(t))
+            .map(|&(num, denom)| {
+                stdist_to_ddist(
+                    crate::space_time::timesig_width_right(num as u8, denom as u8) as f32 + 4.0,
+                    config.staff_height,
+                )
+            })
+            .unwrap_or(0);
+
         for (ei, &et) in span.event_times.iter().enumerate() {
             let stdist_pos = positions.get(ei).copied().unwrap_or(0) as f32;
             let raw_ddist = stdist_to_ddist(stdist_pos, config.staff_height);
-            let rel = clef_indent + (raw_ddist as f32 * inner_scale) as Ddist;
+            let rel = clef_indent + timesig_indent + (raw_ddist as f32 * inner_scale) as Ddist;
             event_rel_xd.insert(et, rel);
         }
     }
@@ -900,6 +970,13 @@ pub fn notelist_to_score_with_config(
             time: i32,
             xd: Ddist,
             record_indices: Vec<usize>, // indices into notelist.records for the G records
+        },
+        TimeSig {
+            time: i32,
+            staff: i8,
+            numerator: i8,
+            denominator: i8,
+            xd: Ddist,
         },
     }
 
@@ -1534,8 +1611,9 @@ pub fn notelist_to_score_with_config(
                     }
 
                     // Before adding the first sync at this time, insert any
-                    // mid-score clef changes that occur at this time.
+                    // mid-score clef/timesig changes that occur at this time.
                     if !seen_times.contains(time) {
+                        // Mid-score clef changes
                         for &(_ridx, cstf, ctype, ctime) in &mid_score_clefs {
                             if ctime == *time {
                                 // Place clef at the measure's barline indent (before the
@@ -1556,6 +1634,27 @@ pub fn notelist_to_score_with_config(
                                 if cs > 0 && cs <= num_staves {
                                     clef_types[cs] = ctype;
                                 }
+                            }
+                        }
+
+                        // Mid-score time signature changes
+                        // Port of ConvertTimesig (NotelistOpen.cp:717-737).
+                        // Placed after clef but before notes, like OG Nightingale.
+                        for &(_ridx, tstf, tnum, tdenom, ttime) in &mid_score_timesigs {
+                            if ttime == *time {
+                                // Place timesig after clef indent, before note indent
+                                let ts_xd_pos = 100; // base indent
+                                let link = next_link();
+                                music_objs.push(MusicObj {
+                                    link,
+                                    kind: MusicObjKind::TimeSig {
+                                        time: ttime,
+                                        staff: tstf,
+                                        numerator: tnum,
+                                        denominator: tdenom,
+                                        xd: ts_xd_pos,
+                                    },
+                                });
                             }
                         }
 
@@ -1666,6 +1765,19 @@ pub fn notelist_to_score_with_config(
                     time: *time,
                     xd: *xd,
                     record_indices: record_indices.clone(),
+                },
+                MusicObjKind::TimeSig {
+                    time,
+                    staff,
+                    numerator,
+                    denominator,
+                    xd,
+                } => MusicObjKind::TimeSig {
+                    time: *time,
+                    staff: *staff,
+                    numerator: *numerator,
+                    denominator: *denominator,
+                    xd: *xd,
                 },
             },
         }));
@@ -1826,6 +1938,65 @@ pub fn notelist_to_score_with_config(
                         data: ObjData::Clef(Clef {
                             header: ObjectHeader::default(),
                             in_measure: true, // mid-score clef
+                        }),
+                    });
+                }
+
+                MusicObjKind::TimeSig {
+                    time: _,
+                    staff: ts_staff,
+                    numerator: ts_num,
+                    denominator: ts_denom,
+                    xd: ts_obj_xd,
+                } => {
+                    // Mid-score time signature change object
+                    // Port of ConvertTimesig / IIInsertTimeSig (NotelistOpen.cp:717-737)
+                    let ts_sub_link = note_sub_counter;
+                    note_sub_counter += 1;
+
+                    let ts_subs = vec![ATimeSig {
+                        header: SubObjHeader {
+                            next: NILINK,
+                            staffn: *ts_staff,
+                            sub_type: 1, // N_OVER_D display
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                        },
+                        filler: 0,
+                        small: 0,
+                        conn_staff: 0,
+                        xd: 0,
+                        yd: 0,
+                        numerator: *ts_num,
+                        denominator: *ts_denom,
+                    }];
+                    score.timesigs.insert(ts_sub_link, ts_subs);
+
+                    score.objects.push(InterpretedObject {
+                        index: mobj.link,
+                        header: ObjectHeader {
+                            right,
+                            left,
+                            first_sub_obj: ts_sub_link,
+                            xd: *ts_obj_xd,
+                            yd: 0,
+                            obj_type: TIMESIG_TYPE as i8,
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                            valid: true,
+                            tweaked: false,
+                            spare_flag: false,
+                            ohdr_filler1: 0,
+                            obj_rect: Rect::default(),
+                            rel_size: 0,
+                            ohdr_filler2: 0,
+                            n_entries: 1, // single staff timesig change
+                        },
+                        data: ObjData::TimeSig(TimeSig {
+                            header: ObjectHeader::default(),
+                            in_measure: true, // mid-score timesig
                         }),
                     });
                 }

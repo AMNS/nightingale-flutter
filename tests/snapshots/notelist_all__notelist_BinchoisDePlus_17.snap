@@ -9,14 +9,14 @@ BeginPage: 2
 Brace: 6
 EndPage: 2
 LedgerLine: 13
-MusicChar: 405
+MusicChar: 411
 NoteStem: 225
 SetMusicSize: 18
 SetWidths: 1
 Slur: 5
 Staff: 18
 TextString: 1
-TOTAL: 771
+TOTAL: 777
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -39,15 +39,15 @@ y=482.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=168.0 top=72.0 bottom=96.0
-x=168.0 top=132.0 bottom=156.0
-x=168.0 top=192.0 bottom=216.0
-x=296.3 top=72.0 bottom=96.0
-x=296.3 top=132.0 bottom=156.0
-x=296.3 top=192.0 bottom=216.0
-x=420.3 top=72.0 bottom=96.0
-x=420.3 top=132.0 bottom=156.0
-x=420.3 top=192.0 bottom=216.0
+x=176.0 top=72.0 bottom=96.0
+x=176.0 top=132.0 bottom=156.0
+x=176.0 top=192.0 bottom=216.0
+x=301.7 top=72.0 bottom=96.0
+x=301.7 top=132.0 bottom=156.0
+x=301.7 top=192.0 bottom=216.0
+x=423.2 top=72.0 bottom=96.0
+x=423.2 top=132.0 bottom=156.0
+x=423.2 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
 x=558.0 top=132.0 bottom=156.0
 x=558.0 top=192.0 bottom=216.0
@@ -122,6 +122,8 @@ x=[365.2..429.9] y=[425.0..426.0] slope=0.015 thick=3.00
 === GLYPHS ===
 Smufl(57424): 6
 Smufl(57436): 12
+Smufl(57474): 3
+Smufl(57475): 3
 Smufl(57476): 3
 Smufl(57478): 3
 Smufl(57506): 6
