@@ -13,8 +13,8 @@ use super::draw_beam::draw_beamset;
 use super::draw_nrgr::{collect_slur_endpoints, collect_tie_endpoints, draw_grsync, draw_sync};
 use super::draw_object::{
     draw_clef, draw_connect, draw_dynamic, draw_ending, draw_graphic, draw_keysig, draw_measure,
-    draw_ottava, draw_part_names, draw_slur, draw_slurs_from_endpoints, draw_staff, draw_tempo,
-    draw_ties, draw_timesig,
+    draw_ottava, draw_page_number, draw_part_names, draw_slur, draw_slurs_from_endpoints,
+    draw_staff, draw_tempo, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
 use super::helpers::{count_staves, TieEndpoint};
@@ -89,6 +89,10 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
                 }
                 renderer.begin_page((page_num + 1) as u32);
                 current_page = page_num;
+
+                // Draw page number (skips page 1 by convention)
+                // Reference: DrawObject.cp, DrawPAGE(), lines 249-257
+                draw_page_number(score, page.sheet_num, renderer);
             }
             // SYSTEM boundaries: draw ties/slurs for the current system, then clear.
             // This prevents ties/slurs from matching across distant systems and

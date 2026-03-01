@@ -96,6 +96,14 @@ pub struct InterpretedScore {
     /// True=First meas. number to print is 1, else 2
     pub start_mn_print1: bool,
 
+    // Page geometry
+    /// Page width in points (from orig_paper_rect or layout config)
+    pub page_width_pt: f32,
+    /// Page height in points (from orig_paper_rect or layout config)
+    pub page_height_pt: f32,
+    /// Page number of zero'th sheet (OG doc->firstPageNumber, default 1)
+    pub first_page_number: i16,
+
     // Subobject storage by type
     /// Type 0 subobjects: decoded PARTINFO structs
     pub part_infos: Vec<crate::obj_types::PartInfo>,
@@ -235,6 +243,9 @@ impl InterpretedScore {
             x_sys_mn_offset: 0,
             sys_first_mn: false,
             start_mn_print1: true,
+            page_width_pt: 612.0,
+            page_height_pt: 792.0,
+            first_page_number: 1,
             part_infos: Vec::new(),
             notes: HashMap::new(),
             rptend_subs: HashMap::new(),
@@ -690,6 +701,21 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
         }
     }
+
+    // === Parse page geometry from document header ===
+    // Reference: NDocAndCnfgTypes.h, DOCUMENTHEADER fields
+    if let Ok(hdr) = crate::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw) {
+        let w = (hdr.orig_paper_rect.right - hdr.orig_paper_rect.left) as f32;
+        let h = (hdr.orig_paper_rect.bottom - hdr.orig_paper_rect.top) as f32;
+        if w > 0.0 {
+            score.page_width_pt = w;
+        }
+        if h > 0.0 {
+            score.page_height_pt = h;
+        }
+        score.first_page_number = hdr.first_page_number;
+    }
+    // On Err: defaults already set (612x792, firstPageNumber=1)
 
     // === Parse text styles from score header ===
     // N105: 15 TEXTSTYLE records at file offset 390 (0x186), each 36 bytes.

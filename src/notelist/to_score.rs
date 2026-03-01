@@ -3417,6 +3417,10 @@ pub fn notelist_to_score_with_config(
         }),
     });
 
+    // Set page geometry from layout config
+    score.page_width_pt = config.page_width as f32;
+    score.page_height_pt = config.page_height as f32;
+
     score
 }
 

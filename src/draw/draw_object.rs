@@ -14,6 +14,44 @@ use crate::render::MusicRenderer;
 use super::draw_utils::{clef_glyph, clef_halfline_position, get_ks_y_offset};
 use super::helpers::{d2r_sum, d2r_sum3, lnspace_for_staff, TieEndpoint};
 
+/// Draw a page number at the bottom center of the page.
+///
+/// Port of DrawObject.cp DrawPageNum() (lines 183-243).
+///
+/// Default position: bottom center, matching OG defaults (topPGN=false, hPosPGN=CENTER).
+/// Font: 10pt Helvetica (matching typical page number convention).
+///
+/// Reference: DrawObject.cp, DrawPageNum(), lines 183-243
+pub fn draw_page_number(
+    score: &InterpretedScore,
+    sheet_num: i16,
+    renderer: &mut dyn MusicRenderer,
+) {
+    // Calculate display page number: sheet_num is 0-indexed
+    // Reference: DrawObject.cp:195 — pageNum = p->sheetNum + doc->firstPageNumber
+    let page_num = sheet_num as i32 + score.first_page_number as i32;
+
+    // Skip page 1 (conventional: first page number not shown)
+    // OG checks doc->startPageNumber; we use firstPageNumber >= 1 as the threshold
+    if page_num <= 1 {
+        return;
+    }
+
+    let page_str = page_num.to_string();
+
+    // Position: bottom center of page
+    // Reference: DrawObject.cp:206-207 — ypt = origPaperRect.bottom - headerFooterMargins.bottom
+    // Default margin: 36pt (0.5 inch) from bottom
+    let margin_bottom: f32 = 36.0;
+    let font_size: f32 = 10.0;
+
+    let x = score.page_width_pt / 2.0;
+    let y = score.page_height_pt - margin_bottom + font_size / 2.0;
+
+    let font = TextFont::new("Helvetica", font_size);
+    renderer.text_string(x, y, &page_str, &font);
+}
+
 /// Draw a Staff object (all staves in the system).
 ///
 /// Port of DrawObject.cp Draw1Staff() (line 591).

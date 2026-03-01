@@ -553,13 +553,13 @@ fn test_all_notelists_command_stream_hashes() {
 
     let expected: std::collections::HashMap<&str, u64> = [
         ("accidentals", 4163792048013775280),
-        ("BachEbSonata_20_2sizes", 8730858545296107900),
-        ("BachEbSonata_20", 8730858545296107900),
-        ("BachStAnne_63", 13715272072182054021),
+        ("BachEbSonata_20_2sizes", 11291091120126293950),
+        ("BachEbSonata_20", 11291091120126293950),
+        ("BachStAnne_63", 13937717297085169946),
         ("barline_types", 238239108067169809),
         ("bass_clef_melody", 4744812482084678806),
         ("beamed_eighths", 10653429581752039017),
-        ("BinchoisDePlus_17", 17417334231316454103),
+        ("BinchoisDePlus_17", 16849867185790129979),
         ("chord_seconds", 2895304810594326287),
         ("chromatic_scale", 14004133142613678787),
         ("clef_change", 3744341470148731874),
@@ -573,24 +573,24 @@ fn test_all_notelists_command_stream_hashes() {
         ("keysig_eb_major", 10546799626255585961),
         ("keysig_flats_all", 18122457789617967306),
         ("keysig_sharps_all", 3212076402018483145),
-        ("KillingMe_36", 7307772902720283061),
+        ("KillingMe_36", 4059144749883882487),
         ("ledger_lines", 8105833295678908920),
-        ("MahlerLiedVonDE_25", 17268290816071764443),
-        ("MendelssohnOp7N1_2", 2430829732746772878),
+        ("MahlerLiedVonDE_25", 12280938236523599001),
+        ("MendelssohnOp7N1_2", 2480992566606387920),
         ("mixed_durations", 4968774929990723664),
-        ("RavelScarbo_15", 10698290984333370145),
+        ("RavelScarbo_15", 765138336969228978),
         ("rests_all_durations", 12183842390174663440),
         ("SchenkerDiagram_Chopin_6", 7417967172960324211),
-        ("SchoenbergOp19N1_21", 17022829152922942129),
+        ("SchoenbergOp19N1_21", 8658657590714284751),
         ("sixteenths_32nds", 17588474520738336568),
-        ("TestMIDIChannels_3", 7291865671433848),
+        ("TestMIDIChannels_3", 889207547281387601),
         ("text_annotations", 13564659942321050642),
         ("tied_notes", 17367409475898169335),
         ("time_sig_changes", 4965190864571615649),
         ("tuplet_quintuplet", 5180006466194986461),
         ("tuplet_triplet", 428680887932943230),
         ("two_voices", 7688184720190085577),
-        ("Webern_Op5N3_22", 15465481144373431211),
+        ("Webern_Op5N3_22", 6423279164506985155),
         ("whole_notes", 7444405890619106493),
         ("wide_intervals", 4782249359401615041),
     ]
@@ -695,56 +695,71 @@ fn test_all_notelists_bitmap_regression() {
             bmp.end_page();
         }
 
-        // Save page 1 as current PNG
-        let current_png = diff_dir.join(format!("{}_current.png", name));
-        if let Err(e) = common::save_bitmap_page(&bmp, 0, &current_png) {
-            eprintln!("[{}] Save bitmap error: {}", name, e);
-            mismatches.push(format!("{} (error: {})", name, e));
-            continue;
-        }
+        // Compare all pages (not just page 1)
+        let num_pages = bmp.page_count();
+        for page_idx in 0..num_pages {
+            let page_num = page_idx + 1; // 1-indexed for filenames
+            let page_suffix = format!("_page{}", page_num);
+            let display_name = format!("{}{}", name, page_suffix);
 
-        let golden_path = golden_dir.join(format!("nl_{}_page1.png", name));
-
-        if regenerate {
-            fs::copy(&current_png, &golden_path).unwrap();
-            println!("[{}] Updated golden: {}", name, golden_path.display());
-            continue;
-        }
-
-        if !golden_path.exists() {
-            eprintln!("[{}] No golden bitmap at {}", name, golden_path.display());
-            mismatches.push(format!("{} (no golden)", name));
-            continue;
-        }
-
-        // Pixel-level comparison with visual diff output
-        let diff_path = diff_dir.join(format!("{}_diff.png", name));
-        match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
-            Ok((_total, diff_pixels, diff_pct)) => {
-                if diff_pixels == 0 {
-                    let _ = fs::remove_file(&current_png);
-                    let _ = fs::remove_file(&diff_path);
-                } else {
-                    let golden_copy = diff_dir.join(format!("{}_golden.png", name));
-                    let _ = fs::copy(&golden_path, &golden_copy);
-
-                    eprintln!(
-                        "[{}] BITMAP MISMATCH: {}/{} pixels differ ({:.2}%)\n  \
-                         golden:  {}\n  current: {}\n  diff:    {}",
-                        name,
-                        diff_pixels,
-                        _total,
-                        diff_pct,
-                        golden_copy.display(),
-                        current_png.display(),
-                        diff_path.display(),
-                    );
-                    mismatches.push(format!("{} ({:.2}% diff)", name, diff_pct));
-                }
+            let current_png = diff_dir.join(format!("{}_current.png", display_name));
+            if let Err(e) = common::save_bitmap_page(&bmp, page_idx, &current_png) {
+                eprintln!("[{}] Save bitmap error: {}", display_name, e);
+                mismatches.push(format!("{} (error: {})", display_name, e));
+                continue;
             }
-            Err(e) => {
-                eprintln!("[{}] Comparison error: {}", name, e);
-                mismatches.push(format!("{} (error: {})", name, e));
+
+            let golden_path = golden_dir.join(format!("nl_{}{}.png", name, page_suffix));
+
+            if regenerate {
+                fs::copy(&current_png, &golden_path).unwrap();
+                println!(
+                    "[{}] Updated golden: {}",
+                    display_name,
+                    golden_path.display()
+                );
+                continue;
+            }
+
+            if !golden_path.exists() {
+                eprintln!(
+                    "[{}] No golden bitmap at {}",
+                    display_name,
+                    golden_path.display()
+                );
+                mismatches.push(format!("{} (no golden)", display_name));
+                continue;
+            }
+
+            // Pixel-level comparison with visual diff output
+            let diff_path = diff_dir.join(format!("{}_diff.png", display_name));
+            match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+                Ok((_total, diff_pixels, diff_pct)) => {
+                    if diff_pixels == 0 {
+                        let _ = fs::remove_file(&current_png);
+                        let _ = fs::remove_file(&diff_path);
+                    } else {
+                        let golden_copy = diff_dir.join(format!("{}_golden.png", display_name));
+                        let _ = fs::copy(&golden_path, &golden_copy);
+
+                        eprintln!(
+                            "[{}] BITMAP MISMATCH: {}/{} pixels differ ({:.2}%)\n  \
+                             golden:  {}\n  current: {}\n  diff:    {}",
+                            display_name,
+                            diff_pixels,
+                            _total,
+                            diff_pct,
+                            golden_copy.display(),
+                            current_png.display(),
+                            diff_path.display(),
+                        );
+                        mismatches.push(format!("{} ({:.2}% diff)", display_name, diff_pct));
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[{}] Comparison error: {}", display_name, e);
+                    mismatches.push(format!("{} (error: {})", display_name, e));
+                }
             }
         }
     }

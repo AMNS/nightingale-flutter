@@ -15,7 +15,8 @@ SetMusicSize: 18
 SetWidths: 1
 Slur: 5
 Staff: 18
-TOTAL: 770
+TextString: 1
+TOTAL: 771
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
