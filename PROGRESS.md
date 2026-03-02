@@ -108,13 +108,17 @@
 - [x] **Notelist slur rendering**: Endpoint collection from stem_info slurred_l/slurred_r flags (NotelistSave.cp:130). IICreateAllSlurs-style voice-based matching (InternalInput.cp:881). SetSlurCtlPoints port with short/long blending thresholds + RotateSlurCtrlPts for slanted slurs (Slurs.cp:1021-1122). slurCurvature=50 vs tieCurvature=85.
 - [x] **Final barline flush-right fix**: System-boundary and final barlines now use config.content_width() (staff_right) instead of computed measure edge.
 
-### Next: Engraving & Layout (priority order)
+### Next: Engraving & Layout (priority order — USER PRIORITIZED)
 
-#### Tier 1 — High Priority (core engraving completeness)
+#### Tier 1 — High Priority (core multi-page & cross-staff engraving)
+- [ ] **Cross-system slurs**: Slurs currently break at system boundaries. Need to continue slur paths across page breaks. Port continuation logic from Slurs.cp (GetSlurContext, continuation points, cross-staff slur handling). Affects all fixtures with slurs that span multiple systems.
+- [ ] **Pagination with page breaks**: Break systems across pages from NGL page data + layout with headers/footers. Currently page numbers work on pages 2+, but systems don't wrap across pages. Port full PageFixSysRects logic from SFormat.cp. Affects all multi-page scores (54 pages in 07_new_york_debutante, etc.).
+- [ ] **Cross-staff notation**: Notes/beams drawn on a different staff than their anchor (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp). Advanced feature but needed for real piano scores.
+
+#### Tier 1B — Already Complete
 - [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
-- [ ] **Pagination**: multi-page layout — page numbers on pages 2+ DONE, multi-page bitmap regression DONE. Still TODO: break systems across pages from NGL page data, page headers/footers (port PageFixSysRects from SFormat.cp)
-- [x] **Slurs**: NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs still TODO.
+- [x] **Slurs** (single-system): NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. **Cross-system slurs still TODO** (moved to Tier 1 above).
 - [x] **System layout / spacing improvements**: full OG Gourlay pipeline (SymWidthRight/Left, FIdealSpace, ConsiderITWidths, Respace1Bar) — duration-proportional spacing with collision avoidance
 - [x] **Ottava (8va/8vb)**: OTTAVA_5 parsing (40 bytes, bitfields, ANOTEOTTAVA subobjects), draw_ottava() with Sonata italic digit glyphs (MCH_idigits), dashed bracket (hdashed_line), vertical cutoff, alta/bassa distinction. Port of DrawOTTAVA/DrawOctBracket/GetOctTypeNum from Ottava.cp. No test fixtures contain ottavas, but code compiles and is wired into render loop.
 
@@ -171,7 +175,7 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] Port MapMusChar() (Sonata->SMuFL glyph mapping) — done in draw_utils.rs
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
 - [ ] .ngl binary writer
-- [ ] N105 format test fixtures
+- [x] **N105 format support** — DONE (both N103 and N105 fully supported via unpack_*_n105() functions)
 
 ## Phase 3: Engraving Engine — PARTIALLY IN PROGRESS
 - [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam.rs (shared)
