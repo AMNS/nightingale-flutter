@@ -869,86 +869,181 @@ pub fn draw_timesig(
     }
 }
 
-/// Draw a Slur object (slurs from NGL file with pre-computed spline data).
-///
-/// Port of DrawObject.cp DrawSLUR() (line 3054) + Slurs.cp GetSlurPoints() (line 76).
-///
-/// For NGL files, the ASlur subobjects contain pre-computed spline data:
-/// - startPt/endPt: absolute paper-relative base positions (Points = 1/72 inch)
-/// - seg.knot: offset from startPt to start knot (DDIST = 1/16 point)
-/// - endKnot: offset from endPt to end knot (DDIST)
-/// - seg.c0: offset from start knot to first control point (DDIST)
-/// - seg.c1: offset from end knot to second control point (DDIST)
-///
-/// Coordinate conversion (GetSlurPoints, Slurs.cp:76-92):
-///   knot     = p2d(startPt) + seg.knot         (absolute DDIST)
-///   endKnot  = p2d(endPt)   + endKnot          (absolute DDIST)
-///   c0       = knot + seg.c0                    (absolute DDIST)
-///   c1       = endKnot + seg.c1                 (absolute DDIST)
-///   render_x = ddist / 16.0 = pt.h + seg.knot.h/16.0
+/// Draw a Slur object (slurs from NGL file with ASlur spline data).
 ///
 /// Ties (slur.tie == true) are skipped here — they're handled by draw_ties()
 /// using note-level tied_l/tied_r flags with recomputed Bezier curves.
 ///
-/// Reference: DrawObject.cp:3054, Slurs.cp:76-92, PS_Stdio.cp:1933
+/// Port of DrawSLUR (DrawObject.cp:3054-3160) + GetSlurContext (Slurs.cp:869-980).
+///
+/// The key fix: endpoints are recomputed at render time from firstSyncL/lastSyncL
+/// rather than using stale startPt/endPt stored in the file. The stored Points were
+/// absolute screen coordinates from the original rendering context and don't match
+/// our freshly computed staff positions.
+///
+/// Algorithm (from GetSlurContext):
+/// 1. Look up firstSyncL/lastSyncL from the Slur object
+/// 2. Find the attached notes via slurredR/slurredL flags (GetSlurNoteLinks)
+/// 3. Compute absolute DDIST positions: staff_left + sys_rel_xd(sync) + note.xd
+/// 4. Apply knot/endKnot/c0/c1 offsets from ASlur spline data
+/// 5. Convert DDIST to render coords (÷16) and draw Bezier
 pub fn draw_slur(
     score: &InterpretedScore,
     obj: &InterpretedObject,
-    _ctx: &ContextState,
+    ctx: &ContextState,
     renderer: &mut dyn MusicRenderer,
 ) {
-    if let crate::ngl::interpret::ObjData::Slur(slur) = &obj.data {
+    use crate::defs::MEASURE_TYPE;
+    use crate::ngl::interpret::ObjData;
+    use crate::render::types::ddist_wide_to_render;
+
+    if let ObjData::Slur(slur) = &obj.data {
         // Skip ties — those are handled by draw_ties() via note-level flags
         if slur.tie {
             return;
         }
 
-        let n_entries = obj.header.n_entries;
-        let aslur_list = score.get_slur_subs(obj.header.first_sub_obj, n_entries);
+        let staffn = slur.ext_header.staffn;
+        let staff_ctx = match ctx.get(staffn) {
+            Some(c) => c,
+            None => return,
+        };
+        let voice = slur.voice;
 
+        // Check cross-system cases (Slurs.cp:881-889):
+        // firstSyncL may be a MEASURE (2nd piece of cross-system slur)
+        // lastSyncL may be a SYSTEM (1st piece of cross-system slur)
+        let first_is_measure = score
+            .get(slur.first_sync_l)
+            .is_some_and(|o| o.header.obj_type == MEASURE_TYPE as i8);
+        let last_is_system = score
+            .get(slur.last_sync_l)
+            .is_some_and(|o| matches!(&o.data, ObjData::System(_)));
+
+        // Find the notes at each endpoint (GetSlurNoteLinks, Slurs.cp:809-863)
+        let first_note = if !first_is_measure {
+            find_slur_note(score, slur.first_sync_l, voice, true)
+        } else {
+            None
+        };
+        let last_note = if !last_is_system {
+            find_slur_note(score, slur.last_sync_l, voice, false)
+        } else {
+            None
+        };
+
+        // Compute start position in DDIST (GetSlurContext, Slurs.cp:940-949)
+        let (xd_first, yd_first) = if first_is_measure {
+            // Cross-system 2nd piece: X at measure left, Y from last note
+            let meas_xd = score.sys_rel_xd(slur.first_sync_l);
+            let yd = last_note.as_ref().map(|n| n.yd as i32).unwrap_or(0);
+            (
+                staff_ctx.staff_left as i32 + meas_xd,
+                staff_ctx.measure_top as i32 + yd,
+            )
+        } else if let Some(ref note) = first_note {
+            let sys_xd = score.sys_rel_xd(slur.first_sync_l);
+            (
+                staff_ctx.staff_left as i32 + sys_xd + note.xd as i32,
+                staff_ctx.measure_top as i32 + note.yd as i32,
+            )
+        } else {
+            return; // Can't find start note, skip
+        };
+
+        // Compute end position in DDIST (GetSlurContext, Slurs.cp:951-967)
+        let (xd_last, yd_last) = if last_is_system {
+            // Cross-system 1st piece: extend to staff right edge
+            let yd = first_note.as_ref().map(|n| n.yd as i32).unwrap_or(0);
+            (
+                staff_ctx.staff_right as i32,
+                staff_ctx.measure_top as i32 + yd,
+            )
+        } else if let Some(ref note) = last_note {
+            let sys_xd = score.sys_rel_xd(slur.last_sync_l);
+            (
+                staff_ctx.staff_left as i32 + sys_xd + note.xd as i32,
+                staff_ctx.measure_top as i32 + note.yd as i32,
+            )
+        } else {
+            return; // Can't find end note, skip
+        };
+
+        // Iterate slur subobjects and render Bezier curves
+        // (DrawSLUR PostScript path, DrawObject.cp:3086-3146)
+        let aslur_list = score.get_slur_subs(obj.header.first_sub_obj, obj.header.n_entries);
         for aslur in &aslur_list {
             if !aslur.visible {
                 continue;
             }
 
-            // Skip degenerate slurs where both endpoints are at origin
-            if aslur.start_pt.h == 0
-                && aslur.start_pt.v == 0
-                && aslur.end_pt.h == 0
-                && aslur.end_pt.v == 0
-            {
-                continue;
-            }
+            // Apply knot and endKnot offsets (all DDIST, cast i16→i32)
+            // Reference: DrawObject.cp:3091-3097
+            let start_xd = xd_first + aslur.seg.knot.h as i32;
+            let start_yd = yd_first + aslur.seg.knot.v as i32;
+            let end_xd = xd_last + aslur.end_knot.h as i32;
+            let end_yd = yd_last + aslur.end_knot.v as i32;
 
-            // GetSlurPoints algorithm (Slurs.cp:76-92):
-            // startPt/endPt are in Points (screen coords, 72dpi).
-            // seg.knot, endKnot, seg.c0, seg.c1 are in DDIST (1/16 point).
-            // p2d(pt) = pt * 16 converts Points→DDIST.
-            // In render coords (points): render = Points + DDIST/16.0
+            // Control points relative to knot/endKnot (DDIST)
+            // Reference: DrawObject.cp:3140-3143
+            let c0_xd = start_xd + aslur.seg.c0.h as i32;
+            let c0_yd = start_yd + aslur.seg.c0.v as i32;
+            let c1_xd = end_xd + aslur.seg.c1.h as i32;
+            let c1_yd = end_yd + aslur.seg.c1.v as i32;
 
-            let start_x = aslur.start_pt.h as f32 + aslur.seg.knot.h as f32 / 16.0;
-            let start_y = aslur.start_pt.v as f32 + aslur.seg.knot.v as f32 / 16.0;
-
-            let end_x = aslur.end_pt.h as f32 + aslur.end_knot.h as f32 / 16.0;
-            let end_y = aslur.end_pt.v as f32 + aslur.end_knot.v as f32 / 16.0;
-
-            let c0_x = start_x + aslur.seg.c0.h as f32 / 16.0;
-            let c0_y = start_y + aslur.seg.c0.v as f32 / 16.0;
-
-            let c1_x = end_x + aslur.seg.c1.h as f32 / 16.0;
-            let c1_y = end_y + aslur.seg.c1.v as f32 / 16.0;
-
+            // Convert DDIST to render coords (Points = DDIST / 16)
             let p0 = Point {
-                x: start_x,
-                y: start_y,
+                x: ddist_wide_to_render(start_xd),
+                y: ddist_wide_to_render(start_yd),
             };
-            let c1_pt = Point { x: c0_x, y: c0_y };
-            let c2_pt = Point { x: c1_x, y: c1_y };
-            let p3 = Point { x: end_x, y: end_y };
+            let c0_pt = Point {
+                x: ddist_wide_to_render(c0_xd),
+                y: ddist_wide_to_render(c0_yd),
+            };
+            let c1_pt = Point {
+                x: ddist_wide_to_render(c1_xd),
+                y: ddist_wide_to_render(c1_yd),
+            };
+            let p3 = Point {
+                x: ddist_wide_to_render(end_xd),
+                y: ddist_wide_to_render(end_yd),
+            };
 
-            renderer.slur(p0, c1_pt, c2_pt, p3, aslur.dashed);
+            renderer.slur(p0, c0_pt, c1_pt, p3, aslur.dashed);
         }
     }
+}
+
+/// Find the note in a sync that a slur attaches to.
+///
+/// Port of GetSlurNoteLinks (Slurs.cp:809-863). For slurs (not ties),
+/// searches for the first note in the given voice with slurredR (start)
+/// or slurredL (end) flag set. Falls back to the first note in the voice
+/// if no slurred flag is found (handles edge cases in older files).
+fn find_slur_note(
+    score: &InterpretedScore,
+    sync_link: crate::basic_types::Link,
+    voice: i8,
+    is_start: bool,
+) -> Option<crate::obj_types::ANote> {
+    use crate::defs::SYNC_TYPE;
+
+    let sync_obj = score.get(sync_link)?;
+    if sync_obj.header.obj_type != SYNC_TYPE as i8 {
+        return None;
+    }
+    let notes = score.get_notes(sync_obj.header.first_sub_obj);
+
+    // Primary: find note with matching voice and slurred flag
+    let slurred = notes
+        .iter()
+        .find(|n| n.voice == voice && if is_start { n.slurred_r } else { n.slurred_l });
+    if let Some(note) = slurred {
+        return Some(note.clone());
+    }
+
+    // Fallback: first note in voice (older files may lack slurred flags)
+    notes.iter().find(|n| n.voice == voice).cloned()
 }
 
 /// Draw ties by matching tied_r notes (starts) to tied_l notes (ends).
