@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ─── Rust core: fmt + clippy + tests ────────────────────────────────────────
+  rust:
+    name: Rust tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --all
+        # Note: visual regression tests (491 golden bitmaps) are gated behind
+        # --features visual-regression and are intentionally skipped in CI.
+        # Run locally with: cargo test --features visual-regression
+
+  # ─── Flutter macOS: build smoke test ────────────────────────────────────────
+  flutter:
+    name: Flutter macOS build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nightingale/rust/target
+          key: ${{ runner.os }}-cargo-flutter-${{ hashFiles('nightingale/rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-flutter-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cache Flutter pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('nightingale/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      - name: flutter pub get
+        working-directory: nightingale
+        run: flutter pub get
+
+      - name: flutter build macos (debug smoke test)
+        working-directory: nightingale
+        run: flutter build macos --debug
+        # This compiles the Rust bridge + Dart app. A successful build confirms
+        # the FFI API is in sync and the app is structurally sound.
