@@ -119,23 +119,25 @@ pub struct PartInfo {
 
 impl PartInfo {
     /// Extract the full part name as a Rust string (from C string in name[32]).
+    /// NGL files store strings in Mac Roman encoding; we convert to UTF-8.
     pub fn name_str(pi: &PartInfo) -> String {
         let pos = pi
             .name
             .iter()
             .position(|&b| b == 0)
             .unwrap_or(pi.name.len());
-        String::from_utf8_lossy(&pi.name[..pos]).to_string()
+        crate::ngl::reader::mac_roman_to_string(&pi.name[..pos])
     }
 
     /// Extract the short part name as a Rust string (from C string in short_name[12]).
+    /// NGL files store strings in Mac Roman encoding; we convert to UTF-8.
     pub fn short_name_str(pi: &PartInfo) -> String {
         let pos = pi
             .short_name
             .iter()
             .position(|&b| b == 0)
             .unwrap_or(pi.short_name.len());
-        String::from_utf8_lossy(&pi.short_name[..pos]).to_string()
+        crate::ngl::reader::mac_roman_to_string(&pi.short_name[..pos])
     }
 }
 

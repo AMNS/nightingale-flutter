@@ -45,4 +45,4 @@ pub use interpret::{
     unpack_object_header_n105, unpack_subobj_header_n105, InterpretedObject, InterpretedScore,
     ObjData,
 };
-pub use reader::{decode_string, HeapData, NglFile, NglVersion};
+pub use reader::{decode_string, mac_roman_to_string, HeapData, NglFile, NglVersion};

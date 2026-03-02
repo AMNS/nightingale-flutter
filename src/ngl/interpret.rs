@@ -715,7 +715,7 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 let fi = &hdr.font_table[i];
                 let name_len = (fi.font_name[0] as usize).min(31);
-                let name = String::from_utf8_lossy(&fi.font_name[1..1 + name_len]).to_string();
+                let name = crate::ngl::reader::mac_roman_to_string(&fi.font_name[1..1 + name_len]);
                 score.font_names.push(name);
             }
         }
@@ -755,7 +755,7 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             // fontName[32]: Pascal string (byte 0 = length, bytes 1..len = chars)
             let name_len = style_bytes[0] as usize;
             let name_len = name_len.min(31); // cap at 31 chars
-            let font_name = String::from_utf8_lossy(&style_bytes[1..1 + name_len]).to_string();
+            let font_name = crate::ngl::reader::mac_roman_to_string(&style_bytes[1..1 + name_len]);
             // Bitfield at offset 32-33 (big-endian u16):
             // bits 15-11: filler2 (5 bits)
             // bit 10: lyric (1 bit)

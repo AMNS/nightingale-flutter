@@ -306,7 +306,7 @@ pub fn decode_string(pool: &[u8], offset: i32) -> Option<String> {
 ///
 /// Bytes 0x00-0x7F are ASCII-identical. Bytes 0x80-0xFF are mapped to their
 /// Unicode equivalents per Apple's Mac OS Roman encoding specification.
-fn mac_roman_to_string(bytes: &[u8]) -> String {
+pub fn mac_roman_to_string(bytes: &[u8]) -> String {
     // Fast path: if all bytes are ASCII, just return as-is
     if bytes.iter().all(|&b| b < 0x80) {
         // SAFETY: all bytes < 0x80 are valid UTF-8
