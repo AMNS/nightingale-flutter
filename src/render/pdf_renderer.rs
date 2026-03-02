@@ -1030,7 +1030,9 @@ impl MusicRenderer for PdfRenderer {
         // X = MFS / (bracePWidth * 16), Y = halfHeight / braceHalfHt
         // bracePWidth=20 (path designed for 20pt font), braceHalfHt=213
         // The 16 converts from DDIST to points in the OG coordinate system.
-        let x_scale = self.music_size / 320.0;
+        // Bravura brace glyphs are slightly thinner than Sonata's — boost x_scale
+        // by ~30% to match the OG brace weight.
+        let x_scale = self.music_size / 245.0;
         let y_scale = half_height / 213.0;
 
         self.sync_fill_color();

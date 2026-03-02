@@ -1699,7 +1699,16 @@ pub fn draw_graphic(
             .unwrap_or(staff_ctx.staff_left);
         let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
         let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
-        let yd = staff_ctx.measure_top as i32 + obj.header.yd as i32;
+        // Use staff_top when measure_top is 0: GRAPHIC objects can appear before
+        // any MEASURE in the object list (e.g. title text attached to preamble clef),
+        // so measure_top may not yet be populated. Same pattern as draw_tempo.
+        // Reference: DrawUtils.cp:2438 GetGraphicOrTempoDrawInfo
+        let y_base = if staff_ctx.measure_top != 0 {
+            staff_ctx.measure_top
+        } else {
+            staff_ctx.staff_top
+        };
+        let yd = y_base as i32 + obj.header.yd as i32;
         (xd, yd)
     };
 

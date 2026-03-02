@@ -971,7 +971,8 @@ impl MusicRenderer for BitmapRenderer {
         // X = MFS / (bracePWidth * 16), Y = halfHeight / braceHalfHt
         // bracePWidth=20 (path designed for 20pt font), braceHalfHt=213
         // The 16 converts from DDIST to points in the OG coordinate system.
-        let x_scale = self.state.music_size / 320.0;
+        // Boost x_scale ~30% to match OG brace weight.
+        let x_scale = self.state.music_size / 245.0;
         let y_scale = half_height / 213.0;
 
         let paint = self.make_paint();

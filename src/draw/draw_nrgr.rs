@@ -481,18 +481,21 @@ fn draw_rest(
     } else {
         0.0
     };
-    // SMuFL glyph origin correction (only when NOT using Sonata):
-    // Sonata: whole rest baseline at bottom of rect (sits on line)
-    // SMuFL: whole rest origin at top of rect (hangs from line)
-    // NGL yd positions assume Sonata baseline; shift up 1 lnSpace for SMuFL.
-    let smufl_rest_correction = if renderer.uses_sonata_font() {
-        // Sonata: yd positions are native — no correction needed.
-        0.0
-    } else {
-        match draw_l_dur {
-            x if x == WHOLE_L_DUR => -lnspace, // shift up to hang from correct line
-            _ => 0.0,
-        }
+    // SMuFL/Bravura glyph origin correction for whole rests:
+    //
+    // Sonata whole rest (0xB7) has NO outline in the TTF conversion — the glyph
+    // is always rendered by Bravura fallback, even when Sonata font is loaded.
+    // Sonata convention: yd places the baseline at the bottom of the rest block.
+    // Bravura convention: restWhole origin is near the top (yMax≈0, block hangs
+    // down to yMin≈-135). Must shift up by 1 lnSpace to compensate.
+    //
+    // Half rests need no correction: both Sonata and Bravura have the origin
+    // at the bottom of the block (yMin≈0, extends upward).
+    //
+    // Reference: Sonata.ttf glyph analysis — 0xB7 has advance=150 but no bbox.
+    let smufl_rest_correction = match draw_l_dur {
+        x if x == WHOLE_L_DUR => -lnspace,
+        _ => 0.0,
     };
     let rest_y = note_y + rest_y_off + smufl_rest_correction;
 
