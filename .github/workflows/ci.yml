@@ -52,6 +52,9 @@ jobs:
     runs-on: ubuntu-latest
     # Note: flutter build <platform> requires native toolchains (Xcode for macOS,
     # etc.) and is intentionally omitted here. Run locally for native builds.
+    defaults:
+      run:
+        working-directory: nightingale
 
     steps:
       - uses: actions/checkout@v4
@@ -69,11 +72,9 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
 
       - name: flutter pub get
-        working-directory: nightingale
         run: flutter pub get
 
       - name: flutter analyze
-        working-directory: nightingale
         run: flutter analyze
         # Confirms Dart code compiles, types check, and the pubspec dependency
         # graph is consistent — without requiring a native build toolchain.
