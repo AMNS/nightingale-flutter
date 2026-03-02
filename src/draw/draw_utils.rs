@@ -457,6 +457,18 @@ pub fn sonata_char_to_smufl(ch: u8) -> Option<u32> {
         0x28 => Some(0xE26A), // '(' = MCH_lParen -> accidentalParensLeft
         0x29 => Some(0xE26B), // ')' = MCH_rParen -> accidentalParensRight
 
+        // Composite note glyphs (notehead + stem, from vars.h symtable[])
+        // These are used in Sonata-font GRAPHIC text objects (e.g. "* LoST: q  q")
+        // to display inline music notation characters.
+        // Reference: vars.h symtable[] lines 180-188
+        0x68 => Some(0xE1D3), // 'h' = half note -> noteHalfUp
+        0x71 => Some(0xE1D5), // 'q' = quarter note -> noteQuarterUp
+        0x65 => Some(0xE1D7), // 'e' = eighth note -> note8thUp
+        0x78 => Some(0xE1D9), // 'x' = 16th note -> note16thUp
+        0x72 => Some(0xE1DB), // 'r' = 32nd note -> note32ndUp
+        0x74 => Some(0xE1DD), // 't' = 64th note -> note64thUp
+        0x79 => Some(0xE1DF), // 'y' = 128th note -> note128thUp
+
         // Grace note slash
         0x47 => Some(0xE560), // 'G' = MCH_graceSlash -> graceNoteSlashStemUp
 

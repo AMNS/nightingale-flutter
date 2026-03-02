@@ -1,5 +1,6 @@
 ---
 source: tests/ngl_all.rs
+assertion_line: 440
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -7,13 +8,13 @@ BarLine: 5
 Beam: 1
 BeginPage: 1
 EndPage: 1
-MusicChar: 27
+MusicChar: 29
 NoteStem: 18
 SetMusicSize: 1
 SetWidths: 1
 Staff: 1
-TextString: 26
-TOTAL: 82
+TextString: 25
+TOTAL: 83
 
 === STAVES ===
 y=60.1 x=[36.0..567.0] lines=5 spacing=4.00
@@ -28,6 +29,7 @@ y=60.1 x=[36.0..567.0] lines=5 spacing=4.00
 Smufl(57424): 1
 Smufl(57507): 1
 Smufl(57508): 17
+Smufl(57813): 2
 Smufl(57831): 3
 Smufl(57920): 1
 Smufl(57921): 2

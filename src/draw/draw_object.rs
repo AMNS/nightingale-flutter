@@ -1767,7 +1767,9 @@ fn resolve_graphic_font(
         };
         TextFont::new(name, pt_size).bold(bold).italic(italic)
     } else {
-        // FONT_THISITEMONLY: use the graphic's own font fields
+        // FONT_THISITEMONLY: use the graphic's own font fields.
+        // Look up font name from font_names[fontInd] (score header font table).
+        // Reference: GetGraphicFontInfo() — doc->fontTable[p->fontInd].fontID
         let pt_size = if gfx.rel_f_size != 0 {
             rel_size_to_pt(gfx.font_size, line_space)
         } else if gfx.font_size > 0 {
@@ -1777,19 +1779,35 @@ fn resolve_graphic_font(
         };
         let bold = (gfx.font_style & 1) != 0;
         let italic = (gfx.font_style & 2) != 0;
-        TextFont::new(default_font_for_type(gtype), pt_size)
-            .bold(bold)
-            .italic(italic)
+        let font_idx = gfx.font_ind as usize;
+        let name = if font_idx < score.font_names.len() {
+            let table_name = &score.font_names[font_idx];
+            if table_name == "Sonata" {
+                // Sonata text will be rendered as music glyphs via is_sonata_font(),
+                // but we still need a font for metrics. Use Sonata name so the
+                // renderer can identify it if needed.
+                "Sonata".to_string()
+            } else {
+                map_mac_font_name(table_name)
+            }
+        } else {
+            default_font_for_type(gtype)
+        };
+        TextFont::new(name, pt_size).bold(bold).italic(italic)
     }
 }
 
 /// Check whether a GRAPHIC object's font is the Sonata music font.
 ///
 /// When Sonata is the font, the text characters are music symbol codes
-/// (e.g. '%' = segno, 'U' = fermata) and must be mapped to SMuFL glyphs
-/// rather than rendered as normal text.
+/// (e.g. '%' = segno, 'U' = fermata, 'q' = quarter note) and must be
+/// mapped to SMuFL glyphs rather than rendered as normal text.
 ///
-/// Checks the text style font name (via gfx.info index into text_styles[]).
+/// For info > FONT_THISITEMONLY: checks text_styles[info-1].font_name.
+/// For info == FONT_THISITEMONLY (0): checks font_names[fontInd] from
+/// the score header's font table.
+///
+/// Reference: DrawUtils.cp GetGraphicFontInfo() (line 2481-2506)
 fn is_sonata_font(gfx: &crate::obj_types::Graphic, score: &InterpretedScore) -> bool {
     use crate::defs::FONT_THISITEMONLY;
 
@@ -1797,6 +1815,13 @@ fn is_sonata_font(gfx: &crate::obj_types::Graphic, score: &InterpretedScore) -> 
     if style_idx > FONT_THISITEMONLY as usize && (style_idx - 1) < score.text_styles.len() {
         let ts = &score.text_styles[style_idx - 1];
         if ts.font_name == "Sonata" {
+            return true;
+        }
+    } else if gfx.info == FONT_THISITEMONLY as i16 {
+        // FONT_THISITEMONLY: use the graphic's own fontInd to look up the font table.
+        // Reference: GetGraphicFontInfo() — doc->fontTable[p->fontInd].fontID
+        let font_idx = gfx.font_ind as usize;
+        if font_idx < score.font_names.len() && score.font_names[font_idx] == "Sonata" {
             return true;
         }
     }

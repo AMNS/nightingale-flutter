@@ -156,6 +156,12 @@ pub struct InterpretedScore {
     /// Text styles parsed from the score header (15 entries, indexed by FONT_* constants).
     /// Each entry: (font_name, font_size, font_style, is_lyric, enclosure, rel_f_size).
     pub text_styles: Vec<TextStyle>,
+
+    /// Font table from the score header (up to 20 entries, indexed by fontInd).
+    /// Each entry is a font name string. Used to resolve GRAPHIC objects with
+    /// info=0 (FONT_THISITEMONLY) where fontInd indexes into this table.
+    /// Reference: NDocAndCnfgTypes.h FONTITEM, DrawUtils.cp GetGraphicFontInfo()
+    pub font_names: Vec<String>,
 }
 
 /// Text style record parsed from the N105 score header.
@@ -267,6 +273,7 @@ impl InterpretedScore {
             graphic_strings: HashMap::new(),
             tempo_strings: HashMap::new(),
             text_styles: Vec::new(),
+            font_names: Vec::new(),
         }
     }
 
@@ -696,6 +703,21 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             score.x_sys_mn_offset = hdr.x_sys_mn_offset;
             score.sys_first_mn = hdr.sys_first_mn != 0;
             score.start_mn_print1 = hdr.start_mn_print1 != 0;
+
+            // === Extract font table (up to 20 entries) ===
+            // Each FontItem has a Pascal string font_name[32] (length byte + chars).
+            // GRAPHIC objects with info=0 (FONT_THISITEMONLY) use fontInd to index
+            // into this table to determine their font.
+            // Reference: NDocAndCnfgTypes.h FONTITEM, DrawUtils.cp GetGraphicFontInfo()
+            for i in 0..hdr.nfonts_used.max(0) as usize {
+                if i >= hdr.font_table.len() {
+                    break;
+                }
+                let fi = &hdr.font_table[i];
+                let name_len = (fi.font_name[0] as usize).min(31);
+                let name = String::from_utf8_lossy(&fi.font_name[1..1 + name_len]).to_string();
+                score.font_names.push(name);
+            }
         }
         Err(e) => {
             eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
