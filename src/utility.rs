@@ -68,6 +68,35 @@ pub fn calc_ystem(
     ystem
 }
 
+/// ShortenStem — should this note get a shorter-than-normal stem?
+///
+/// Returns true for notes entirely outside the staff with stems pointing away
+/// from the staff. In OG, these get `stemLenOutside` (12 qtr-sp) instead of
+/// `stemLenNormal` (14 qtr-sp).
+///
+/// Port of ShortenStem from Utility.cp:135-150.
+///
+/// * `half_ln` - half-line position (0 = top staff line, 2 = next line, etc.)
+/// * `stem_down` - true if stem goes down
+/// * `staff_lines` - number of staff lines (typically 5)
+pub fn shorten_stem(half_ln: i16, stem_down: bool, staff_lines: i16) -> bool {
+    // STRICT_SHORTSTEM = 0 (style.h:61) — no strictness adjustment
+    const STRICT_SHORTSTEM: i16 = 0;
+
+    // Above staff (halfLn < 0) with stem up → shorten
+    if half_ln < STRICT_SHORTSTEM && !stem_down {
+        return true;
+    }
+
+    // Below staff (halfLn > bottom line) with stem down → shorten
+    let bottom_half_ln = 2 * (staff_lines - 1);
+    if half_ln > (bottom_half_ln - STRICT_SHORTSTEM) && stem_down {
+        return true;
+    }
+
+    false
+}
+
 /// NFLAGS — number of flags for a given duration code.
 ///
 /// Port of NFLAGS macro from defs.h.
@@ -188,5 +217,27 @@ mod tests {
         let offset = acc_x_offset(DFLT_XMOVEACC, 64, 5);
         let d_acc_width = std2d(STD_ACCWIDTH, 64, 5);
         assert_eq!(offset, d_acc_width);
+    }
+
+    #[test]
+    fn test_shorten_stem() {
+        // 5-line staff: lines at halflines 0, 2, 4, 6, 8
+        // Note above staff (halfLn < 0) with stem up → shorten
+        assert!(shorten_stem(-1, false, 5));
+        assert!(shorten_stem(-2, false, 5));
+        // Note above staff with stem DOWN → don't shorten (stem goes toward staff)
+        assert!(!shorten_stem(-1, true, 5));
+
+        // Note below staff (halfLn > 8) with stem down → shorten
+        assert!(shorten_stem(9, true, 5));
+        assert!(shorten_stem(10, true, 5));
+        // Note below staff with stem UP → don't shorten
+        assert!(!shorten_stem(9, false, 5));
+
+        // Note inside staff → never shorten
+        assert!(!shorten_stem(0, false, 5));
+        assert!(!shorten_stem(4, true, 5));
+        assert!(!shorten_stem(8, true, 5));
+        assert!(!shorten_stem(0, true, 5));
     }
 }

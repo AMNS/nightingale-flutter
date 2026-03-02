@@ -596,11 +596,57 @@ pub fn draw_clef(
                     // Y position: staff_top + half-line offset
                     let halfline = clef_halfline_position(clef_type);
                     let lnspace = lnspace_for_staff(clef_ctx.staff_height, clef_ctx.staff_lines);
-                    let clef_y =
-                        ddist_to_render(clef_ctx.staff_top) + (halfline as f32 * lnspace / 2.0);
 
                     // Mid-measure clefs drawn at 75% (OG: SMALLSIZE macro, style.h:16)
                     let size_pct = if aclef.small != 0 { 75.0 } else { 100.0 };
+
+                    // Sonata correction: Sonata clef glyphs have their origin at the
+                    // bottom staff line (4*lnspace from top for 5-line staff), but our
+                    // halfline positions assume SMuFL convention (origin at reference
+                    // pitch line: treble=G, alto=C, bass=F).
+                    // Reference: DrawUtils.cp GetClefDrawInfo() lines 320-384.
+                    //
+                    // At reduced size (size_pct < 100), the Sonata origin-to-reference
+                    // distance scales, so we use SizePercentSCALE for the correction.
+                    // Formula from OG: ydR = <reference_hl>*lnspace/2 + SCALE(<correction>)
+                    let clef_y = if renderer.uses_sonata_font() {
+                        let scale_f = size_pct / 100.0;
+                        let sonata_correction = match clef_type {
+                            // Treble/Treble8/TrTenor: ref at G line (hl 6 = 3*ln),
+                            // Sonata origin at bottom line (4*ln). Correction = +1*ln.
+                            1 | 3 | 7 => 1.0 * lnspace * scale_f,
+                            // Soprano: ref at C bottom line (hl 8 = 4*ln), but
+                            // Sonata C clef origin at bottom = 4*ln + 0 correction
+                            // OG: ydR = 4*dLnHt + SCALE(2*dLnHt) - SCALE(2*dLnHt)
+                            4 => 0.0,
+                            // Mezzosoprano: ref at C 2nd line (hl 6 = 3*ln)
+                            // OG: ydR = 3*dLnHt + SCALE(dLnHt) + SCALE(dLnHt)
+                            5 => 2.0 * lnspace * scale_f,
+                            // Alto: ref at C middle (hl 4 = 2*ln), Sonata at 4*ln.
+                            // Correction = +2*ln.
+                            6 => 2.0 * lnspace * scale_f,
+                            // Tenor: ref at C 4th line (hl 2 = 1*ln)
+                            // OG: ydR = 1*dLnHt + SCALE(3*dLnHt) - SCALE(dLnHt)
+                            8 => 2.0 * lnspace * scale_f,
+                            // Baritone: ref at C top line (hl 0 = 0*ln)
+                            // OG: ydR = 0 + SCALE(4*dLnHt) - SCALE(2*dLnHt)
+                            9 => 2.0 * lnspace * scale_f,
+                            // Bass/Bass8b: ref at F line (hl 2 = 1*ln), Sonata at 4*ln.
+                            // Correction = +3*ln.
+                            10 | 11 => 3.0 * lnspace * scale_f,
+                            // Percussion: different handling
+                            // OG: ydR = 2*dLnHt + SCALE(dLnHt)
+                            12 => 1.0 * lnspace * scale_f,
+                            _ => 2.0 * lnspace * scale_f,
+                        };
+                        ddist_to_render(clef_ctx.staff_top)
+                            + (halfline as f32 * lnspace / 2.0)
+                            + sonata_correction
+                    } else {
+                        // SMuFL: glyph origin IS at reference pitch line. No correction.
+                        ddist_to_render(clef_ctx.staff_top) + (halfline as f32 * lnspace / 2.0)
+                    };
+
                     renderer.music_char(clef_x, clef_y, MusicGlyph::smufl(glyph), size_pct);
                 }
             }

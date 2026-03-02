@@ -367,8 +367,9 @@ fn draw_note(
             d2r_sum(note_ctx.staff_top, anote.ystem.max(stem_near_yd))
         };
 
-        // Stem width (default from set_widths)
-        let stem_width = 0.8;
+        // Stem width: 8% of staff interline space.
+        // Reference: PS_Stdio.cp:952, STEMLW_DFLT = 8 (% of lnSpace)
+        let stem_width = lnspace * 0.08;
 
         renderer.note_stem(stem_x, stem_top, stem_bottom, stem_width);
 
@@ -376,9 +377,25 @@ fn draw_note(
         // Check if note is beamed: beamed flag is in anote.beamed
         if !anote.beamed {
             if let Some(flag) = flag_glyph(l_dur, !stem_down) {
-                // Flag is positioned at stem endpoint (ystem)
-                let flag_x = stem_x;
-                let flag_y = d2r_sum(note_ctx.staff_top, anote.ystem);
+                // Sonata flag correction:
+                // X: Sonata flags are drawn at xd (notehead X), not stem X.
+                //    The Sonata glyph includes internal horizontal positioning.
+                //    SMuFL flags go at the stem X (already adjusted for stem side).
+                // Y: Sonata flag glyphs assume drawing from notehead position with
+                //    octave-length stem baked in. OG shifts from stem tip toward
+                //    notehead by 7*halfSp. SMuFL flags go at the stem tip.
+                // Reference: DrawNRGR.cp lines 1058-1073.
+                let (flag_x, flag_y) = if renderer.uses_sonata_font() {
+                    let octave_len = 7.0 * half_sp;
+                    let fy = if stem_down {
+                        d2r_sum(note_ctx.staff_top, anote.ystem) - octave_len
+                    } else {
+                        d2r_sum(note_ctx.staff_top, anote.ystem) + octave_len
+                    };
+                    (xd_norm, fy) // Sonata: notehead X, adjusted Y
+                } else {
+                    (stem_x, d2r_sum(note_ctx.staff_top, anote.ystem)) // SMuFL: stem X, stem tip Y
+                };
                 renderer.music_char(flag_x, flag_y, MusicGlyph::smufl(flag), 100.0);
             }
         }
@@ -464,14 +481,18 @@ fn draw_rest(
     } else {
         0.0
     };
-    // SMuFL glyph origin correction:
+    // SMuFL glyph origin correction (only when NOT using Sonata):
     // Sonata: whole rest baseline at bottom of rect (sits on line)
     // SMuFL: whole rest origin at top of rect (hangs from line)
-    // NGL yd positions for Sonata baseline; shift up 1 lnSpace for SMuFL.
-    // Half rest is the opposite (Sonata baseline at top, SMuFL at bottom).
-    let smufl_rest_correction = match draw_l_dur {
-        x if x == WHOLE_L_DUR => -lnspace, // shift up to hang from correct line
-        _ => 0.0,
+    // NGL yd positions assume Sonata baseline; shift up 1 lnSpace for SMuFL.
+    let smufl_rest_correction = if renderer.uses_sonata_font() {
+        // Sonata: yd positions are native — no correction needed.
+        0.0
+    } else {
+        match draw_l_dur {
+            x if x == WHOLE_L_DUR => -lnspace, // shift up to hang from correct line
+            _ => 0.0,
+        }
     };
     let rest_y = note_y + rest_y_off + smufl_rest_correction;
 
@@ -700,15 +721,29 @@ pub fn draw_grsync(
                         d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd))
                     };
 
-                    let stem_width = 0.8;
+                    // Stem width: 8% of staff interline space (same as regular notes).
+                    // Reference: PS_Stdio.cp:952, STEMLW_DFLT = 8 (% of lnSpace)
+                    let stem_width = lnspace * 0.08;
                     renderer.note_stem(stem_x, stem_top, stem_bottom, stem_width);
 
                     // Flag for unbeamed grace notes
                     let flag_count = crate::utility::nflags(l_dur);
                     if !grnote.beamed && flag_count > 0 {
                         if let Some(flag) = flag_glyph(l_dur, !stem_down) {
-                            let flag_x = stem_x;
-                            let flag_y = d2r_sum(note_ctx.staff_top, grnote.ystem);
+                            // Sonata: flags at notehead X with octave Y correction
+                            // SMuFL: flags at stem X, stem tip Y
+                            let (flag_x, flag_y) = if renderer.uses_sonata_font() {
+                                let scale_f = grace_size_pct / 100.0;
+                                let octave_len = 7.0 * half_sp * scale_f;
+                                let fy = if stem_down {
+                                    d2r_sum(note_ctx.staff_top, grnote.ystem) - octave_len
+                                } else {
+                                    d2r_sum(note_ctx.staff_top, grnote.ystem) + octave_len
+                                };
+                                (xd_norm, fy)
+                            } else {
+                                (stem_x, d2r_sum(note_ctx.staff_top, grnote.ystem))
+                            };
                             renderer.music_char(
                                 flag_x,
                                 flag_y,

@@ -1223,6 +1223,10 @@ impl MusicRenderer for BitmapRenderer {
         self.state.color = color;
     }
 
+    fn uses_sonata_font(&self) -> bool {
+        self.sonata_font.is_some()
+    }
+
     fn measure_text_width(&self, text: &str, font: &TextFont) -> Option<f32> {
         let role = Self::text_font_role(font);
         let font_size = font.size.max(4.0);

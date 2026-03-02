@@ -284,4 +284,15 @@ pub trait MusicRenderer {
     fn measure_text_width(&self, _text: &str, _font: &TextFont) -> Option<f32> {
         None
     }
+
+    // ================== Font Query (optional) ==================
+
+    /// Returns true if the renderer is using the Sonata legacy music font.
+    ///
+    /// When true, drawing code applies Sonata-specific glyph origin corrections
+    /// (clefs, rests) since Sonata glyph origins differ from SMuFL convention.
+    /// Default: false (assumes SMuFL-compatible font).
+    fn uses_sonata_font(&self) -> bool {
+        false
+    }
 }

@@ -53,7 +53,7 @@ use crate::space_time::{
     min_measure_width_stdist, respace_1bar, stdist_to_ddist, sync_width_left, sync_width_right,
     NoteWidthInfo, SpaceTimeInfo, CONFIG_SP_AFTER_BAR, J_IT,
 };
-use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
+use crate::utility::{calc_ystem, nflags, shorten_stem, DFLT_XMOVEACC};
 use std::collections::BTreeSet;
 
 // Re-export shared types for backward compatibility with existing callers.
@@ -135,12 +135,12 @@ impl Default for NotelistLayoutConfig {
             inter_staff: staff_height * 5 / 2, // 2.5× staff height (Score.cp:200 initStfTop2)
             stem_len_normal: 14,              // 3.5 interline spaces (Initialize.cp:757)
             stem_len_2v: 12,                  // 3 interline spaces (Initialize.cp:758)
-            stem_len_outside: 10,             // 2.5 interline spaces (Initialize.cp:759)
-            max_measures: 4,                  // Anacrusis + 3 full measures
-            max_voices_per_staff: 0,          // No limit — render all voices
-            rest_mv_offset: 2,                // 1 staff space (Initialize.cp config.restMVOffset)
-            skip_anacrusis: false,            // Include pickup beats by default
-            rel_beam_slope: 33,               // 33% of natural slope (Beam.cp:214)
+            stem_len_outside: 12, // 3 interline spaces (Initialize.cp:926 STEMLEN_OUTSIDE_DFLT)
+            max_measures: 4,      // Anacrusis + 3 full measures
+            max_voices_per_staff: 0, // No limit — render all voices
+            rest_mv_offset: 2,    // 1 staff space (Initialize.cp config.restMVOffset)
+            skip_anacrusis: false, // Include pickup beats by default
+            rel_beam_slope: 33,   // 33% of natural slope (Beam.cp:214)
         }
     }
 }
@@ -2090,10 +2090,17 @@ pub fn notelist_to_score_with_config(
 
                                 // Compute stem endpoint — port of CalcYStem (Utility.cp:49-89)
                                 let num_flags = nflags(*dur);
-                                // Use shorter stems for multi-voice notation
-                                // Port of QSTEMLEN macro (defs.h:417)
+                                // Port of QSTEMLEN macro (defs.h:417-418)
+                                // Single voice: use normal stem unless note is outside
+                                // staff with stem pointing away (ShortenStem, Utility.cp:135).
                                 let qtr_sp = match role {
-                                    VoiceRole::Single => config.stem_len_normal as i16,
+                                    VoiceRole::Single => {
+                                        if shorten_stem(half_ln, stem_down, n_staff_lines) {
+                                            config.stem_len_outside as i16
+                                        } else {
+                                            config.stem_len_normal as i16
+                                        }
+                                    }
                                     _ => config.stem_len_2v as i16,
                                 };
 
@@ -2539,8 +2546,15 @@ pub fn notelist_to_score_with_config(
                             // However, the stem is drawn in draw_grsync which handles the
                             // scaling. Here we compute ystem at normal size.
                             let num_flags = nflags(*dur);
+                            // Grace notes: same QSTEMLEN logic with ShortenStem
                             let qtr_sp = match role {
-                                VoiceRole::Single => config.stem_len_normal as i16,
+                                VoiceRole::Single => {
+                                    if shorten_stem(half_ln, stem_down, n_staff_lines) {
+                                        config.stem_len_outside as i16
+                                    } else {
+                                        config.stem_len_normal as i16
+                                    }
+                                }
                                 _ => config.stem_len_2v as i16,
                             };
 
