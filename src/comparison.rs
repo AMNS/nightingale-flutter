@@ -11,7 +11,9 @@ use crate::og_render::{self, RenderedPage};
 
 /// Mapping from fixture names to OG reference PDF filenames.
 ///
-/// Only fixtures with PDF references are included (PS/EPSF-only are skipped).
+/// All 8 Tim Crawford fixtures are registered here.
+/// tc_ich_bin_ja and tc_schildt were originally EPS/PS only; converted to PDF
+/// via ps2pdf from the og_reference/ source files.
 pub const OG_FIXTURES: &[OgFixture] = &[
     OgFixture {
         fixture_name: "tc_02",
@@ -36,6 +38,14 @@ pub const OG_FIXTURES: &[OgFixture] = &[
     OgFixture {
         fixture_name: "tc_55_1",
         og_pdf: "55_1.ng.pdf",
+    },
+    OgFixture {
+        fixture_name: "tc_ich_bin_ja",
+        og_pdf: "ich_bin_ja.ng.pdf",
+    },
+    OgFixture {
+        fixture_name: "tc_schildt",
+        og_pdf: "schildt.ng.pdf",
     },
 ];
 

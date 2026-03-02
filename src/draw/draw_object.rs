@@ -1366,8 +1366,100 @@ pub fn draw_slurs_from_endpoints(
             let p3 = Point { x: end_x, y: end_y };
 
             renderer.slur(p0, c1, c2, p3, false);
+        } else {
+            // Cross-system slur (outgoing): draw partial arc from note to right edge of staff.
+            // Port of Slurs.cp GetSlurContext lines 951-967: when lastSyncL=System, the slur's
+            // right endpoint is at the staff right edge, Y held constant from start.
+            let lnsp = start.lnspace;
+            let curve_up = start.stem_down;
+            let start_x = start.x + (2.0 * start.head_width) / 3.0;
+            let end_x = start.staff_right; // Extend to right edge of current system
+            let vert_offset = if curve_up { -lnsp } else { lnsp };
+            let start_y = start.y + vert_offset;
+            let end_y = start_y; // Horizontal partial arc (Y unchanged at system edge)
+
+            let span = end_x - start_x;
+            if span > 0.0 {
+                // Short-arc control points (capped at span/3)
+                let mut cx = 2.0 * lnsp;
+                if cx > span / 3.0 {
+                    cx = span / 3.0;
+                }
+                let cy_offset = SLUR_CURVATURE * lnsp / 100.0;
+                let cy = if curve_up { -cy_offset } else { cy_offset };
+
+                renderer.slur(
+                    Point {
+                        x: start_x,
+                        y: start_y,
+                    },
+                    Point {
+                        x: start_x + cx,
+                        y: start_y + cy,
+                    },
+                    Point {
+                        x: end_x - cx,
+                        y: end_y + cy,
+                    },
+                    Point { x: end_x, y: end_y },
+                    false,
+                );
+            }
         }
-        // else: unmatched slur start — cross-system slur (TODO)
+    }
+
+    // Draw partial slur arcs for unmatched slur_ends (incoming cross-system continuation).
+    // Port of Slurs.cp GetSlurContext lines 908-944: when firstSyncL=Measure, the slur's
+    // left endpoint is at the left edge of the first measure on the new system.
+    let mut matched_ends: Vec<bool> = vec![false; slur_ends.len()];
+    for start in slur_starts {
+        for (i, end) in slur_ends.iter().enumerate() {
+            if !matched_ends[i] && end.voice == start.voice && end.x > start.x {
+                matched_ends[i] = true;
+                break;
+            }
+        }
+    }
+
+    for (i, end) in slur_ends.iter().enumerate() {
+        if matched_ends[i] {
+            continue; // Already drawn as part of a matched slur
+        }
+        // Cross-system incoming slur: draw partial arc from left edge of staff to note
+        let lnsp = end.lnspace;
+        let curve_up = end.stem_down;
+        let start_x = end.staff_left; // Start at left edge of current system
+        let end_x = end.x + end.head_width / 6.0;
+        let vert_offset = if curve_up { -lnsp } else { lnsp };
+        let start_y = end.y + vert_offset;
+        let end_y = start_y; // Horizontal partial arc
+
+        let span = end_x - start_x;
+        if span > 0.0 {
+            let mut cx = 2.0 * lnsp;
+            if cx > span / 3.0 {
+                cx = span / 3.0;
+            }
+            let cy_offset = SLUR_CURVATURE * lnsp / 100.0;
+            let cy = if curve_up { -cy_offset } else { cy_offset };
+
+            renderer.slur(
+                Point {
+                    x: start_x,
+                    y: start_y,
+                },
+                Point {
+                    x: start_x + cx,
+                    y: start_y + cy,
+                },
+                Point {
+                    x: end_x - cx,
+                    y: end_y + cy,
+                },
+                Point { x: end_x, y: end_y },
+                false,
+            );
+        }
     }
 }
 
