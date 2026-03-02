@@ -3,10 +3,11 @@
 **Nightingale reborn in the 21st century: a faithful cross-platform port of the classic Mac music notation app.**
 
 Nightingale was a professional music notation editor for the Mac, developed from 1988 through
-the mid-2010s. This project ports the full application — its engraving engine, data model, and
-UI — from ~195K lines of C++/Carbon/QuickDraw to a modern Rust core with a Flutter UI.
+the mid-2010s. This project attempts to the full application — its engraving engine, data model, and
+UI — from ~195K lines of C/QuickDraw/Carbon to a modern Rust core with a Flutter UI. Much of the engraving
+engine and data model are ported and functioning.
 
-- Upstream (OG C++ source): https://github.com/AMNS/Nightingale
+- Upstream (origin C source): https://github.com/AMNS/Nightingale
 - License: MPL-2.0
 
 ---
