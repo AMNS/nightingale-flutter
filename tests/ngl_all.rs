@@ -818,3 +818,84 @@ fn test_all_ngl_beam_rendering() {
         println!("[{}] Beams: {}", name, beam_count);
     }
 }
+
+/// Diagnostic: dump all GRAPHIC and OTTAVA objects from tc_05 to identify the "(8)" symbol.
+#[test]
+fn test_tc_05_dump_graphic_ottava_objects() {
+    use nightingale_core::ngl::interpret::ObjData;
+    let path = "tests/fixtures/tc_05.ngl";
+    let ngl = NglFile::read_from_file(path).expect("tc_05.ngl not found");
+    let score = interpret_heap(&ngl).expect("interpret failed");
+
+    println!("=== tc_05 GRAPHIC objects ===");
+    for obj in &score.objects {
+        if let ObjData::Graphic(gfx) = &obj.data {
+            let str_val = score
+                .graphic_strings
+                .get(&obj.header.first_sub_obj)
+                .cloned()
+                .unwrap_or_default();
+            println!(
+                "  GRAPHIC staffn={} gtype={} enclosure={} info={} font_ind={} rel_size={} font_size={} info2={} visible={} str={:?}",
+                gfx.ext_header.staffn,
+                gfx.graphic_type,
+                gfx.enclosure,
+                gfx.info,
+                gfx.font_ind,
+                gfx.rel_f_size,
+                gfx.font_size,
+                gfx.info2,
+                obj.header.visible,
+                str_val,
+            );
+        }
+    }
+
+    println!("=== tc_05 OTTAVA objects ===");
+    for obj in &score.objects {
+        if let ObjData::Ottava(ott) = &obj.data {
+            println!(
+                "  OTTAVA staffn={} oct_sign_type={} number_vis={} brack_vis={} no_cutoff={} n_entries={} visible={}",
+                ott.ext_header.staffn,
+                ott.oct_sign_type,
+                ott.number_vis,
+                ott.brack_vis,
+                ott.no_cutoff,
+                obj.header.n_entries,
+                obj.header.visible,
+            );
+        }
+    }
+
+    println!("=== tc_05 CLEF objects ===");
+    for obj in &score.objects {
+        if let ObjData::Clef(_) = &obj.data {
+            if let Some(aclef_list) = score.clefs.get(&obj.header.first_sub_obj) {
+                for ac in aclef_list {
+                    println!(
+                        "  CLEF staffn={} sub_type={} visible={} obj_visible={}",
+                        ac.header.staffn, ac.header.sub_type, ac.header.visible, obj.header.visible,
+                    );
+                }
+            }
+        }
+    }
+
+    println!("=== tc_05 TIMESIG objects ===");
+    for obj in &score.objects {
+        if let ObjData::TimeSig(_) = &obj.data {
+            if let Some(ats_list) = score.timesigs.get(&obj.header.first_sub_obj) {
+                for at in ats_list {
+                    println!(
+                        "  TIMESIG staffn={} num={} denom={} visible={} obj_visible={}",
+                        at.header.staffn,
+                        at.numerator,
+                        at.denominator,
+                        at.header.visible,
+                        obj.header.visible,
+                    );
+                }
+            }
+        }
+    }
+}

@@ -17,10 +17,12 @@
 # Original Nightingale C++ source (checked out separately)
 /Nightingale/
 
-# Flutter (when we add it later)
-nightingale_app/.dart_tool/
-nightingale_app/build/
-nightingale_app/.packages
+# Flutter app build artifacts
+nightingale/.dart_tool/
+nightingale/build/
+nightingale/.packages
+nightingale/.flutter-plugins
+nightingale/.flutter-plugins-dependencies
 
 # Icebox (previous work, reference only — not tracked)
 /icebox/
