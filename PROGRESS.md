@@ -138,7 +138,6 @@
 - [x] **Rest rendering improvements**: added missing 32nd/64th/128th rest glyph mappings (SMuFL U+E4E8–E4EA), added pseudo-ledger lines for whole/half rests positioned outside the staff (port of DrawNRGR.cp lines 1329-1342). All rest durations breve through 128th now render correctly.
 
 #### Tier 4 — Advanced Layout
-- [ ] **Cross-bar (cross-measure) beams**: beams that span across barlines — OG Nightingale handles these via beam subobjects that reference notes in different measures (see Esmerelda p.15 for example). Port relevant logic from Beam.cp, including `DrawBEAMSET`'s handling of beam subobjects crossing measure boundaries. Currently beams break at measure boundaries.
 - [ ] **Cross-staff notation**: notes/beams drawn on a different staff than they belong to (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp)
 
 ### Module Refactor — COMPLETE
