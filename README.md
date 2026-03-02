@@ -3,7 +3,8 @@
 **Nightingale reborn in the 21st century: a faithful cross-platform port of the classic Mac music notation app.**
 
 Nightingale was a professional music notation editor for the Mac, developed from 1988 through
-the mid-2010s. This project attempts to the full application — its engraving engine, data model, and
+the mid-2020s, largely by Don Byrd from the software's inception until not long before his death.
+This project attempts to the full application — its engraving engine, data model, and
 UI — from ~195K lines of C/QuickDraw/Carbon to a modern Rust core with a Flutter UI. Much of the engraving
 engine and data model are ported and functioning.
 
@@ -239,7 +240,7 @@ The porting strategy for the editor layer:
 1. **Flutter tool palette** — replicate the OG palette UI in Flutter, wired to Rust
    mutation commands (not yet designed)
 2. **Rust mutation API** — add `score.insert_note()`, `score.delete_measure()`, etc.
-   to the Rust core, with the OG C++ editor functions as the reference implementation
+   to the Rust core, with the OG editor functions as the reference implementation
 3. **Reformatting** — port `RespaceMeasure` / `ReformatSystem` (SpaceHighLevel.cp,
    SFormat.cp) to trigger after any mutation
 4. **MIDI playback** — replace CoreMIDI with a cross-platform MIDI library
