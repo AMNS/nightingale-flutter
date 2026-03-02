@@ -130,24 +130,32 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
                 draw_measure(score, obj, &ctx, renderer, first_meas_in_system);
                 first_meas_in_system = false;
             }
+            // All object types below check VISIBLE(pL) before drawing,
+            // matching OG DrawHighLevel.cp DrawScoreRange().
+            // Context updates (above) always run regardless of visibility.
+            // Reference: DrawHighLevel.cp lines 68-128
             ObjData::Sync(_) => {
-                draw_sync(score, obj, &ctx, renderer);
+                if obj.header.visible {
+                    draw_sync(score, obj, &ctx, renderer);
+                }
+                // Always collect tie/slur endpoints (even invisible syncs
+                // can be tie/slur anchors that affect visible objects).
                 collect_tie_endpoints(score, obj, &ctx, &mut tie_starts, &mut tie_ends);
                 collect_slur_endpoints(score, obj, &ctx, &mut slur_starts, &mut slur_ends);
             }
-            ObjData::Connect(_) => draw_connect(score, obj, &ctx, renderer),
-            ObjData::Clef(_) => draw_clef(score, obj, &ctx, renderer),
-            ObjData::KeySig(_) => draw_keysig(score, obj, &ctx, renderer),
-            ObjData::TimeSig(_) => draw_timesig(score, obj, &ctx, renderer),
-            ObjData::BeamSet(_) => draw_beamset(score, obj, &ctx, renderer),
-            ObjData::Tuplet(_) => draw_tuplet(score, obj, &ctx, renderer),
-            ObjData::Slur(_) => draw_slur(score, obj, &ctx, renderer),
-            ObjData::Dynamic(_) => draw_dynamic(score, obj, &ctx, renderer),
-            ObjData::Graphic(_) => draw_graphic(score, obj, &ctx, renderer),
-            ObjData::Tempo(_) => draw_tempo(score, obj, &ctx, renderer),
-            ObjData::Ending(_) => draw_ending(score, obj, &ctx, renderer),
-            ObjData::Ottava(_) => draw_ottava(score, obj, &ctx, renderer),
-            ObjData::GrSync(_) => draw_grsync(score, obj, &ctx, renderer),
+            ObjData::Connect(_) if obj.header.visible => draw_connect(score, obj, &ctx, renderer),
+            ObjData::Clef(_) if obj.header.visible => draw_clef(score, obj, &ctx, renderer),
+            ObjData::KeySig(_) if obj.header.visible => draw_keysig(score, obj, &ctx, renderer),
+            ObjData::TimeSig(_) if obj.header.visible => draw_timesig(score, obj, &ctx, renderer),
+            ObjData::BeamSet(_) if obj.header.visible => draw_beamset(score, obj, &ctx, renderer),
+            ObjData::Tuplet(_) if obj.header.visible => draw_tuplet(score, obj, &ctx, renderer),
+            ObjData::Slur(_) if obj.header.visible => draw_slur(score, obj, &ctx, renderer),
+            ObjData::Dynamic(_) if obj.header.visible => draw_dynamic(score, obj, &ctx, renderer),
+            ObjData::Graphic(_) if obj.header.visible => draw_graphic(score, obj, &ctx, renderer),
+            ObjData::Tempo(_) if obj.header.visible => draw_tempo(score, obj, &ctx, renderer),
+            ObjData::Ending(_) if obj.header.visible => draw_ending(score, obj, &ctx, renderer),
+            ObjData::Ottava(_) if obj.header.visible => draw_ottava(score, obj, &ctx, renderer),
+            ObjData::GrSync(_) if obj.header.visible => draw_grsync(score, obj, &ctx, renderer),
             _ => {}
         }
     }
