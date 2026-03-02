@@ -9,8 +9,8 @@ delete it.
 
 ## Repository
 
-- Upstream: https://github.com/AMNS/Nightingale (branch: `develop`)
-- Fork/working branch: `modernize` (create if it doesn't exist)
+- Upstream (OG C++ source): https://github.com/AMNS/Nightingale (branch: `develop`)
+- This repo (Rust/Flutter port): https://github.com/AMNS/nightingale-flutter (branch: `main`)
 - License: MPL-2.0
 
 ## Codebase Stats (develop branch)
