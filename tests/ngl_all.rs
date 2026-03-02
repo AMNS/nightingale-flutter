@@ -13,9 +13,9 @@ mod common;
 use nightingale_core::defs::*;
 use nightingale_core::draw::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
-use nightingale_core::render::{
-    BitmapRenderer, CommandRenderer, MusicRenderer, PdfRenderer, RenderCommand,
-};
+#[cfg(feature = "visual-regression")]
+use nightingale_core::render::{BitmapRenderer, MusicRenderer};
+use nightingale_core::render::{CommandRenderer, PdfRenderer, RenderCommand};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::fs;
@@ -656,8 +656,9 @@ fn test_all_ngl_command_stream_hashes() {
 /// Uses pure-Rust BitmapRenderer (tiny-skia) — no external PDF-to-PNG tools needed.
 /// On mismatch, generates a visual diff image (matching pixels dimmed, diffs in red).
 ///
-/// Regenerate goldens: `REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression`
+/// Regenerate goldens: `REGENERATE_REFS=1 cargo test --features visual-regression test_all_ngl_bitmap_regression`
 #[test]
+#[cfg(feature = "visual-regression")]
 fn test_all_ngl_bitmap_regression() {
     let regenerate = std::env::var("REGENERATE_REFS").is_ok();
     let golden_dir = Path::new("tests/golden_bitmaps");
