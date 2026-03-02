@@ -1047,14 +1047,19 @@ impl MusicRenderer for BitmapRenderer {
             MusicGlyph::Sonata(ch) => ch as u32,
         };
 
-        // If Sonata font is loaded, try to reverse-map SMuFL → Sonata and render
-        if self.sonata_font.is_some() {
-            let sonata_cp = match glyph {
+        // If Sonata font is loaded, try to reverse-map SMuFL → Sonata and render.
+        // Compute sonata_cp before taking a mutable borrow on self.sonata_font to
+        // satisfy the borrow checker (self.smufl_to_sonata is a distinct field).
+        let sonata_cp: Option<u32> = if self.sonata_font.is_some() {
+            match glyph {
                 MusicGlyph::Sonata(ch) => Some(ch as u32),
                 MusicGlyph::Smufl(cp) => self.smufl_to_sonata.get(&cp).copied(),
-            };
-            if let Some(scp) = sonata_cp {
-                let font = self.sonata_font.as_mut().unwrap();
+            }
+        } else {
+            None
+        };
+        if let Some(scp) = sonata_cp {
+            if let Some(font) = self.sonata_font.as_mut() {
                 if let Some(gid) = font.glyph_id(scp) {
                     if let Some(glyph_path) = font.get_glyph_path(gid) {
                         let font_size = self.state.music_size * size_percent / 100.0;
@@ -1069,8 +1074,8 @@ impl MusicRenderer for BitmapRenderer {
                         return;
                     }
                 }
+                // Sonata font loaded but glyph not found — fall through to SMuFL
             }
-            // Sonata font loaded but glyph not found — fall through to SMuFL
         }
 
         // Primary path: render from SMuFL music font (Bravura etc.)

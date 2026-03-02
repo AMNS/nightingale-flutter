@@ -32,3 +32,8 @@ nightingale/.flutter-plugins-dependencies
 
 # Temporary files
 *.tmp
+
+# Proprietary fonts (not redistributable — obtain separately for OG comparison tests)
+# Sonata.ttf is Copyright Fantazia Fonts and Sounds; place in assets/fonts/ locally
+# for the og_comparison test suite; it is not required for normal builds.
+assets/fonts/Sonata.ttf
