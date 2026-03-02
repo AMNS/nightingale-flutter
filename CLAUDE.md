@@ -9,14 +9,14 @@ delete it.
 
 ## Repository
 
-- Upstream (OG C++ source): https://github.com/AMNS/Nightingale (branch: `develop`)
+- Upstream (OG C source): https://github.com/AMNS/Nightingale (branch: `develop`)
 - This repo (Rust/Flutter port): https://github.com/AMNS/nightingale-flutter (branch: `main`)
 - License: MPL-2.0
 
 ## Codebase Stats (develop branch)
 
-- 195K lines across 277 source files (C++/C)
-- 91.8% C++, 8.2% C
+- 195K lines across 277 source files (C, with `.cp` extension on old Mac)
+- Core files in `CFilesBoth/`, `CFilesEditor/`, `Utilities/`, `Precomps/`
 - ~650 QuickDraw drawing calls
 - ~1,118 Carbon dialog API calls
 - ~309 Carbon control API calls  
@@ -185,9 +185,9 @@ Each session should:
 
 When working on rendering/engraving tasks, operate in autonomous micro-cycles:
 
-1. **Research** — Read the OG Nightingale C++ source for the relevant function
+1. **Research** — Read the OG Nightingale C source for the relevant function
    (use subagents with haiku/sonnet for grep/read tasks to conserve credits).
-2. **Port** — Faithfully translate the C++ logic to Rust with reference comments.
+2. **Port** — Faithfully translate the C logic to Rust with reference comments.
 3. **Render** — Run the test that produces PDF, convert to PNG, visually inspect.
 4. **Self-check** — Look for collisions, misalignments, incorrect positioning.
    If issues found, iterate (go to step 1 for the next discrete issue).
@@ -261,15 +261,40 @@ Each discrete drawing function should be ported as its own unit with tests:
 
 ## OG Nightingale Source Location
 
-The authoritative C++ source is the **local clone** at:
-`./Nightingale/src/` (relative to this repo root, i.e. `nightingale-modernize/Nightingale/src/`)
+The OG C source is a **separate checkout of https://github.com/AMNS/Nightingale**,
+branch `develop`. It is NOT part of this repo — it lives alongside it as a sibling
+directory named `Nightingale/`.
 
-**Always use this local copy** — not any parent-directory or absolute path.
+### Bootstrapping (session start)
 
-Key directories: `CFilesBoth/`, `CFilesBothEd/`, `Utilities/`, `Precomps/`
+At the beginning of each session, locate the OG source before reading any OG files:
 
-Line endings have been converted to Unix LF. Use Read/Grep tools directly —
-no need for `tr` or other preprocessing. Always reference this when porting.
+```sh
+# Typical layout — repo and OG source share a parent directory:
+#   <parent>/
+#     nightingale-modernize/   ← this repo (pwd)
+#     Nightingale/             ← OG C source
+ls ../Nightingale/src/CFilesBoth/    # confirms location
+```
+
+If the `Nightingale/` sibling is not found, clone it:
+
+```sh
+git clone https://github.com/AMNS/Nightingale.git ../Nightingale
+git -C ../Nightingale checkout develop
+```
+
+### Key source directories (relative to OG repo root)
+
+```
+src/CFilesBoth/    — core drawing/layout/engraving (primary porting reference)
+src/CFilesEditor/  — editor operations
+src/Utilities/     — utility functions
+src/Precomps/      — header files / type definitions
+```
+
+Use Read/Grep tools with the discovered path. Line endings are Unix LF —
+no preprocessing needed. Always verify the path resolves before reading files.
 
 ## Test Data Strategy
 

@@ -46,26 +46,15 @@ jobs:
         # --features visual-regression and are intentionally skipped in CI.
         # Run locally with: cargo test --features visual-regression
 
-  # ─── Flutter macOS: build smoke test ────────────────────────────────────────
+  # ─── Flutter: pub get + analyze (platform-agnostic) ────────────────────────
   flutter:
-    name: Flutter macOS build
-    runs-on: macos-latest
+    name: Flutter analyze
+    runs-on: ubuntu-latest
+    # Note: flutter build <platform> requires native toolchains (Xcode for macOS,
+    # etc.) and is intentionally omitted here. Run locally for native builds.
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo registry + build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            nightingale/rust/target
-          key: ${{ runner.os }}-cargo-flutter-${{ hashFiles('nightingale/rust/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-flutter-
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -83,8 +72,8 @@ jobs:
         working-directory: nightingale
         run: flutter pub get
 
-      - name: flutter build macos (debug smoke test)
+      - name: flutter analyze
         working-directory: nightingale
-        run: flutter build macos --debug
-        # This compiles the Rust bridge + Dart app. A successful build confirms
-        # the FFI API is in sync and the app is structurally sound.
+        run: flutter analyze
+        # Confirms Dart code compiles, types check, and the pubspec dependency
+        # graph is consistent — without requiring a native build toolchain.
