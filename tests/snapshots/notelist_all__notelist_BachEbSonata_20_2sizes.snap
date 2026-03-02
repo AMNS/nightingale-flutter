@@ -3,7 +3,7 @@ source: tests/notelist_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 180
+BarLine: 60
 Beam: 454
 BeginPage: 5
 Brace: 15
@@ -16,7 +16,7 @@ SetWidths: 1
 Slur: 20
 Staff: 45
 TextString: 4
-TOTAL: 2746
+TOTAL: 2626
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -67,185 +67,65 @@ y=542.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=246.4 top=72.0 bottom=96.0
-x=246.4 top=132.0 bottom=156.0
-x=246.4 top=192.0 bottom=216.0
 x=350.2 top=72.0 bottom=96.0
-x=350.2 top=132.0 bottom=156.0
-x=350.2 top=192.0 bottom=216.0
 x=454.0 top=72.0 bottom=96.0
-x=454.0 top=132.0 bottom=156.0
-x=454.0 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=225.4 top=247.0 bottom=271.0
-x=225.4 top=307.0 bottom=331.0
-x=225.4 top=367.0 bottom=391.0
 x=338.6 top=247.0 bottom=271.0
-x=338.6 top=307.0 bottom=331.0
-x=338.6 top=367.0 bottom=391.0
 x=451.7 top=247.0 bottom=271.0
-x=451.7 top=307.0 bottom=331.0
-x=451.7 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=228.9 top=422.0 bottom=446.0
-x=228.9 top=482.0 bottom=506.0
-x=228.9 top=542.0 bottom=566.0
 x=338.5 top=422.0 bottom=446.0
-x=338.5 top=482.0 bottom=506.0
-x=338.5 top=542.0 bottom=566.0
 x=448.1 top=422.0 bottom=446.0
-x=448.1 top=482.0 bottom=506.0
-x=448.1 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=228.9 top=72.0 bottom=96.0
-x=228.9 top=132.0 bottom=156.0
-x=228.9 top=192.0 bottom=216.0
 x=338.5 top=72.0 bottom=96.0
-x=338.5 top=132.0 bottom=156.0
-x=338.5 top=192.0 bottom=216.0
 x=448.1 top=72.0 bottom=96.0
-x=448.1 top=132.0 bottom=156.0
-x=448.1 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=228.9 top=247.0 bottom=271.0
-x=228.9 top=307.0 bottom=331.0
-x=228.9 top=367.0 bottom=391.0
 x=338.5 top=247.0 bottom=271.0
-x=338.5 top=307.0 bottom=331.0
-x=338.5 top=367.0 bottom=391.0
 x=448.1 top=247.0 bottom=271.0
-x=448.1 top=307.0 bottom=331.0
-x=448.1 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=221.9 top=422.0 bottom=446.0
-x=221.9 top=482.0 bottom=506.0
-x=221.9 top=542.0 bottom=566.0
 x=338.6 top=422.0 bottom=446.0
-x=338.6 top=482.0 bottom=506.0
-x=338.6 top=542.0 bottom=566.0
 x=441.2 top=422.0 bottom=446.0
-x=441.2 top=482.0 bottom=506.0
-x=441.2 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=231.0 top=72.0 bottom=96.0
-x=231.0 top=132.0 bottom=156.0
-x=231.0 top=192.0 bottom=216.0
 x=349.5 top=72.0 bottom=96.0
-x=349.5 top=132.0 bottom=156.0
-x=349.5 top=192.0 bottom=216.0
 x=453.8 top=72.0 bottom=96.0
-x=453.8 top=132.0 bottom=156.0
-x=453.8 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=232.1 top=247.0 bottom=271.0
-x=232.1 top=307.0 bottom=331.0
-x=232.1 top=367.0 bottom=391.0
 x=338.6 top=247.0 bottom=271.0
-x=338.6 top=307.0 bottom=331.0
-x=338.6 top=367.0 bottom=391.0
 x=445.0 top=247.0 bottom=271.0
-x=445.0 top=307.0 bottom=331.0
-x=445.0 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=228.6 top=422.0 bottom=446.0
-x=228.6 top=482.0 bottom=506.0
-x=228.6 top=542.0 bottom=566.0
 x=338.6 top=422.0 bottom=446.0
-x=338.6 top=482.0 bottom=506.0
-x=338.6 top=542.0 bottom=566.0
 x=447.9 top=422.0 bottom=446.0
-x=447.9 top=482.0 bottom=506.0
-x=447.9 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=234.8 top=72.0 bottom=96.0
-x=234.8 top=132.0 bottom=156.0
-x=234.8 top=192.0 bottom=216.0
 x=342.4 top=72.0 bottom=96.0
-x=342.4 top=132.0 bottom=156.0
-x=342.4 top=192.0 bottom=216.0
 x=450.1 top=72.0 bottom=96.0
-x=450.1 top=132.0 bottom=156.0
-x=450.1 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=228.9 top=247.0 bottom=271.0
-x=228.9 top=307.0 bottom=331.0
-x=228.9 top=367.0 bottom=391.0
 x=338.5 top=247.0 bottom=271.0
-x=338.5 top=307.0 bottom=331.0
-x=338.5 top=367.0 bottom=391.0
 x=448.1 top=247.0 bottom=271.0
-x=448.1 top=307.0 bottom=331.0
-x=448.1 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=237.8 top=422.0 bottom=446.0
-x=237.8 top=482.0 bottom=506.0
-x=237.8 top=542.0 bottom=566.0
 x=342.0 top=422.0 bottom=446.0
-x=342.0 top=482.0 bottom=506.0
-x=342.0 top=542.0 bottom=566.0
 x=453.8 top=422.0 bottom=446.0
-x=453.8 top=482.0 bottom=506.0
-x=453.8 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=234.9 top=72.0 bottom=96.0
-x=234.9 top=132.0 bottom=156.0
-x=234.9 top=192.0 bottom=216.0
 x=342.9 top=72.0 bottom=96.0
-x=342.9 top=132.0 bottom=156.0
-x=342.9 top=192.0 bottom=216.0
 x=474.9 top=72.0 bottom=96.0
-x=474.9 top=132.0 bottom=156.0
-x=474.9 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=225.1 top=247.0 bottom=271.0
-x=225.1 top=307.0 bottom=331.0
-x=225.1 top=367.0 bottom=391.0
 x=338.6 top=247.0 bottom=271.0
-x=338.6 top=307.0 bottom=331.0
-x=338.6 top=367.0 bottom=391.0
 x=444.4 top=247.0 bottom=271.0
-x=444.4 top=307.0 bottom=331.0
-x=444.4 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=264.2 top=422.0 bottom=446.0
-x=264.2 top=482.0 bottom=506.0
-x=264.2 top=542.0 bottom=566.0
 x=409.1 top=422.0 bottom=446.0
-x=409.1 top=482.0 bottom=506.0
-x=409.1 top=542.0 bottom=566.0
 x=513.2 top=422.0 bottom=446.0
-x=513.2 top=482.0 bottom=506.0
-x=513.2 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 
 === BEAMS ===
 x=[185.1..200.8] y=[121.0..119.1] slope=-0.123 thick=3.00

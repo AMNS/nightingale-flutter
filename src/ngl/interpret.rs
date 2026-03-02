@@ -1660,10 +1660,24 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 })
             }
 
-            RPTEND_TYPE | CONNECT_TYPE => {
-                // Simple objects with minimal unpacking for now
+            RPTEND_TYPE => {
+                // Simple object with minimal unpacking for now
                 ObjData::GrSync(GrSync {
                     header: header.clone(),
+                })
+            }
+
+            CONNECT_TYPE => {
+                // Connect (brace/bracket) — connFiller is after OBJECTHEADER
+                // Source: NObjTypesN105.h lines 351-354
+                let conn_filler = if obj_data.len() >= 2 {
+                    u16::from_be_bytes([obj_data[0], obj_data[1]])
+                } else {
+                    0
+                };
+                ObjData::Connect(Connect {
+                    header: header.clone(),
+                    conn_filler,
                 })
             }
 
@@ -1979,6 +1993,26 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !noteottavas.is_empty() {
                     score.ottavas.insert(obj.header.first_sub_obj, noteottavas);
+                }
+            }
+
+            CONNECT_TYPE => {
+                // Unpack ACONNECT subobjects (12 bytes each)
+                // Source: NObjTypesN105.h lines 338-349
+                let mut connects = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(conn) = unpack_aconnect_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            connects.push(conn);
+                        }
+                    }
+                }
+                if !connects.is_empty() {
+                    score.connects.insert(obj.header.first_sub_obj, connects);
                 }
             }
 

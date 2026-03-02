@@ -445,7 +445,7 @@ pub fn sonata_char_to_smufl(ch: u8) -> Option<u32> {
         0x7B => Some(0xE043), // MCH_rptDots -> repeatDots
 
         // Braces/brackets
-        0xC2 => Some(0xE002), // MCH_topbracket -> bracketTop
+        0xC2 => Some(0xE003), // MCH_topbracket -> bracketTop (U+E003)
         0x4C => Some(0xE004), // 'L' = MCH_bottombracket -> bracketBottom
         0xA7 => Some(0xE000), // MCH_braceup -> brace (top half)
         0xEA => Some(0xE000), // MCH_bracedown -> brace (bottom half)

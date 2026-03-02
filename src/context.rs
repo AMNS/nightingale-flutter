@@ -59,6 +59,11 @@ impl ContextState {
         }
     }
 
+    /// Get the number of staves in this context.
+    pub fn num_staves(&self) -> usize {
+        self.num_staves
+    }
+
     /// Get the context for a specific staff.
     ///
     /// # Arguments

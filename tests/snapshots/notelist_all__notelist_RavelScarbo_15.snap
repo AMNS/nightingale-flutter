@@ -3,7 +3,7 @@ source: tests/notelist_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 48
+BarLine: 24
 Beam: 96
 BeginPage: 2
 Brace: 6
@@ -16,7 +16,7 @@ SetWidths: 1
 Slur: 35
 Staff: 12
 TextString: 1
-TOTAL: 1593
+TOTAL: 1569
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -34,53 +34,29 @@ y=307.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=278.6 top=72.0 bottom=96.0
-x=278.6 top=132.0 bottom=156.0
 x=384.8 top=72.0 bottom=96.0
-x=384.8 top=132.0 bottom=156.0
 x=454.6 top=72.0 bottom=96.0
-x=454.6 top=132.0 bottom=156.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
 x=239.9 top=247.0 bottom=271.0
-x=239.9 top=307.0 bottom=331.0
 x=340.2 top=247.0 bottom=271.0
-x=340.2 top=307.0 bottom=331.0
 x=476.4 top=247.0 bottom=271.0
-x=476.4 top=307.0 bottom=331.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
 x=228.8 top=422.0 bottom=446.0
-x=228.8 top=482.0 bottom=506.0
 x=304.8 top=422.0 bottom=446.0
-x=304.8 top=482.0 bottom=506.0
 x=453.1 top=422.0 bottom=446.0
-x=453.1 top=482.0 bottom=506.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
 x=187.2 top=597.0 bottom=621.0
-x=187.2 top=657.0 bottom=681.0
 x=263.2 top=597.0 bottom=621.0
-x=263.2 top=657.0 bottom=681.0
 x=418.4 top=597.0 bottom=621.0
-x=418.4 top=657.0 bottom=681.0
 x=558.0 top=597.0 bottom=621.0
-x=558.0 top=657.0 bottom=681.0
 x=312.2 top=72.0 bottom=96.0
-x=312.2 top=132.0 bottom=156.0
 x=404.9 top=72.0 bottom=96.0
-x=404.9 top=132.0 bottom=156.0
 x=499.4 top=72.0 bottom=96.0
-x=499.4 top=132.0 bottom=156.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
 x=308.4 top=247.0 bottom=271.0
-x=308.4 top=307.0 bottom=331.0
 x=418.4 top=247.0 bottom=271.0
-x=418.4 top=307.0 bottom=331.0
 x=526.4 top=247.0 bottom=271.0
-x=526.4 top=307.0 bottom=331.0
 x=526.4 top=247.0 bottom=271.0
-x=526.4 top=307.0 bottom=331.0
 
 === BEAMS ===
 x=[191.8..204.3] y=[140.0..139.0] slope=-0.080 thick=3.00

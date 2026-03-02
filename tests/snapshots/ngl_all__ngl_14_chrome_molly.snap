@@ -6,6 +6,7 @@ expression: summary
 BarLine: 777
 Beam: 368
 BeginPage: 30
+ConnectorLine: 30
 EndPage: 30
 LedgerLine: 839
 LineHorizontalThick: 313
@@ -16,7 +17,7 @@ SetWidths: 1
 Slur: 196
 Staff: 210
 TextString: 586
-TOTAL: 9020
+TOTAL: 9050
 
 === STAVES ===
 y=76.0 x=[147.0..763.0] lines=5 spacing=4.50

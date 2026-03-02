@@ -3,9 +3,11 @@ source: tests/ngl_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 4
+BarLine: 2
 Beam: 10
 BeginPage: 1
+Brace: 1
+ConnectorLine: 1
 EndPage: 1
 LedgerLine: 3
 MusicChar: 56
@@ -19,7 +21,7 @@ TOTAL: 109
 y=60.1 x=[36.0..330.0] lines=5 spacing=4.00
 y=98.6 x=[36.0..330.0] lines=5 spacing=4.00
 
-=== BARLINES: 4 total ===
+=== BARLINES: 2 total ===
 
 === BEAMS: 10 total ===
 

@@ -893,150 +893,186 @@ impl MusicRenderer for PdfRenderer {
 
     /// Draw a system bracket using SMuFL glyph U+E002.
     ///
-    /// The bracket glyph is scaled vertically to span the staff group height,
-    /// similar to the brace glyph approach.
+    /// Ported from OG BK PostScript operator (PS_Stdio.cp, PS_Bracket() line 1966).
+    /// OG draws: top serif glyph + filled vertical rectangle + bottom serif glyph.
+    /// Bar width = topBracketCharWidth × 0.36275 (from the BK prolog definition).
     ///
-    /// Reference: PS_Stdio.cp, PS_Bracket(), line 1966
+    /// We draw bracketTop (U+E003) and bracketBottom (U+E004) as serif glyphs,
+    /// with a filled rectangle connecting them for the vertical bar.
+    ///
+    /// Reference: DrawObject.cp line 807, PS_Stdio.cp BK operator definition
     fn bracket(&mut self, x: f32, y_top: f32, y_bottom: f32) {
         let height = (y_bottom - y_top).abs();
         if height < 1.0 {
             return;
         }
+        self.page_has_content = true;
 
-        let bracket_codepoint: u32 = 0xE002; // SMuFL "bracket"
+        // OG: bar_width = CharWidth(MCH_topbracket) * 0.36275
+        // At music_size, the Sonata top bracket char is roughly 0.5em wide,
+        // so bar_width ≈ music_size * 0.5 * 0.36275 ≈ music_size * 0.18.
+        // We derive from the actual glyph advance width if available.
+        let mut bar_width = self.music_size * 0.18;
+        let mut drew_top_glyph = false;
+        let mut drew_bottom_glyph = false;
 
+        // Draw top serif glyph (bracketTop U+E003)
         if let Some(ref font) = self.music_font {
-            if let Some(gid) = font.glyph_id(bracket_codepoint) {
-                self.page_has_content = true;
-                self.used_glyphs.entry(gid).or_insert(bracket_codepoint);
+            let top_cp: u32 = 0xE003;
+            if let Some(gid) = font.glyph_id(top_cp) {
+                // Use glyph advance width to compute bar_width.
+                // widths[] is in PDF font units (1000/em), so convert to points.
+                let w1000 = font.widths.get(gid as usize).copied().unwrap_or(0.0);
+                if w1000 > 0.0 {
+                    let char_width_pt = (w1000 / 1000.0) * self.music_size;
+                    bar_width = char_width_pt * 0.36275;
+                    if bar_width < 1.0 {
+                        bar_width = 1.0;
+                    }
+                }
+                self.used_glyphs.entry(gid).or_insert(top_cp);
                 let encoded = [(gid >> 8) as u8, (gid & 0xFF) as u8];
 
-                // Bracket glyph: similar sizing approach to brace.
-                // Bravura bracket bbox height ≈ 4 staff spaces (same as brace).
-                let glyph_height_em: f32 = 997.0 / 1000.0;
-                let x_scale = self.music_size * self.state.scale_x;
-                let y_scale = height / glyph_height_em * self.state.scale_y;
+                let font_scale = self.music_size;
+                let tx = self.tx(x);
+                let ty = self.ty(y_top);
 
+                self.sync_fill_color();
+                self.content.begin_text();
+                self.content
+                    .set_text_matrix([font_scale, 0.0, 0.0, -font_scale, tx, ty]);
+                self.content.set_font(Name(b"Bravura"), 1.0);
+                self.content.show(Str(&encoded));
+                self.content.end_text();
+                drew_top_glyph = true;
+            }
+        }
+
+        // Draw bottom serif glyph (bracketBottom U+E004)
+        if let Some(ref font) = self.music_font {
+            let bottom_cp: u32 = 0xE004;
+            if let Some(gid) = font.glyph_id(bottom_cp) {
+                self.used_glyphs.entry(gid).or_insert(bottom_cp);
+                let encoded = [(gid >> 8) as u8, (gid & 0xFF) as u8];
+
+                let font_scale = self.music_size;
                 let tx = self.tx(x);
                 let ty = self.ty(y_bottom);
 
                 self.sync_fill_color();
                 self.content.begin_text();
                 self.content
-                    .set_text_matrix([x_scale, 0.0, 0.0, -y_scale, tx, ty]);
+                    .set_text_matrix([font_scale, 0.0, 0.0, -font_scale, tx, ty]);
                 self.content.set_font(Name(b"Bravura"), 1.0);
                 self.content.show(Str(&encoded));
                 self.content.end_text();
-                return;
+                drew_bottom_glyph = true;
             }
         }
 
-        // Fallback: vertical line with serifs
-        self.sync_stroke_color();
-        self.content.set_line_width(2.0 * self.state.scale_x);
-        self.content.move_to(self.tx(x), self.ty(y_top));
-        self.content.line_to(self.tx(x), self.ty(y_bottom));
-        self.content.stroke();
+        // Draw filled vertical bar connecting top and bottom serifs.
+        // OG BK: x y moveto x y+h lineto x+bkw y+h lineto x+bkw y lineto closepath fill
+        let bx = self.tx(x);
+        let by_top = self.ty(y_top);
+        let by_bot = self.ty(y_bottom);
+        let bw = bar_width * self.state.scale_x;
 
-        self.content.set_line_width(1.5 * self.state.scale_x);
-        self.content.move_to(self.tx(x), self.ty(y_top));
-        self.content.line_to(self.tx(x + 4.0), self.ty(y_top));
-        self.content.stroke();
+        self.sync_fill_color();
+        self.content.move_to(bx, by_top);
+        self.content.line_to(bx, by_bot);
+        self.content.line_to(bx + bw, by_bot);
+        self.content.line_to(bx + bw, by_top);
+        self.content.close_path();
+        self.content.fill_nonzero();
 
-        self.content.move_to(self.tx(x), self.ty(y_bottom));
-        self.content.line_to(self.tx(x + 4.0), self.ty(y_bottom));
-        self.content.stroke();
+        // If we couldn't draw font glyphs, draw geometric serifs as fallback
+        if !drew_top_glyph {
+            let serif_len = bar_width * 2.5;
+            self.content.set_line_width(1.5 * self.state.scale_x);
+            self.content.move_to(bx, by_top);
+            self.content
+                .line_to(bx + serif_len * self.state.scale_x, by_top);
+            self.content.stroke();
+        }
+        if !drew_bottom_glyph {
+            let serif_len = bar_width * 2.5;
+            self.content.set_line_width(1.5 * self.state.scale_x);
+            self.content.move_to(bx, by_bot);
+            self.content
+                .line_to(bx + serif_len * self.state.scale_x, by_bot);
+            self.content.stroke();
+        }
     }
 
-    /// Draw a system brace using a SMuFL font glyph.
+    /// Draw a brace connecting staves using the OG Nightingale homebrew Bezier path.
     ///
-    /// The OG code uses PS_SetMusicFont then the PostScript `BR` procedure,
-    /// which draws the brace via the Sonata music font's brace character
-    /// scaled to the staff group height.
+    /// Ported from the PostScript prolog in OG EPSF output (03b.ng.EPSF).
+    /// The path was "sucked out of a FH 3.1 EPS drawing of half brace" and
+    /// consists of 4 cubic Bezier segments forming a filled teardrop shape.
+    /// Two mirrored halves are drawn (upper + lower) to form the complete brace.
     ///
-    /// We use the Bravura brace glyph (U+E000) with a non-uniform text matrix
-    /// to scale it vertically to match the target height.
+    /// Path constants: bracePWidth=20, braceHalfHt=213
+    /// Scale: X = music_size / (bracePWidth * 16), Y = halfHeight / braceHalfHt
+    /// The factor of 16 converts from the OG DDIST coordinate system to points.
     ///
-    /// Bravura brace bbox: SW=(0.008, 0.0), NE=(0.328, 3.988) in staff spaces.
-    /// The glyph origin is at the bottom-left tip (y=0). In design units
-    /// (UPM=1000): height ≈ 997 units. We scale Y so the glyph spans the
-    /// full target height from y_top to y_bottom.
-    ///
-    /// Reference: PS_Stdio.cp, PS_Brace(), line 1980
+    /// Reference: PS_Stdio.cp, PS_Brace() line 1980; BR operator in PS prolog
     fn brace(&mut self, x: f32, y_top: f32, y_bottom: f32) {
         let height = (y_bottom - y_top).abs();
         if height < 1.0 {
             return;
         }
 
-        let brace_codepoint: u32 = 0xE000; // SMuFL "brace"
+        self.page_has_content = true;
+        let half_height = height / 2.0;
+        let center_y = (y_top + y_bottom) / 2.0;
 
-        if let Some(ref font) = self.music_font {
-            if let Some(gid) = font.glyph_id(brace_codepoint) {
-                self.page_has_content = true;
-                self.used_glyphs.entry(gid).or_insert(brace_codepoint);
-                let encoded = [(gid >> 8) as u8, (gid & 0xFF) as u8];
+        // OG scale factors convert path units to render-coordinate points:
+        // X = MFS / (bracePWidth * 16), Y = halfHeight / braceHalfHt
+        // bracePWidth=20 (path designed for 20pt font), braceHalfHt=213
+        // The 16 converts from DDIST to points in the OG coordinate system.
+        let x_scale = self.music_size / 320.0;
+        let y_scale = half_height / 213.0;
 
-                // Glyph height in design units: ~997 (3.988 staff spaces × 250 units/ss)
-                // UPM = 1000, so glyph spans ~0.997 em.
-                let glyph_height_em: f32 = 997.0 / 1000.0; // ≈ 0.997
+        self.sync_fill_color();
 
-                // X scale: music font sizing with weight boost.
-                // The Bravura brace is only 0.328 staff spaces wide — make it
-                // heavier to match the OG Sonata brace weight (approx 2× wider).
-                let x_scale = self.music_size * 2.0 * self.state.scale_x;
-                // Y scale: stretch glyph to target height.
-                // At font_size=1.0 with text matrix sy, the glyph height in points =
-                // sy * glyph_height_em. We want this = height, so:
-                // sy = height / glyph_height_em
-                let y_scale = height / glyph_height_em * self.state.scale_y;
+        // Draw both halves: upper (y_sign=-1, extends upward) and lower (y_sign=+1)
+        for y_sign in [-1.0_f32, 1.0_f32] {
+            // Pre-compute all path points to avoid borrow conflicts with self.content.
+            // OG ourBrace path (after pT origin transform: x-211, y-346):
+            // Outer edge: (67,213) → (21,62) → (0,0) tip
+            // Inner edge: (0,0) tip → (56,78) → (67,213) arm
+            let bx = |px: f32| -> f32 { x + px * x_scale };
+            let by = |py: f32| -> f32 { center_y + py * y_scale * y_sign };
 
-                let tx = self.tx(x);
-                // Glyph origin is at bottom tip. In our Y-down coordinate system
-                // with Y-flip in the page CTM, we position at y_bottom.
-                // The text matrix has -y_scale (flipping Y back to font Y-up),
-                // so the glyph extends upward from y_bottom to y_top.
-                let ty = self.ty(y_bottom);
+            let pts: [(f32, f32); 13] = [
+                (self.tx(bx(67.0)), self.ty(by(213.0))),     // move_to
+                (self.tx(bx(31.0)), self.ty(by(197.0))),     // cubic 1 cp1
+                (self.tx(bx(-33.0)), self.ty(by(139.0))),    // cubic 1 cp2
+                (self.tx(bx(21.0)), self.ty(by(62.0))),      // cubic 1 end
+                (self.tx(bx(37.769)), self.ty(by(38.0886))), // cubic 2 cp1
+                (self.tx(bx(44.0)), self.ty(by(9.0))),       // cubic 2 cp2
+                (self.tx(bx(0.0)), self.ty(by(0.0))),        // cubic 2 end (tip)
+                (self.tx(bx(58.0)), self.ty(by(4.0))),       // cubic 3 cp1
+                (self.tx(bx(79.47)), self.ty(by(38.8833))),  // cubic 3 cp2
+                (self.tx(bx(56.0)), self.ty(by(78.0))),      // cubic 3 end
+                (self.tx(bx(35.0)), self.ty(by(113.0))),     // cubic 4 cp1
+                (self.tx(bx(14.0)), self.ty(by(164.0))),     // cubic 4 cp2
+                (self.tx(bx(67.0)), self.ty(by(213.0))),     // cubic 4 end (= start)
+            ];
 
-                self.sync_fill_color();
-                self.content.begin_text();
-                // Text matrix: [sx 0 0 -sy tx ty]
-                // -sy flips Y (our page CTM has Y-down; font glyphs are Y-up)
-                self.content
-                    .set_text_matrix([x_scale, 0.0, 0.0, -y_scale, tx, ty]);
-                self.content.set_font(Name(b"Bravura"), 1.0);
-                self.content.show(Str(&encoded));
-                self.content.end_text();
-                return;
-            }
+            self.content.move_to(pts[0].0, pts[0].1);
+            self.content
+                .cubic_to(pts[1].0, pts[1].1, pts[2].0, pts[2].1, pts[3].0, pts[3].1);
+            self.content
+                .cubic_to(pts[4].0, pts[4].1, pts[5].0, pts[5].1, pts[6].0, pts[6].1);
+            self.content
+                .cubic_to(pts[7].0, pts[7].1, pts[8].0, pts[8].1, pts[9].0, pts[9].1);
+            self.content.cubic_to(
+                pts[10].0, pts[10].1, pts[11].0, pts[11].1, pts[12].0, pts[12].1,
+            );
+            self.content.close_path();
+            self.content.fill_nonzero();
         }
-
-        // Fallback: two Bezier curves (when no music font is loaded)
-        let mid_y = (y_top + y_bottom) / 2.0;
-        let curve_depth = 6.0;
-        self.sync_stroke_color();
-        self.content.set_line_width(1.5 * self.state.scale_x);
-        self.content.move_to(self.tx(x), self.ty(y_top));
-        self.content.cubic_to(
-            self.tx(x - curve_depth),
-            self.ty(y_top + (mid_y - y_top) * 0.3),
-            self.tx(x - curve_depth),
-            self.ty(mid_y - (mid_y - y_top) * 0.3),
-            self.tx(x - curve_depth * 1.5),
-            self.ty(mid_y),
-        );
-        self.content.stroke();
-        self.content
-            .move_to(self.tx(x - curve_depth * 1.5), self.ty(mid_y));
-        self.content.cubic_to(
-            self.tx(x - curve_depth),
-            self.ty(mid_y + (y_bottom - mid_y) * 0.3),
-            self.tx(x - curve_depth),
-            self.ty(y_bottom - (y_bottom - mid_y) * 0.3),
-            self.tx(x),
-            self.ty(y_bottom),
-        );
-        self.content.stroke();
     }
 
     /// Draw a note stem.

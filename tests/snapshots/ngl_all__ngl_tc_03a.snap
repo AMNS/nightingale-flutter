@@ -5,6 +5,8 @@ expression: summary
 === COMMAND COUNTS ===
 Beam: 6
 BeginPage: 1
+Brace: 1
+ConnectorLine: 1
 EndPage: 1
 LedgerLine: 1
 MusicChar: 26
@@ -12,7 +14,7 @@ NoteStem: 19
 SetMusicSize: 2
 SetWidths: 1
 Staff: 2
-TOTAL: 59
+TOTAL: 61
 
 === STAVES ===
 y=60.1 x=[36.0..171.0] lines=5 spacing=4.00

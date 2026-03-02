@@ -3,7 +3,7 @@ source: tests/notelist_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 2
+BarLine: 1
 Beam: 1
 BeginPage: 1
 Brace: 1
@@ -15,7 +15,7 @@ SetMusicSize: 2
 SetWidths: 1
 Slur: 16
 Staff: 2
-TOTAL: 108
+TOTAL: 107
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -23,7 +23,6 @@ y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
 
 === BEAMS ===
 x=[421.3..435.9] y=[60.0..61.0] slope=0.068 thick=3.00

@@ -301,10 +301,28 @@ pub fn draw_measure(
         for ameasure in ameasure_list {
             if let Some(measure_ctx) = ctx.get(ameasure.header.staffn) {
                 // --- Bar line ---
-                if measure_ctx.visible && ameasure.header.visible {
+                // Port of ShouldDrawBarline (DrawUtils.cp:2020-2067):
+                // - conn_staff>0 && !conn_above: group leader — draw from this staff to conn_staff
+                // - conn_staff==0 && !conn_above: standalone staff — draw single-staff barline
+                // - conn_above: subordinate staff — skip (covered by group leader above)
+                let draw_bar = !ameasure.conn_above || ameasure.conn_staff != 0;
+                if measure_ctx.visible && ameasure.header.visible && draw_bar {
                     let x = ddist_to_render(measure_ctx.measure_left);
                     let top_y = ddist_to_render(measure_ctx.staff_top);
-                    let bottom_y = d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height);
+                    // If conn_staff > 0, extend barline to bottom of connected staff
+                    // Reference: DrawObject.cp:2679-2690 (DrawBarline connStaff logic)
+                    let bottom_y = if ameasure.conn_staff > 0 {
+                        // Find the bottom-most visible staff in the connected range
+                        let target = ameasure.conn_staff;
+                        if let Some(target_ctx) = ctx.get(target) {
+                            d2r_sum(target_ctx.staff_top, target_ctx.staff_height)
+                        } else {
+                            // Target staff not visible — fall back to just this staff
+                            d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height)
+                        }
+                    } else {
+                        d2r_sum(measure_ctx.staff_top, measure_ctx.staff_height)
+                    };
                     let bar_type = map_barline_type(ameasure.header.sub_type);
                     // lineSpace = staffHeight / (staffLines - 1), in render coords (pt)
                     let ls_render = if measure_ctx.staff_lines > 1 {
@@ -522,16 +540,49 @@ pub fn draw_connect(
     ctx: &ContextState,
     renderer: &mut dyn MusicRenderer,
 ) {
+    let num_staves = ctx.num_staves();
+
     if let Some(aconnect_list) = score.connects.get(&obj.header.first_sub_obj) {
         for aconnect in aconnect_list {
-            // Get contexts for top and bottom staves
-            if let (Some(top_ctx), Some(bottom_ctx)) =
-                (ctx.get(aconnect.staff_above), ctx.get(aconnect.staff_below))
-            {
-                // Check visibility: connLevel!=0 means this connector should draw,
-                // and both staves must be visible.
-                // Reference: DrawObject.cp DrawCONNECT() line 686-692
-                if aconnect.conn_level != 0 && top_ctx.visible && bottom_ctx.visible {
+            // Determine staff range based on connLevel.
+            // OG: connLevel==SystemLevel(0) means "entire system" — use first/last staff.
+            // connLevel!=0 means staffAbove/staffBelow are valid.
+            // Reference: DrawObject.cp DrawCONNECT() line 686-710
+            let entire = aconnect.conn_level == 0; // SystemLevel
+
+            let (stf_above, stf_below) = if entire {
+                (1_i8, num_staves as i8)
+            } else {
+                (aconnect.staff_above, aconnect.staff_below)
+            };
+
+            // Visibility check (port of ShouldDrawConnect, DrawUtils.cp:1918)
+            // SystemLevel: draw if more than 1 visible staff
+            // GroupLevel/PartLevel: draw if any staves in range are visible
+            let should_draw = if entire {
+                // Count visible staves in the system
+                let vis_count = (1..=num_staves as i8)
+                    .filter(|&s| ctx.get(s).is_some_and(|c| c.visible))
+                    .count();
+                vis_count > 1
+            } else {
+                // At least one staff in range must be visible
+                (stf_above..=stf_below).any(|s| ctx.get(s).is_some_and(|c| c.visible))
+            };
+
+            if !should_draw {
+                continue;
+            }
+
+            // Find actual top and bottom visible staves in range
+            let top_staff =
+                (stf_above..=stf_below).find(|&s| ctx.get(s).is_some_and(|c| c.visible));
+            let bottom_staff = (stf_above..=stf_below)
+                .rev()
+                .find(|&s| ctx.get(s).is_some_and(|c| c.visible));
+
+            if let (Some(ts), Some(bs)) = (top_staff, bottom_staff) {
+                if let (Some(top_ctx), Some(bottom_ctx)) = (ctx.get(ts), ctx.get(bs)) {
                     // X position from aconnect.xd
                     let x = d2r_sum(top_ctx.staff_left, aconnect.xd);
 

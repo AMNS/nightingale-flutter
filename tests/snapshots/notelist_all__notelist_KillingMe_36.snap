@@ -3,7 +3,7 @@ source: tests/notelist_all.rs
 expression: summary
 ---
 === COMMAND COUNTS ===
-BarLine: 87
+BarLine: 29
 Beam: 66
 BeginPage: 3
 Brace: 8
@@ -16,7 +16,7 @@ SetWidths: 1
 Slur: 83
 Staff: 24
 TextString: 3
-TOTAL: 1428
+TOTAL: 1370
 
 === STAVES ===
 y=72.0 x=[72.0..558.0] lines=5 spacing=6.00
@@ -46,92 +46,34 @@ y=367.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
 x=219.4 top=72.0 bottom=96.0
-x=219.4 top=132.0 bottom=156.0
-x=219.4 top=192.0 bottom=216.0
 x=321.9 top=72.0 bottom=96.0
-x=321.9 top=132.0 bottom=156.0
-x=321.9 top=192.0 bottom=216.0
 x=424.3 top=72.0 bottom=96.0
-x=424.3 top=132.0 bottom=156.0
-x=424.3 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=204.2 top=247.0 bottom=271.0
-x=204.2 top=307.0 bottom=331.0
-x=204.2 top=367.0 bottom=391.0
 x=323.9 top=247.0 bottom=271.0
-x=323.9 top=307.0 bottom=331.0
-x=323.9 top=367.0 bottom=391.0
 x=435.1 top=247.0 bottom=271.0
-x=435.1 top=307.0 bottom=331.0
-x=435.1 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=216.0 top=422.0 bottom=446.0
-x=216.0 top=482.0 bottom=506.0
-x=216.0 top=542.0 bottom=566.0
 x=339.0 top=422.0 bottom=446.0
-x=339.0 top=482.0 bottom=506.0
-x=339.0 top=542.0 bottom=566.0
 x=448.4 top=422.0 bottom=446.0
-x=448.4 top=482.0 bottom=506.0
-x=448.4 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=206.8 top=72.0 bottom=96.0
-x=206.8 top=132.0 bottom=156.0
-x=206.8 top=192.0 bottom=216.0
 x=323.8 top=72.0 bottom=96.0
-x=323.8 top=132.0 bottom=156.0
-x=323.8 top=192.0 bottom=216.0
 x=439.8 top=72.0 bottom=96.0
-x=439.8 top=132.0 bottom=156.0
-x=439.8 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=212.2 top=247.0 bottom=271.0
-x=212.2 top=307.0 bottom=331.0
-x=212.2 top=367.0 bottom=391.0
 x=319.5 top=247.0 bottom=271.0
-x=319.5 top=307.0 bottom=331.0
-x=319.5 top=367.0 bottom=391.0
 x=438.7 top=247.0 bottom=271.0
-x=438.7 top=307.0 bottom=331.0
-x=438.7 top=367.0 bottom=391.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 x=218.9 top=422.0 bottom=446.0
-x=218.9 top=482.0 bottom=506.0
-x=218.9 top=542.0 bottom=566.0
 x=337.4 top=422.0 bottom=446.0
-x=337.4 top=482.0 bottom=506.0
-x=337.4 top=542.0 bottom=566.0
 x=444.5 top=422.0 bottom=446.0
-x=444.5 top=482.0 bottom=506.0
-x=444.5 top=542.0 bottom=566.0
 x=558.0 top=422.0 bottom=446.0
-x=558.0 top=482.0 bottom=506.0
-x=558.0 top=542.0 bottom=566.0
 x=201.5 top=72.0 bottom=96.0
-x=201.5 top=132.0 bottom=156.0
-x=201.5 top=192.0 bottom=216.0
 x=320.8 top=72.0 bottom=96.0
-x=320.8 top=132.0 bottom=156.0
-x=320.8 top=192.0 bottom=216.0
 x=442.8 top=72.0 bottom=96.0
-x=442.8 top=132.0 bottom=156.0
-x=442.8 top=192.0 bottom=216.0
 x=558.0 top=72.0 bottom=96.0
-x=558.0 top=132.0 bottom=156.0
-x=558.0 top=192.0 bottom=216.0
 x=558.0 top=247.0 bottom=271.0
-x=558.0 top=307.0 bottom=331.0
-x=558.0 top=367.0 bottom=391.0
 
 === BEAMS ===
 x=[156.1..175.6] y=[116.0..115.0] slope=-0.051 thick=3.00

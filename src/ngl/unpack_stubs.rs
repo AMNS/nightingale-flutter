@@ -92,9 +92,62 @@ pub fn unpack_partinfo(data: &[u8]) -> Result<PartInfo, String> {
     })
 }
 
-pub fn unpack_aconnect_n105(_data: &[u8]) -> Result<AConnect, String> {
-    // TODO: Implement full ACONNECT_5 unpacking (12 bytes, bitfields in byte 2)
-    Err("ACONNECT unpacking not yet implemented".to_string())
+/// Unpack ACONNECT_5 from N105 binary data.
+///
+/// On-disk layout (NObjTypesN105.h:338-349, mac68k alignment):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  ---------
+/// 0       2     next (LINK)
+/// 2       1     bitfields: selected:1 | filler:1 | connLevel:3 | connectType:2
+/// 3       1     staffAbove (SignedByte)
+/// 4       1     staffBelow (SignedByte)
+/// 5       1     [PADDING — align xd to 2-byte boundary]
+/// 6       2     xd (DDIST)
+/// 8       2     firstPart (LINK, unused)
+/// 10      2     lastPart (LINK, unused)
+///               TOTAL: 12 bytes
+/// ```
+pub fn unpack_aconnect_n105(data: &[u8]) -> Result<AConnect, String> {
+    if data.len() < 12 {
+        return Err(format!(
+            "ACONNECT_5 data too short: {} bytes (need >=12)",
+            data.len()
+        ));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+
+    // Byte 2 bitfields (PowerPC MSB-first):
+    //   bit 7: selected
+    //   bit 6: filler
+    //   bits 5-3: connLevel (0=system, 1=group, 7=part)
+    //   bits 2-1: connectType (1=line, 2=bracket, 3=curly/brace)
+    let byte2 = data[2];
+    let selected = (byte2 & 0x80) != 0;
+    let filler = (byte2 & 0x40) >> 6;
+    let conn_level = (byte2 & 0x38) >> 3;
+    let connect_type = (byte2 & 0x06) >> 1;
+
+    let staff_above = data[3] as i8;
+    let staff_below = data[4] as i8;
+    // byte 5 is padding
+    let xd = i16::from_be_bytes([data[6], data[7]]);
+    let first_part = u16::from_be_bytes([data[8], data[9]]);
+    let last_part = u16::from_be_bytes([data[10], data[11]]);
+
+    Ok(AConnect {
+        next,
+        selected,
+        filler,
+        conn_level,
+        connect_type,
+        staff_above,
+        staff_below,
+        xd,
+        first_part,
+        last_part,
+    })
 }
 
 /// Unpack ADYNAMIC_5 from N105 binary data.
