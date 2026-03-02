@@ -1203,7 +1203,14 @@ impl MusicRenderer for PdfRenderer {
         self.content
             .set_text_matrix([scaled_size, 0.0, 0.0, -scaled_size, tx, ty]);
         // With text matrix set, show at origin (position is in the matrix)
-        self.content.show(Str(text.as_bytes()));
+        // PDF standard Type1 fonts (Helvetica, Times-Roman) use WinAnsiEncoding
+        // (Windows-1252), a single-byte encoding. We must transcode the UTF-8
+        // string to WinAnsi bytes before passing it to Str(). Passing raw UTF-8
+        // bytes would produce garbled output for non-ASCII characters (e.g.,
+        // German ä = UTF-8 0xC3 0xA4 would be read as two wrong characters
+        // instead of the correct single byte 0xE4).
+        let win_ansi = utf8_to_win_ansi(text);
+        self.content.show(Str(&win_ansi));
         self.content.end_text();
     }
 
@@ -1397,6 +1404,82 @@ fn is_serif_font(name: &str) -> bool {
     true
 }
 
+/// Convert a UTF-8 string to Windows-1252 (WinAnsiEncoding) bytes for use
+/// in PDF standard Type1 font strings.
+///
+/// PDF standard Type1 fonts (Helvetica, Times-Roman, etc.) are encoded with
+/// WinAnsiEncoding (Windows-1252), a single-byte encoding. Multi-byte UTF-8
+/// sequences must be transcoded to the corresponding single byte, or the PDF
+/// reader will misinterpret them.
+///
+/// Encoding rules:
+/// - U+0000–U+007F: pass through (ASCII, same in all encodings)
+/// - U+00A0–U+00FF: direct cast — Latin-1 Supplement maps 1:1 to WinAnsi
+///   0xA0–0xFF (e.g., ä=U+00E4→0xE4, ö=U+00F6→0xF6, ü=U+00FC→0xFC)
+/// - U+0080–U+009F: Windows-1252 special characters (€, smart quotes, etc.)
+///   occupy WinAnsi bytes 0x80–0x9F via a lookup table
+/// - All other codepoints: substitute '?' (0x3F)
+fn utf8_to_win_ansi(text: &str) -> Vec<u8> {
+    // Windows-1252 special characters in range 0x80–0x9F.
+    // Index 0 → byte 0x80, index 31 → byte 0x9F.
+    // Entries of 0 indicate undefined positions in Windows-1252.
+    const WIN1252_SPECIAL: [(char, u8); 27] = [
+        ('\u{20AC}', 0x80), // €
+        ('\u{201A}', 0x82), // ‚
+        ('\u{0192}', 0x83), // ƒ
+        ('\u{201E}', 0x84), // „
+        ('\u{2026}', 0x85), // …
+        ('\u{2020}', 0x86), // †
+        ('\u{2021}', 0x87), // ‡
+        ('\u{02C6}', 0x88), // ˆ
+        ('\u{2030}', 0x89), // ‰
+        ('\u{0160}', 0x8A), // Š
+        ('\u{2039}', 0x8B), // ‹
+        ('\u{0152}', 0x8C), // Œ
+        ('\u{017D}', 0x8E), // Ž
+        ('\u{2018}', 0x91), // '
+        ('\u{2019}', 0x92), // '
+        ('\u{201C}', 0x93), // "
+        ('\u{201D}', 0x94), // "
+        ('\u{2022}', 0x95), // •
+        ('\u{2013}', 0x96), // –
+        ('\u{2014}', 0x97), // —
+        ('\u{02DC}', 0x98), // ˜
+        ('\u{2122}', 0x99), // ™
+        ('\u{0161}', 0x9A), // š
+        ('\u{203A}', 0x9B), // ›
+        ('\u{0153}', 0x9C), // œ
+        ('\u{017E}', 0x9E), // ž
+        ('\u{0178}', 0x9F), // Ÿ
+    ];
+
+    let mut out = Vec::with_capacity(text.len());
+    for ch in text.chars() {
+        let cp = ch as u32;
+        if cp <= 0x7F {
+            // ASCII: direct pass-through
+            out.push(cp as u8);
+        } else if (0x00A0..=0x00FF).contains(&cp) {
+            // Latin-1 Supplement: codepoint == WinAnsi byte
+            out.push(cp as u8);
+        } else {
+            // Check Windows-1252 special range (0x80–0x9F)
+            let mut found = false;
+            for &(c, b) in &WIN1252_SPECIAL {
+                if ch == c {
+                    out.push(b);
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                out.push(b'?'); // Substitute for unmappable codepoints
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1522,5 +1605,43 @@ mod tests {
             "Should have exactly 3 pages, not {}",
             page_count
         );
+    }
+
+    #[test]
+    fn test_utf8_to_win_ansi_ascii() {
+        // ASCII passthrough
+        assert_eq!(utf8_to_win_ansi("Hello"), b"Hello");
+        assert_eq!(utf8_to_win_ansi("abc 123"), b"abc 123");
+    }
+
+    #[test]
+    fn test_utf8_to_win_ansi_german_umlauts() {
+        // German umlauts: ä=U+00E4→0xE4, ö=U+00F6→0xF6, ü=U+00FC→0xFC
+        // Uppercase: Ä=U+00C4→0xC4, Ö=U+00D6→0xD6, Ü=U+00DC→0xDC
+        assert_eq!(utf8_to_win_ansi("ä"), &[0xE4]);
+        assert_eq!(utf8_to_win_ansi("ö"), &[0xF6]);
+        assert_eq!(utf8_to_win_ansi("ü"), &[0xFC]);
+        assert_eq!(utf8_to_win_ansi("Ä"), &[0xC4]);
+        assert_eq!(utf8_to_win_ansi("Ö"), &[0xD6]);
+        assert_eq!(utf8_to_win_ansi("Ü"), &[0xDC]);
+        // Mixed: "für" → [0x66, 0xFC, 0x72]
+        assert_eq!(utf8_to_win_ansi("für"), &[0x66, 0xFC, 0x72]);
+    }
+
+    #[test]
+    fn test_utf8_to_win_ansi_smart_quotes() {
+        // Smart quotes are in Windows-1252 special range (0x80–0x9F)
+        // Left double quote U+201C → 0x93, right double quote U+201D → 0x94
+        assert_eq!(utf8_to_win_ansi("\u{201C}"), &[0x93]);
+        assert_eq!(utf8_to_win_ansi("\u{201D}"), &[0x94]);
+        // Euro sign U+20AC → 0x80
+        assert_eq!(utf8_to_win_ansi("\u{20AC}"), &[0x80]);
+    }
+
+    #[test]
+    fn test_utf8_to_win_ansi_unmappable() {
+        // Characters outside Windows-1252 should become '?'
+        assert_eq!(utf8_to_win_ansi("\u{4E2D}"), b"?"); // CJK character
+        assert_eq!(utf8_to_win_ansi("A\u{4E2D}B"), b"A?B");
     }
 }
