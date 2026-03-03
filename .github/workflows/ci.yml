@@ -93,5 +93,57 @@ jobs:
       - name: flutter analyze
         run: flutter analyze
 
+      - name: flutter test
+        run: flutter test
+        # Runs test/widget_test.dart: ScoreView + CMD_* constant checks.
+        # No Rust bridge calls — tests use mock RenderCommandDto data only.
+
       - name: flutter build linux
         run: flutter build linux --release
+
+  # ─── Flutter: test + build macOS ────────────────────────────────────────────
+  flutter-macos:
+    name: Flutter build (macos)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: nightingale
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nightingale/rust/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('nightingale/rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-flutter-cargo-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cache Flutter pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('nightingale/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter test
+        run: flutter test
+        # Runs test/widget_test.dart: ScoreView + CMD_* constant checks.
+        # No Rust bridge calls — tests use mock RenderCommandDto data only.
+
+      - name: flutter build macos
+        run: flutter build macos --release

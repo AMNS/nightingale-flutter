@@ -44,7 +44,7 @@ nightingale-modernize/
 │   └── og-reference/       # OG Nightingale PDF renders for visual comparison
 ├── nightingale/            # Flutter app (file browser + score viewer)
 │   └── rust/               # Rust FFI bridge (flutter_rust_bridge)
-└── Nightingale/            # OG C source (local checkout — see CLAUDE.md for path)
+└── OGNGale_source/         # OG C source (clone with scripts/bootstrap-og-source.sh)
     └── src/CFilesBoth/     # Core engraving algorithms being ported
 ```
 
@@ -187,7 +187,7 @@ fn draw_enclosure(renderer: &mut dyn MusicRenderer, ...) { ... }
 ```
 
 When in doubt about the intended behavior, read the OG C source
-(local checkout required — see CLAUDE.md for the path).
+(clone with `scripts/bootstrap-og-source.sh`).
 
 ---
 

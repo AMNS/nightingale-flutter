@@ -263,7 +263,7 @@ Each discrete drawing function should be ported as its own unit with tests:
 
 The OG C source is a **separate checkout of https://github.com/AMNS/Nightingale**,
 branch `develop`. It is NOT part of this repo — it lives alongside it as a sibling
-directory named `Nightingale/`.
+directory named `OGNGale_source/`.
 
 ### Bootstrapping (session start)
 
@@ -273,15 +273,15 @@ At the beginning of each session, locate the OG source before reading any OG fil
 # Typical layout — repo and OG source share a parent directory:
 #   <parent>/
 #     nightingale-modernize/   ← this repo (pwd)
-#     Nightingale/             ← OG C source
-ls ../Nightingale/src/CFilesBoth/    # confirms location
+#     OGNGale_source/          ← OG C source
+ls ../OGNGale_source/src/CFilesBoth/    # confirms location
 ```
 
-If the `Nightingale/` sibling is not found, clone it:
+If the `OGNGale_source/` sibling is not found, use the bootstrap script:
 
 ```sh
-git clone https://github.com/AMNS/Nightingale.git ../Nightingale
-git -C ../Nightingale checkout develop
+scripts/bootstrap-og-source.sh            # clone (branch: develop)
+scripts/bootstrap-og-source.sh --update   # pull latest if already cloned
 ```
 
 ### Key source directories (relative to OG repo root)

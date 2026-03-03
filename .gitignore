@@ -14,11 +14,9 @@
 *.swo
 *~
 
-# Original Nightingale C source (checked out separately as sibling — see CLAUDE.md)
-# Note: !/nightingale/ negation is required because on macOS (case-insensitive HFS+),
-# /Nightingale/ also matches our Flutter app directory /nightingale/.
-/Nightingale/
-!/nightingale/
+# OG Nightingale C source (checked out separately as sibling — see CLAUDE.md)
+# Uniquely named to avoid case-insensitive collision with nightingale/ on macOS HFS+.
+/OGNGale_source/
 
 # Claude Code user-local settings (machine-specific paths and personal overrides)
 .claude/settings.local.json
