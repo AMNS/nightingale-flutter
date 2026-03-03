@@ -1,0 +1,1 @@
+../../../tests/notelist_examples/barline_types.nl

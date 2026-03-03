@@ -37,15 +37,21 @@ for name in \
   ln -sf "${FIXTURES_REL}/${name}.ngl" "$SCORES/${name}.ngl"
 done
 
-# Notelist examples (13 files) — canonical location: tests/notelist_examples/
+# Notelist examples (41 files) — canonical location: tests/notelist_examples/
 for name in \
-    BachEbSonata_20 BachStAnne_63 BinchoisDePlus-17 Debussy.Images_9 \
-    GoodbyePorkPieHat HBD_33 KillingMe_36 MahlerLiedVonDE_25 \
-    MendelssohnOp7N1_2 RavelScarbo_15 SchenkerDiagram_Chopin_6 \
-    SchoenbergOp19N1-21 Webern.Op5N3_22; do
+    accidentals "BachEbSonata_20.2sizes" BachEbSonata_20 BachStAnne_63 \
+    barline_types bass_clef_melody beamed_eighths BinchoisDePlus-17 \
+    chord_seconds chromatic_scale clef_change compound_meter \
+    Debussy.Images_9 dotted_notes GoodbyePorkPieHat grace_notes_test \
+    HBD_33 keysig_d_major keysig_eb_major keysig_flats_all keysig_sharps_all \
+    KillingMe_36 ledger_lines MahlerLiedVonDE_25 MendelssohnOp7N1_2 \
+    mixed_durations RavelScarbo_15 rests_all_durations SchenkerDiagram_Chopin_6 \
+    SchoenbergOp19N1-21 sixteenths_32nds TestMIDIChannels_3 text_annotations \
+    tied_notes time_sig_changes tuplet_quintuplet tuplet_triplet two_voices \
+    Webern.Op5N3_22 whole_notes wide_intervals; do
   ln -sf "${NL_REL}/${name}.nl" "$SCORES/${name}.nl"
 done
 
 echo "Done. Symlinks in $SCORES"
 echo "  .ngl → tests/fixtures/            (17 files)"
-echo "  .nl  → tests/notelist_examples/   (13 files)"
+echo "  .nl  → tests/notelist_examples/   (41 files)"
