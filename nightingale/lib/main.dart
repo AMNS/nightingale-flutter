@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'src/rust/api/score.dart';
@@ -255,16 +255,21 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                       icon: const Icon(Icons.compare, size: 16),
                       label: const Text('QA Compare', style: TextStyle(fontSize: 12)),
                       onPressed: () {
-                        // Walk upward from the executable to find the project root
-                        // (directory containing Cargo.toml + tests/).
-                        final exePath = Platform.resolvedExecutable;
-                        final root = findProjectRoot(startPath: exePath);
+                        // Find project root (directory containing Cargo.toml + tests/).
+                        // Try current directory first (works in dev mode: flutter run).
+                        // If that fails, walk up from executable (works in some release builds).
+                        var root = findProjectRoot(startPath: Directory.current.path);
+                        if (root.isEmpty) {
+                          root = findProjectRoot(startPath: Platform.resolvedExecutable);
+                        }
                         if (root.isNotEmpty) {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => CompareScreen(projectRoot: root),
                             ),
                           );
+                        } else {
+                          debugPrint('[QA Compare] Failed to find project root');
                         }
                       },
                     ),
