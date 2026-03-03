@@ -9,6 +9,13 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # rust_builder/cargokit/build_tool is a standalone Dart CLI package with its own
+    # pubspec.yaml and dependencies (logging, yaml, crypto, etc.). It must not be
+    # analyzed from the parent package — its imports resolve only within that package.
+    - rust_builder/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

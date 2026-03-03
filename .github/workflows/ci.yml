@@ -46,18 +46,34 @@ jobs:
         # --features visual-regression and are intentionally skipped in CI.
         # Run locally with: cargo test --features visual-regression
 
-  # ─── Flutter: pub get + analyze (platform-agnostic) ────────────────────────
+  # ─── Flutter: pub get + analyze + build linux ───────────────────────────────
   flutter:
-    name: Flutter analyze
+    name: Flutter build (linux)
     runs-on: ubuntu-latest
-    # Note: flutter build <platform> requires native toolchains (Xcode for macOS,
-    # etc.) and is intentionally omitted here. Run locally for native builds.
     defaults:
       run:
         working-directory: nightingale
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nightingale/rust/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('nightingale/rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-flutter-cargo-
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -76,5 +92,6 @@ jobs:
 
       - name: flutter analyze
         run: flutter analyze
-        # Confirms Dart code compiles, types check, and the pubspec dependency
-        # graph is consistent — without requiring a native build toolchain.
+
+      - name: flutter build linux
+        run: flutter build linux --release
