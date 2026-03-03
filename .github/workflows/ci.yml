@@ -91,6 +91,21 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version 2.11.1
+
+      - name: Cache FRB generated files
+        uses: actions/cache@v4
+        with:
+          path: |
+            nightingale/lib/src/rust/frb_generated*.dart
+            nightingale/rust/src/frb_generated*.rs
+          key: ${{ runner.os }}-frb-${{ hashFiles('nightingale/rust/src/api/*.rs', 'nightingale/flutter_rust_bridge.yaml') }}
+          restore-keys: ${{ runner.os }}-frb-
+
+      - name: Generate flutter_rust_bridge bindings
+        run: flutter_rust_bridge_codegen generate
+
       - name: flutter analyze
         run: flutter analyze
 
@@ -148,6 +163,21 @@ jobs:
 
       - name: flutter pub get
         run: flutter pub get
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo install flutter_rust_bridge_codegen --version 2.11.1
+
+      - name: Cache FRB generated files
+        uses: actions/cache@v4
+        with:
+          path: |
+            nightingale/lib/src/rust/frb_generated*.dart
+            nightingale/rust/src/frb_generated*.rs
+          key: ${{ runner.os }}-frb-${{ hashFiles('nightingale/rust/src/api/*.rs', 'nightingale/flutter_rust_bridge.yaml') }}
+          restore-keys: ${{ runner.os }}-frb-
+
+      - name: Generate flutter_rust_bridge bindings
+        run: flutter_rust_bridge_codegen generate
 
       - name: flutter test
         run: flutter test
