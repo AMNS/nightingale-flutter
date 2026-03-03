@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `convert`, `render_to_dtos`
+// These functions are ignored because they are not marked as `pub`: `convert`, `mac_roman_to_string`, `render_to_dtos`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 
 /// Load an NGL file from raw bytes and render it to a list of drawing commands.
@@ -22,6 +22,15 @@ Future<List<RenderCommandDto>> renderNglFromBytes({required List<int> data}) =>
 /// the second is the command list.
 Future<List<RenderCommandDto>> renderNotelistFromText({required String text}) =>
     RustLib.instance.api.crateApiScoreRenderNotelistFromText(text: text);
+
+/// Load a Notelist (.nl) file from raw bytes (Mac Roman encoded) and render it to drawing commands.
+///
+/// Notelist files are encoded in Mac Roman (single-byte encoding), not UTF-8.
+/// This function accepts raw bytes and decodes them as Mac Roman before parsing.
+/// Returns an empty vec on parse/convert failure.
+Future<List<RenderCommandDto>> renderNotelistFromBytes(
+        {required List<int> data}) =>
+    RustLib.instance.api.crateApiScoreRenderNotelistFromBytes(data: data);
 
 /// Render a score file from a filesystem path (auto-detects .ngl vs .nl).
 ///
@@ -39,13 +48,10 @@ List<ScoreFileEntry> listScoreFiles({required String directory}) =>
 ///
 /// NGL files have their own page dimensions embedded, so landscape is ignored.
 /// For Notelist files, landscape swaps page width and height (792x612 instead of 612x792).
-Future<List<RenderCommandDto>> renderScoreFromPathLandscape({
-  required String path,
-  required bool landscape,
-}) => RustLib.instance.api.crateApiScoreRenderScoreFromPathLandscape(
-  path: path,
-  landscape: landscape,
-);
+Future<List<RenderCommandDto>> renderScoreFromPathLandscape(
+        {required String path, required bool landscape}) =>
+    RustLib.instance.api.crateApiScoreRenderScoreFromPathLandscape(
+        path: path, landscape: landscape);
 
 /// Find the project root directory by searching upward from a starting path
 /// for a directory containing both `Cargo.toml` and a `tests/` subdirectory.

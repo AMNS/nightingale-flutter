@@ -6,6 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `load_fonts`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 
 /// List all OG fixtures with metadata.
@@ -13,9 +14,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// `project_root` is the absolute path to the nightingale-modernize directory.
 /// Used to locate tests/fixtures/ and tests/og_reference/.
 Future<List<OgFixtureInfo>> listOgFixtures({required String projectRoot}) =>
-    RustLib.instance.api.crateApiCompareListOgFixtures(
-      projectRoot: projectRoot,
-    );
+    RustLib.instance.api
+        .crateApiCompareListOgFixtures(projectRoot: projectRoot);
 
 /// Get a comparison for a specific fixture page.
 ///
@@ -24,15 +24,12 @@ Future<List<OgFixtureInfo>> listOgFixtures({required String projectRoot}) =>
 /// `page_num` is 1-based.
 ///
 /// Returns an empty result if the fixture or page can't be rendered.
-Future<ComparisonPageResult> getComparison({
-  required String projectRoot,
-  required String fixtureName,
-  required int pageNum,
-}) => RustLib.instance.api.crateApiCompareGetComparison(
-  projectRoot: projectRoot,
-  fixtureName: fixtureName,
-  pageNum: pageNum,
-);
+Future<ComparisonPageResult> getComparison(
+        {required String projectRoot,
+        required String fixtureName,
+        required int pageNum}) =>
+    RustLib.instance.api.crateApiCompareGetComparison(
+        projectRoot: projectRoot, fixtureName: fixtureName, pageNum: pageNum);
 
 /// Result of comparing one page.
 class ComparisonPageResult {

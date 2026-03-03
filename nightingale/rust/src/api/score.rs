@@ -509,6 +509,46 @@ pub fn render_notelist_from_text(text: String) -> Vec<RenderCommandDto> {
     render_to_dtos(&score)
 }
 
+/// Load a Notelist (.nl) file from raw bytes (Mac Roman encoded) and render it to drawing commands.
+///
+/// Notelist files are encoded in Mac Roman (single-byte encoding), not UTF-8.
+/// This function accepts raw bytes and decodes them as Mac Roman before parsing.
+/// Returns an empty vec on parse/convert failure.
+pub fn render_notelist_from_bytes(data: Vec<u8>) -> Vec<RenderCommandDto> {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use std::io::Cursor;
+
+    // Decode Mac Roman bytes to UTF-8 string
+    let text = mac_roman_to_string(&data);
+
+    let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
+        Ok(nl) => nl,
+        Err(e) => {
+            eprintln!("[nightingale-bridge] Notelist parse error: {e}");
+            return vec![];
+        }
+    };
+    let score = notelist_to_score(&notelist);
+    render_to_dtos(&score)
+}
+
+/// Decode Mac Roman bytes to a UTF-8 String using the `encoding_next` crate.
+///
+/// Mac Roman is a single-byte encoding used in legacy Mac OS files (including .nl files).
+/// The `encoding_next` crate provides a battle-tested mapping table, avoiding the need
+/// for a hand-rolled 128-entry lookup.
+fn mac_roman_to_string(bytes: &[u8]) -> String {
+    use encoding::all::MAC_ROMAN;
+    use encoding::{DecoderTrap, Encoding};
+
+    MAC_ROMAN
+        .decode(bytes, DecoderTrap::Replace)
+        .unwrap_or_else(|e| {
+            eprintln!("[nightingale-bridge] Mac Roman decode error: {e}");
+            String::from_utf8_lossy(bytes).into_owned()
+        })
+}
+
 /// Render a score file from a filesystem path (auto-detects .ngl vs .nl).
 ///
 /// Returns an empty vec on failure.

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'src/rust/api/score.dart';
@@ -124,9 +125,12 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
         debugPrint('[Nightingale] Loading NGL: ${score.assetPath} (${data.lengthInBytes} bytes)');
         commands = await renderNglFromBytes(data: bytes);
       } else {
-        final text = await rootBundle.loadString(score.assetPath);
-        debugPrint('[Nightingale] Loading Notelist: ${score.assetPath} (${text.length} chars)');
-        commands = await renderNotelistFromText(text: text);
+        // Notelist files are Mac Roman encoded — load as raw bytes and let
+        // Rust decode via the encoding-next crate's MAC_ROMAN codec.
+        final data = await rootBundle.load(score.assetPath);
+        final bytes = data.buffer.asUint8List();
+        debugPrint('[Nightingale] Loading Notelist: ${score.assetPath} (${data.lengthInBytes} bytes)');
+        commands = await renderNotelistFromBytes(data: bytes);
       }
 
       debugPrint('[Nightingale] Got ${commands.length} render commands for ${score.title}');
@@ -251,7 +255,10 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                       icon: const Icon(Icons.compare, size: 16),
                       label: const Text('QA Compare', style: TextStyle(fontSize: 12)),
                       onPressed: () {
-                        final root = findProjectRoot(startPath: '/Users/chirgwin/Nightingale-Phoenix/nightingale-modernize');
+                        // Walk upward from the executable to find the project root
+                        // (directory containing Cargo.toml + tests/).
+                        final exePath = Platform.resolvedExecutable;
+                        final root = findProjectRoot(startPath: exePath);
                         if (root.isNotEmpty) {
                           Navigator.of(context).push(
                             MaterialPageRoute(

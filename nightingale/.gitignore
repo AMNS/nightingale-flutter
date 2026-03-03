@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# flutter_rust_bridge generated files (regenerate with: flutter_rust_bridge_codegen generate)
+lib/src/rust/frb_generated*.dart
+rust/src/frb_generated*.rs
