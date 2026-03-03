@@ -70,6 +70,15 @@
 - [x] **Extra blank page fix**: Fixed unconditional page push in PdfRenderer::finish() — now checks `in_page` flag.
 
 ### Recently Completed (this session)
+- [x] **QA Compare button fix**: Replaced hardcoded `/Users/chirgwin/Nightingale-Phoenix/nightingale-modernize` path with dynamic project root discovery via `Directory.current.path` (dev mode) and `Platform.resolvedExecutable` fallback (release builds). Fixes regression after repo move to `/Users/chirgwin/nightingale-flutter/`. Commit 410eeb0.
+- [x] **Ottava investigation**: Confirmed draw_ottava() implementation is complete (205 lines, src/draw/draw_object.rs:2558-2762). Handles all 6 octave types (8va/15ma/22ma alta/bassa), Sonata italic digit rendering, dashed brackets, vertical cutoffs. Wired into render loop dispatch. **No test fixtures contain OTTAVA objects** — tc_05.ngl has zero ottavas despite test name. Ottavas are NOT GRAPHIC objects (they're a dedicated object type with active behavior: adjusting note positions, MIDI playback transposition). Implementation ready, just untested due to lack of fixture coverage.
+
+**Stashed work** (git stash -m 'WIP fixture and RPTEND changes'):
+- Capital Regiment March added to OG_FIXTURES in src/comparison.rs (for visual diff testing)
+- RPTEND documentation updates in src/draw/draw_object.rs (clarifying two repeat rendering paths)
+- User decided to punt on both for now
+
+### Previously Completed (previous session)
 - [x] **NGL chord symbol normalization**: Port of ChordSym.cp ParseChordSym field structure. NGL chord symbols use 0x7F delimiters to separate 7 fields (root|qual|ext|extStk1|extStk2|extStk3|bass) and Sonata font accidental codes (0xBA=dbl-flat, 0xDC=dbl-sharp). `normalize_chord_symbol()` splits on 0x7F, replaces Sonata accidentals with text equivalents, joins fields with proper separators. 11 unit tests.
 - [x] **Flutter bridge SetPageSize fix**: `render_to_dtos()` was missing the `set_page_size()` call before `render_score()`, causing NGL files to render at wrong page dimensions in the Flutter app.
 - [x] **Rehearsal mark enclosures**: Port of DrawEnclosure (DrawObject.cp:1490-1535). GRAPHIC objects with `enclosure != ENCL_NONE` get a framed rectangle around the text using OG defaults: 2pt margin (ENCLMARGIN_DFLT) and 1pt line width (ENCLLW_DFLT=4 quarter-points). Text width measured via `measure_text_width()` with character-count fallback. Only 17_capital_regiment_march affected (rehearsal marks A-F on 4 pages).
