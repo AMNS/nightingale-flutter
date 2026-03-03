@@ -245,6 +245,14 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 - [ ] MusicXML 4.0 export/import
 - [ ] Validate against MuseScore / Dorico round-trip
 
+## Phase 6: Sound Playback / MIDI — NOT STARTED
+- [ ] MIDI export (port NightingaleMIDI.cp / MIDIRecieveGlobals.cp logic — duration/pitch/velocity/channel)
+- [ ] Real-time playback via Flutter (use `flutter_midi_pro` or platform MIDI API; Rust emits events, Flutter drives the synth)
+- [ ] Metronome / click track
+- [ ] General MIDI soundfont support (optional; default to platform synth)
+- [ ] Tempo map from TEMPO objects (ritardandi, accelerandi not currently modelled)
+- [ ] Playback cursor: highlight currently playing measure/note in the UI
+
 ## Stats
 | Metric | Value |
 |--------|-------|
