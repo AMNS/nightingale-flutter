@@ -79,6 +79,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Cache Flutter pub packages
         uses: actions/cache@v4
@@ -129,6 +130,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Cache Flutter pub packages
         uses: actions/cache@v4
@@ -136,6 +138,13 @@ jobs:
           path: ~/.pub-cache
           key: ${{ runner.os }}-pub-${{ hashFiles('nightingale/pubspec.lock') }}
           restore-keys: ${{ runner.os }}-pub-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('nightingale/macos/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
 
       - name: flutter pub get
         run: flutter pub get
