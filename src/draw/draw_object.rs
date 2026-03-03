@@ -2424,6 +2424,30 @@ fn tempo_glyph(sub_type: i8) -> Option<MusicGlyph> {
 ///
 /// Reference: DrawObject.cp, DrawENDING(), lines 1384-1487
 /// PostScript path: lines 1474-1484
+/// Draw repeat end barlines (RPTEND objects).
+///
+/// Repeat end barlines display dots and barlines at repeat points in the score.
+/// This is a stub implementation that dispatches rendering to individual staves.
+///
+/// Full implementation pending: draw repeat dots at appropriate positions and handle
+/// multi-staff barline grouping via ARPTEND.connStaff field.
+///
+/// Reference: DrawObject.cp, DrawRPTEND(), lines 1330-1381
+pub fn draw_rptend(
+    _score: &InterpretedScore,
+    _obj: &InterpretedObject,
+    _ctx: &ContextState,
+    _renderer: &mut dyn MusicRenderer,
+) {
+    // TODO: Implement RPTEND rendering
+    // For now, this is a placeholder to allow the rendering pipeline to proceed.
+    // Full implementation will:
+    // 1. Iterate through ARPTEND subobjects in score.rptend_subs
+    // 2. For each staff, determine: draw full barline or dots-only?
+    // 3. Call draw_rpt_bar() helper to render dots and barline
+    // 4. Handle multi-staff barline connections via connStaff field
+}
+
 pub fn draw_ending(
     score: &InterpretedScore,
     obj: &InterpretedObject,
