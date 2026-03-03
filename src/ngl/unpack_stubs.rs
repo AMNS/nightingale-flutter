@@ -317,9 +317,59 @@ pub fn unpack_anoteottava_n105(data: &[u8]) -> Result<ANoteOttava, String> {
     Ok(ANoteOttava { next, op_sync })
 }
 
-pub fn unpack_arptend_n105(_data: &[u8]) -> Result<ARptEnd, String> {
-    // TODO: Implement full ARPTEND_5 unpacking (6 bytes, bitfields in byte 4)
-    Err("ARPTEND unpacking not yet implemented".to_string())
+/// Unpack ARPTEND_5 from N105 binary data.
+///
+/// On-disk layout (NObjTypes.h:142-147, SUBOBJHEADER + 3 bytes, mac68k alignment):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  ---------
+/// 0       2     next (LINK)
+/// 2       1     staffn (SignedByte)
+/// 3       1     subType (SignedByte, unused for ARPTEND)
+/// 4       1     selected:1 | visible:1 | soft:1 | spare:5
+/// 5       1     connAbove (Byte)
+/// 6       1     filler (Byte, unused)
+/// 7       1     connStaff (SignedByte)
+///               TOTAL: 8 bytes
+/// ```
+///
+/// Source: NObjTypes.h lines 142-147, RPTEND_AND_VOLTA_ANALYSIS.md
+pub fn unpack_arptend_n105(data: &[u8]) -> Result<ARptEnd, String> {
+    if data.len() < 8 {
+        return Err(format!(
+            "ARPTEND_5 data too short: {} bytes (need >=8)",
+            data.len()
+        ));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let staffn = data[2] as i8;
+    let sub_type = data[3] as i8;
+
+    // Byte 4: SUBOBJHEADER bitfields (selected:1 | visible:1 | soft:1 | spare:5)
+    let byte4 = data[4];
+    let selected = (byte4 & 0x80) != 0;
+    let visible = (byte4 & 0x40) != 0;
+    let soft = (byte4 & 0x20) != 0;
+
+    // Bytes 5-7: ARPTEND-specific fields
+    let conn_above = data[5];
+    let filler = data[6];
+    let conn_staff = data[7] as i8;
+
+    Ok(ARptEnd {
+        header: crate::obj_types::SubObjHeader {
+            next,
+            staffn,
+            sub_type,
+            selected,
+            visible,
+            soft,
+        },
+        conn_above,
+        filler,
+        conn_staff,
+    })
 }
 
 pub fn unpack_apsmeas_n105(_data: &[u8]) -> Result<APsMeas, String> {

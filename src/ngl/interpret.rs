@@ -1661,9 +1661,37 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             }
 
             RPTEND_TYPE => {
-                // Simple object with minimal unpacking for now
-                ObjData::GrSync(GrSync {
+                // Unpack RPTEND main object (8 bytes after OBJECTHEADER)
+                // Source: NObjTypes.h lines 147-157, NObjTypesN105.h lines 445-454
+                // Layout: first_obj(2) | start_rpt(2) | end_rpt(2) | sub_type(1) | count(1)
+                let first_obj = if obj_data.len() >= 2 {
+                    u16::from_be_bytes([obj_data[0], obj_data[1]])
+                } else {
+                    NILINK
+                };
+                let start_rpt = if obj_data.len() >= 4 {
+                    u16::from_be_bytes([obj_data[2], obj_data[3]])
+                } else {
+                    NILINK
+                };
+                let end_rpt = if obj_data.len() >= 6 {
+                    u16::from_be_bytes([obj_data[4], obj_data[5]])
+                } else {
+                    NILINK
+                };
+                let sub_type = if obj_data.len() >= 7 {
+                    obj_data[6] as i8
+                } else {
+                    0
+                };
+                let count = if obj_data.len() >= 8 { obj_data[7] } else { 0 };
+                ObjData::RptEnd(RptEnd {
                     header: header.clone(),
+                    first_obj,
+                    start_rpt,
+                    end_rpt,
+                    sub_type,
+                    count,
                 })
             }
 
@@ -1865,6 +1893,27 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
                 if !timesigs.is_empty() {
                     score.timesigs.insert(obj.header.first_sub_obj, timesigs);
+                }
+            }
+
+            RPTEND_TYPE => {
+                // Unpack ARPTEND subobjects (8 bytes each)
+                // Source: NObjTypes.h lines 142-147
+                let mut rptends = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(rptend) =
+                            unpack_arptend_n105(&sub_data[offset..offset + sub_size])
+                        {
+                            rptends.push(rptend);
+                        }
+                    }
+                }
+                if !rptends.is_empty() {
+                    score.rptend_subs.insert(obj.header.first_sub_obj, rptends);
                 }
             }
 
