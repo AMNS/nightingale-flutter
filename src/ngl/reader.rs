@@ -43,6 +43,10 @@ use super::error::{NglError, Result};
 /// NGL file version
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NglVersion {
+    /// N101 format (legacy)
+    N101,
+    /// N102 format (legacy, Nightingale ~3.x)
+    N102,
     /// N103 format (legacy, ~2002)
     N103,
     /// N105 format (Nightingale 5.6, current)
@@ -52,6 +56,8 @@ pub enum NglVersion {
 impl NglVersion {
     pub fn as_str(&self) -> &'static str {
         match self {
+            NglVersion::N101 => "N101",
+            NglVersion::N102 => "N102",
             NglVersion::N103 => "N103",
             NglVersion::N105 => "N105",
         }
@@ -59,15 +65,17 @@ impl NglVersion {
 
     /// Returns the size of the score header for this version.
     ///
-    /// Both N103 and N105 use the SCOREHEADER_N105 struct (2148 bytes).
-    /// N103 files we encounter were written by Nightingale 5.x, which
-    /// uses the same header layout as N105.
+    /// Header sizes empirically determined from fixture files:
+    /// - N101: 1412 bytes
+    /// - N102: 1412 bytes (mostly; some older files use 976 bytes, handled via try-again logic)
+    /// - N103: 2148 bytes
+    /// - N105: 2148 bytes
     ///
     /// Source: FileOpen.cp ReadHeaders() line 169: sizeof(SCOREHEADER_N105)
     /// Source: NDocAndCnfgTypesN105.h NIGHTSCOREHEADER_N105 macro
     pub fn score_header_size(&self) -> usize {
         match self {
-            // Both N103 and N105 use the same 2148-byte layout
+            NglVersion::N101 | NglVersion::N102 => 1412,
             NglVersion::N103 | NglVersion::N105 => 2148,
         }
     }
@@ -130,6 +138,8 @@ impl NglFile {
             .map_err(|_| NglError::InvalidVersion(format!("{:?}", version_buf)))?;
 
         let version = match version_str {
+            "N101" => NglVersion::N101,
+            "N102" => NglVersion::N102,
             "N103" => NglVersion::N103,
             "N105" => NglVersion::N105,
             _ => return Err(NglError::InvalidVersion(version_str.to_string())),

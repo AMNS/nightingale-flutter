@@ -1,0 +1,69 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 58
+Beam: 51
+BeginPage: 2
+Brace: 7
+ConnectorLine: 7
+EndPage: 2
+LedgerLine: 179
+MusicChar: 606
+NoteStem: 325
+SetMusicSize: 28
+SetWidths: 1
+Slur: 80
+Staff: 21
+TextString: 56
+TOTAL: 1423
+
+=== STAVES ===
+y=117.0 x=[81.0..576.0] lines=5 spacing=4.00
+y=157.0 x=[81.0..576.0] lines=5 spacing=4.00
+y=77.0 x=[81.0..576.0] lines=5 spacing=4.00
+y=241.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=281.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=321.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=421.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=461.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=501.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=594.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=634.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=674.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=70.0 x=[45.0..576.0] lines=5 spacing=4.00
+y=110.0 x=[45.0..576.0] lines=5 spacing=4.00
+y=150.0 x=[45.0..576.0] lines=5 spacing=4.00
+y=248.5 x=[44.0..575.0] lines=5 spacing=4.00
+y=288.5 x=[44.0..575.0] lines=5 spacing=4.00
+y=328.5 x=[44.0..575.0] lines=5 spacing=4.00
+y=417.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=469.0 x=[44.0..575.0] lines=5 spacing=4.00
+y=497.0 x=[44.0..575.0] lines=5 spacing=4.00
+
+=== BARLINES: 58 total ===
+
+=== BEAMS: 51 total ===
+
+=== STEMS: 325 total ===
+
+=== SLURS: 80 total ===
+
+=== GLYPHS ===
+Smufl(57424): 14
+Smufl(57442): 7
+Smufl(57476): 6
+Smufl(57506): 6
+Smufl(57507): 47
+Smufl(57508): 339
+Smufl(57813): 1
+Smufl(57831): 81
+Smufl(57920): 57
+Smufl(57921): 7
+Smufl(57952): 5
+Smufl(57953): 1
+Smufl(57954): 7
+Smufl(58595): 4
+Smufl(58597): 22
+Smufl(58598): 2

@@ -1,0 +1,61 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 32
+Beam: 74
+BeginPage: 1
+Brace: 6
+ConnectorLine: 6
+EndPage: 1
+LedgerLine: 184
+Line: 2
+MusicChar: 649
+NoteStem: 379
+SetMusicSize: 12
+SetWidths: 1
+Slur: 70
+Staff: 12
+TextString: 14
+TOTAL: 1443
+
+=== STAVES ===
+y=101.0 x=[90.0..558.0] lines=5 spacing=4.00
+y=149.5 x=[90.0..558.0] lines=5 spacing=4.00
+y=206.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=254.5 x=[54.0..558.0] lines=5 spacing=4.00
+y=310.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=358.5 x=[54.0..558.0] lines=5 spacing=4.00
+y=445.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=493.5 x=[54.0..558.0] lines=5 spacing=4.00
+y=566.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=614.5 x=[54.0..558.0] lines=5 spacing=4.00
+y=668.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=716.5 x=[54.0..558.0] lines=5 spacing=4.00
+
+=== BARLINES: 32 total ===
+
+=== BEAMS: 74 total ===
+
+=== STEMS: 379 total ===
+
+=== SLURS: 70 total ===
+
+=== GLYPHS ===
+Smufl(57424): 6
+Smufl(57442): 6
+Smufl(57474): 2
+Smufl(57476): 2
+Smufl(57507): 26
+Smufl(57508): 406
+Smufl(57813): 1
+Smufl(57831): 6
+Smufl(57920): 6
+Smufl(57952): 64
+Smufl(57953): 59
+Smufl(57954): 10
+Smufl(58529): 3
+Smufl(59523): 18
+Smufl(59525): 16
+Smufl(59527): 18

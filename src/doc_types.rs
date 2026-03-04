@@ -40,7 +40,12 @@ use crate::limits::{MAXVOICES, MAX_COMMENT_LEN, MAX_SCOREFONTS};
 /// Source: `Ngale5ProgQuickRef-TN1.txt:97`
 pub const DOC_HDR_SIZE: usize = 72;
 
-/// Size of N105 score header in bytes.
+/// Size of N101/N102 score header in bytes.
+///
+/// Empirically determined from legacy Nightingale files.
+pub const SCORE_HDR_SIZE_N101_N102: usize = 1412;
+
+/// Size of N103/N105 score header in bytes.
 ///
 /// Source: `Ngale5ProgQuickRef-TN1.txt:98`
 pub const SCORE_HDR_SIZE_N105: usize = 2148;

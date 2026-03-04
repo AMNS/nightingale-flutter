@@ -1,0 +1,84 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 60
+Beam: 382
+BeginPage: 3
+Brace: 11
+ConnectorLine: 11
+EndPage: 3
+LedgerLine: 224
+MusicChar: 1102
+NoteStem: 842
+SetMusicSize: 33
+SetWidths: 1
+Slur: 62
+Staff: 33
+TextString: 2
+TOTAL: 2769
+
+=== STAVES ===
+y=63.0 x=[100.0..558.0] lines=5 spacing=4.00
+y=103.0 x=[100.0..558.0] lines=5 spacing=4.00
+y=143.0 x=[100.0..558.0] lines=5 spacing=4.00
+y=213.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=253.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=293.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=363.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=403.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=443.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=513.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=553.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=593.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=63.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=103.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=143.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=213.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=253.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=293.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=363.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=403.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=443.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=513.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=553.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=593.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=63.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=103.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=143.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=213.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=253.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=293.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=363.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=403.0 x=[54.0..558.0] lines=5 spacing=4.00
+y=443.0 x=[54.0..558.0] lines=5 spacing=4.00
+
+=== BARLINES: 60 total ===
+
+=== BEAMS: 382 total ===
+
+=== STEMS: 842 total ===
+
+=== SLURS: 62 total ===
+
+=== GLYPHS ===
+Smufl(57424): 15
+Smufl(57442): 24
+Smufl(57476): 6
+Smufl(57506): 12
+Smufl(57507): 19
+Smufl(57508): 823
+Smufl(57831): 10
+Smufl(57920): 12
+Smufl(57921): 26
+Smufl(57922): 2
+Smufl(57923): 8
+Smufl(57952): 58
+Smufl(57953): 32
+Smufl(57954): 10
+Smufl(58595): 11
+Smufl(58596): 3
+Smufl(58597): 2
+Smufl(58598): 22
+Smufl(58599): 7

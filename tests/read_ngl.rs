@@ -142,7 +142,7 @@ fn test_read_all_fixture_files() {
         );
 
         match ngl.version {
-            NglVersion::N103 => n103_count += 1,
+            NglVersion::N101 | NglVersion::N102 | NglVersion::N103 => n103_count += 1,
             NglVersion::N105 => n105_count += 1,
         }
 
@@ -157,7 +157,7 @@ fn test_read_all_fixture_files() {
     }
 
     println!(
-        "\nRead {} files ({} N103, {} N105)",
+        "\nRead {} files ({} legacy, {} N105)",
         files.len(),
         n103_count,
         n105_count

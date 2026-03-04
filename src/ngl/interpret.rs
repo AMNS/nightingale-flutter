@@ -687,40 +687,44 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
 
     // === Parse score header fields for part names, measure numbers, etc. ===
     // Use the full ScoreHeader parser from doc_types which already handles all offsets.
-    // The parser requires SCORE_HDR_SIZE_N105+1 bytes (off-by-one in voice table parsing),
-    // so only attempt this for files large enough. N103 files may be shorter.
-    match crate::doc_types::ScoreHeader::from_n105_bytes(&ngl.score_header_raw) {
-        Ok(hdr) => {
-            score.first_names = hdr.first_names;
-            score.other_names = hdr.other_names;
-            score.d_indent_first = hdr.d_indent_first;
-            score.d_indent_other = hdr.d_indent_other;
-            score.number_meas = hdr.number_meas;
-            score.above_mn = hdr.above_mn != 0;
-            score.first_mn_number = hdr.first_mn_number;
-            score.x_mn_offset = hdr.x_mn_offset;
-            score.y_mn_offset = hdr.y_mn_offset;
-            score.x_sys_mn_offset = hdr.x_sys_mn_offset;
-            score.sys_first_mn = hdr.sys_first_mn != 0;
-            score.start_mn_print1 = hdr.start_mn_print1 != 0;
+    // The parser requires SCORE_HDR_SIZE_N105 bytes, so only attempt this for N103/N105 files.
+    // N101/N102 files have smaller headers (1412 bytes) that don't contain the same fields.
+    let score_header_ok = ngl.score_header_raw.len() >= crate::doc_types::SCORE_HDR_SIZE_N105;
+    if score_header_ok {
+        match crate::doc_types::ScoreHeader::from_n105_bytes(&ngl.score_header_raw) {
+            Ok(hdr) => {
+                score.first_names = hdr.first_names;
+                score.other_names = hdr.other_names;
+                score.d_indent_first = hdr.d_indent_first;
+                score.d_indent_other = hdr.d_indent_other;
+                score.number_meas = hdr.number_meas;
+                score.above_mn = hdr.above_mn != 0;
+                score.first_mn_number = hdr.first_mn_number;
+                score.x_mn_offset = hdr.x_mn_offset;
+                score.y_mn_offset = hdr.y_mn_offset;
+                score.x_sys_mn_offset = hdr.x_sys_mn_offset;
+                score.sys_first_mn = hdr.sys_first_mn != 0;
+                score.start_mn_print1 = hdr.start_mn_print1 != 0;
 
-            // === Extract font table (up to 20 entries) ===
-            // Each FontItem has a Pascal string font_name[32] (length byte + chars).
-            // GRAPHIC objects with info=0 (FONT_THISITEMONLY) use fontInd to index
-            // into this table to determine their font.
-            // Reference: NDocAndCnfgTypes.h FONTITEM, DrawUtils.cp GetGraphicFontInfo()
-            for i in 0..hdr.nfonts_used.max(0) as usize {
-                if i >= hdr.font_table.len() {
-                    break;
+                // === Extract font table (up to 20 entries) ===
+                // Each FontItem has a Pascal string font_name[32] (length byte + chars).
+                // GRAPHIC objects with info=0 (FONT_THISITEMONLY) use fontInd to index
+                // into this table to determine their font.
+                // Reference: NDocAndCnfgTypes.h FONTITEM, DrawUtils.cp GetGraphicFontInfo()
+                for i in 0..hdr.nfonts_used.max(0) as usize {
+                    if i >= hdr.font_table.len() {
+                        break;
+                    }
+                    let fi = &hdr.font_table[i];
+                    let name_len = (fi.font_name[0] as usize).min(31);
+                    let name =
+                        crate::ngl::reader::mac_roman_to_string(&fi.font_name[1..1 + name_len]);
+                    score.font_names.push(name);
                 }
-                let fi = &hdr.font_table[i];
-                let name_len = (fi.font_name[0] as usize).min(31);
-                let name = crate::ngl::reader::mac_roman_to_string(&fi.font_name[1..1 + name_len]);
-                score.font_names.push(name);
             }
-        }
-        Err(e) => {
-            eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
+            Err(e) => {
+                eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
+            }
         }
     }
 
@@ -1812,8 +1816,18 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                     let sub_idx = (obj.header.first_sub_obj as usize) + i;
                     let offset = sub_idx * sub_size;
                     if offset + sub_size <= sub_data.len() {
-                        if let Ok(staff) = unpack_astaff_n105(&sub_data[offset..offset + sub_size])
+                        if let Ok(mut staff) =
+                            unpack_astaff_n105(&sub_data[offset..offset + sub_size])
                         {
+                            // FIXME: N101/N102 files may have show_lines=0 due to struct layout differences.
+                            // Default to SHOW_ALL_LINES for legacy formats since showLines field might not
+                            // be properly set or might be at a different offset in older file versions.
+                            if (ngl.version == crate::ngl::reader::NglVersion::N101
+                                || ngl.version == crate::ngl::reader::NglVersion::N102)
+                                && staff.show_lines == 0
+                            {
+                                staff.show_lines = crate::obj_types::SHOW_ALL_LINES;
+                            }
                             staffs.push(staff);
                         }
                     }

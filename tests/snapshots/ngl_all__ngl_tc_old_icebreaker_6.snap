@@ -1,0 +1,428 @@
+---
+source: tests/ngl_all.rs
+expression: summary
+---
+=== COMMAND COUNTS ===
+BarLine: 1030
+Beam: 397
+BeginPage: 36
+Brace: 72
+Bracket: 72
+ConnectorLine: 36
+EndPage: 36
+LedgerLine: 515
+MusicChar: 8144
+NoteStem: 2113
+SetMusicSize: 360
+SetWidths: 1
+Slur: 506
+Staff: 360
+TextString: 400
+TOTAL: 14078
+
+=== STAVES ===
+y=250.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=281.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=136.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=173.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=210.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=319.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=350.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=416.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[131.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=232.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=272.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=64.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=113.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=167.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=320.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=360.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=420.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=478.0 x=[81.0..749.0] lines=5 spacing=4.00
+y=534.0 x=[81.0..749.0] lines=5 spacing=4.00
+
+=== BARLINES: 1030 total ===
+
+=== BEAMS: 397 total ===
+
+=== STEMS: 2113 total ===
+
+=== SLURS: 506 total ===
+
+=== GLYPHS ===
+Smufl(57424): 252
+Smufl(57442): 108
+Smufl(57473): 100
+Smufl(57474): 140
+Smufl(57475): 30
+Smufl(57476): 450
+Smufl(57478): 80
+Smufl(57506): 81
+Smufl(57507): 73
+Smufl(57508): 2317
+Smufl(57813): 2
+Smufl(57815): 2
+Smufl(57831): 570
+Smufl(57920): 147
+Smufl(57921): 225
+Smufl(57922): 1
+Smufl(57952): 180
+Smufl(57953): 105
+Smufl(57954): 176
+Smufl(57955): 72
+Smufl(57956): 48
+Smufl(58528): 118
+Smufl(58529): 76
+Smufl(58531): 1
+Smufl(58536): 107
+Smufl(58537): 68
+Smufl(58560): 10
+Smufl(58595): 1370
+Smufl(58596): 242
+Smufl(58597): 381
+Smufl(58598): 419
+Smufl(58599): 30
+Smufl(58900): 129
+Smufl(59523): 26
+Smufl(59524): 8
