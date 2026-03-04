@@ -789,15 +789,14 @@ impl MusicRenderer for BitmapRenderer {
 
     // ================== Musical Elements ==================
 
-    fn beam(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, thickness: f32, up0: bool, up1: bool) {
-        let offset0 = if up0 { thickness } else { 0.0 };
-        let offset1 = if up1 { thickness } else { 0.0 };
-
+    fn beam(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, thickness: f32, _up0: bool, _up1: bool) {
+        // Match OG PostScript BM procedure: draw parallelogram from (x0,y0) → (x1,y1) → (x1,y1+th) → (x0,y0+th)
+        // No stem-direction conditional logic - y0/y1 are already positioned correctly by the caller.
         let mut pb = PathBuilder::new();
-        pb.move_to(self.px(x0), self.py(y0 - offset0 + thickness));
-        pb.line_to(self.px(x1), self.py(y1 - offset1 + thickness));
-        pb.line_to(self.px(x1), self.py(y1 - offset1));
-        pb.line_to(self.px(x0), self.py(y0 - offset0));
+        pb.move_to(self.px(x1), self.py(y1));
+        pb.line_to(self.px(x1), self.py(y1 + thickness));
+        pb.line_to(self.px(x0), self.py(y0 + thickness));
+        pb.line_to(self.px(x0), self.py(y0));
         pb.close();
         if let Some(path) = pb.finish() {
             self.fill_path(&path);

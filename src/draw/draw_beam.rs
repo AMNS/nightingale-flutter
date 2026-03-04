@@ -146,13 +146,26 @@ pub fn draw_beamset(
     let stem_up = points[0].ystem_y < points[0].note_yd;
 
     // Draw primary beam: connects first point to last point
+    // OG Beam.cp lines 1693-1700: For downstems, ystem is the BOTTOM of the beam;
+    // for upstems, ystem is the TOP. PS_Beam always expects TOP edge Y coordinates.
+    // OG Draw1Beam line 1921: if (!topEdge) { yl -= beamThick; }
     let first = &points[0];
     let last = &points[points.len() - 1];
+    let y0_top = if stem_up {
+        first.ystem_y
+    } else {
+        first.ystem_y - beam_thickness
+    };
+    let y1_top = if stem_up {
+        last.ystem_y
+    } else {
+        last.ystem_y - beam_thickness
+    };
     renderer.beam(
         first.x,
-        first.ystem_y,
+        y0_top,
         last.x,
-        last.ystem_y,
+        y1_top,
         beam_thickness,
         stem_up,
         stem_up,
@@ -181,11 +194,22 @@ pub fn draw_beamset(
                 // Interpolate Y positions along the primary beam
                 let p0 = &points[start];
                 let p1 = &points[end];
+                // Convert to top edge if downstems
+                let y0_base = if stem_up {
+                    p0.ystem_y
+                } else {
+                    p0.ystem_y - beam_thickness
+                };
+                let y1_base = if stem_up {
+                    p1.ystem_y
+                } else {
+                    p1.ystem_y - beam_thickness
+                };
                 renderer.beam(
                     p0.x,
-                    p0.ystem_y + y_offset,
+                    y0_base + y_offset,
                     p1.x,
-                    p1.ystem_y + y_offset,
+                    y1_base + y_offset,
                     beam_thickness,
                     stem_up,
                     stem_up,
@@ -214,11 +238,22 @@ pub fn draw_beamset(
                     -(beam_thickness + beam_gap)
                 };
 
+                // Convert to top edge if downstems
+                let y_base = if stem_up {
+                    p.ystem_y
+                } else {
+                    p.ystem_y - beam_thickness
+                };
+                let fy_base = if stem_up {
+                    frac_y
+                } else {
+                    frac_y - beam_thickness
+                };
                 renderer.beam(
                     p.x,
-                    p.ystem_y + y_offset,
+                    y_base + y_offset,
                     frac_x,
-                    frac_y + y_offset,
+                    fy_base + y_offset,
                     beam_thickness,
                     stem_up,
                     stem_up,

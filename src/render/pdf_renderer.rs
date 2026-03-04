@@ -784,21 +784,16 @@ impl MusicRenderer for PdfRenderer {
     // ================== Musical Elements (5 methods) ==================
 
     /// Draw a beam segment.
-    /// Reference: PS_Stdio.cp, PS_Beam(), line 1625
-    fn beam(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, thickness: f32, up0: bool, up1: bool) {
-        // PS_Stdio.cp draws beams as filled parallelograms with vertical thickening.
-        // The beam extends downward from the given Y coordinates when stems are up,
-        // and upward when stems are down.
-        let offset0 = if up0 { thickness } else { 0.0 };
-        let offset1 = if up1 { thickness } else { 0.0 };
-
+    /// Reference: PS_Stdio.cp, PS_Beam(), line 1625 + PostScript BM procedure
+    fn beam(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, thickness: f32, _up0: bool, _up1: bool) {
+        // The OG PostScript BM procedure draws beams with NO stem-direction logic:
+        // It always creates a parallelogram from (x0,y0) → (x1,y1) → (x1,y1+th) → (x0,y0+th).
+        // The y0/y1 coordinates are positioned by the caller to be flush with stem endpoints.
         self.sync_fill_color();
-        self.content
-            .move_to(self.tx(x0), self.ty(y0 - offset0 + thickness));
-        self.content
-            .line_to(self.tx(x1), self.ty(y1 - offset1 + thickness));
-        self.content.line_to(self.tx(x1), self.ty(y1 - offset1));
-        self.content.line_to(self.tx(x0), self.ty(y0 - offset0));
+        self.content.move_to(self.tx(x1), self.ty(y1));
+        self.content.line_to(self.tx(x1), self.ty(y1 + thickness));
+        self.content.line_to(self.tx(x0), self.ty(y0 + thickness));
+        self.content.line_to(self.tx(x0), self.ty(y0));
         self.content.close_path();
         self.content.fill_nonzero();
     }

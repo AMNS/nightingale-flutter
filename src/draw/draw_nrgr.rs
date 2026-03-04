@@ -346,12 +346,10 @@ fn draw_note(
         };
 
         // Stem endpoints: from near notehead to ystem.
-        // For beamed notes, extend the stem slightly past ystem into the beam
-        // to ensure overlap (no visible gap). The OG code adds 8 DDIST (0.5pt)
-        // for beamed up-stems (PS_Stdio.cp:1729) and uses stemFudge at the
-        // notehead end. We add a 0.5pt extension at the beam end.
+        // Temporarily removing beam extension to debug beam/stem alignment.
+        // TODO: Re-evaluate if extension is needed based on OG coordinate semantics.
         // Reference: PS_Stdio.cp, PS_NoteStem(), line 1725-1731
-        let beam_extend = if anote.beamed { 0.5_f32 } else { 0.0 };
+        let beam_extend = 0.0; // was: if anote.beamed { 0.5_f32 } else { 0.0 };
         let stem_top = if stem_down {
             // Stem down: ystem is below (larger y), yd is above.
             // Top = notehead, bottom = ystem + extension
