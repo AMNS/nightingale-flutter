@@ -2986,4 +2986,33 @@ mod tests {
         let raw = "C\x7f\x7f7\x7f\x7f\x7f\x7f\x00\x00";
         assert_eq!(normalize_chord_symbol(raw), "C7");
     }
+
+    #[test]
+    fn test_draw_rptend_no_crash() {
+        // Verify draw_rptend() doesn't panic on empty score.
+        // This is a smoke test; actual rendering requires RPTEND objects in fixture.
+        use crate::ngl::interpret::ObjData;
+        use crate::render::CommandRenderer;
+
+        let score = crate::ngl::interpret::InterpretedScore::default();
+        let ctx = crate::context::ContextState::new(1); // 1 staff
+        let mut renderer = CommandRenderer::new();
+
+        // Create dummy RPTEND object (no actual data in score)
+        let dummy_obj = crate::ngl::interpret::InterpretedObject {
+            index: 0,
+            header: crate::obj_types::ObjectHeader::default(),
+            data: ObjData::RptEnd(crate::obj_types::RptEnd {
+                header: crate::obj_types::ObjectHeader::default(),
+                first_obj: 0,
+                start_rpt: 0,
+                end_rpt: 0,
+                sub_type: 5, // RptL
+                count: 1,
+            }),
+        };
+
+        // Should not panic (function is no-op with empty score)
+        draw_rptend(&score, &dummy_obj, &ctx, &mut renderer);
+    }
 }
