@@ -45,6 +45,11 @@ pub fn draw_beamset(
         return;
     }
 
+    // Grace note beams use a separate code path with 70% scaling (Beam.cp:1693-1700, GRBeam.cp)
+    if beamset.grace != 0 {
+        return draw_grace_beamset(score, beamset, notebeam_list, obj, ctx, renderer);
+    }
+
     // Resolve each ANoteBeam to (x, ystem_y) position.
     // We need the stem endpoint position and the note's l_dur for secondary beams.
     #[allow(dead_code)]
@@ -263,4 +268,134 @@ pub fn draw_beamset(
             i += 1;
         }
     }
+}
+
+/// Draw a BeamSet for grace notes (beamset.grace == true).
+///
+/// Grace note beams are similar to regular beams but use 70% scaling.
+/// Reference: GRBeam.cp DrawGRBEAMSET(), Beam.cp:1693-1700
+fn draw_grace_beamset(
+    score: &InterpretedScore,
+    beamset: &crate::obj_types::BeamSet,
+    notebeam_list: &[crate::obj_types::ANoteBeam],
+    _obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    // Resolve each ANoteBeam to (x, ystem_y) position using grace notes
+    #[allow(dead_code)]
+    struct BeamPoint {
+        x: f32,
+        ystem_y: f32,
+        note_yd: f32,
+        l_dur: i8,
+        startend: i8,
+    }
+
+    let mut points: Vec<BeamPoint> = Vec::new();
+
+    for notebeam in notebeam_list {
+        // For grace notes, find the GRSYNC object at bp_sync
+        let grsync_obj = match score.objects.iter().find(|o| o.index == notebeam.bp_sync) {
+            Some(o) => o,
+            None => continue,
+        };
+
+        // Get the staff context for this beamset
+        let staff_ctx = match ctx.get(beamset.ext_header.staffn) {
+            Some(c) => c,
+            None => continue,
+        };
+
+        // Find the grace note(s) in this GRSYNC for the beamset voice
+        if let Some(grnote_list) = score.grnotes.get(&grsync_obj.header.first_sub_obj) {
+            let matching: Vec<&_> = grnote_list
+                .iter()
+                .filter(|n| {
+                    n.beamed
+                        && n.voice == beamset.voice
+                        && n.header.staffn == beamset.ext_header.staffn
+                })
+                .collect();
+
+            // Use the note with a real stem (ystem != yd) if available
+            if let Some(note) = matching
+                .iter()
+                .find(|n| n.ystem != n.yd)
+                .or(matching.first())
+                .copied()
+            {
+                let lnspace = lnspace_for_staff(staff_ctx.staff_height, staff_ctx.staff_lines);
+
+                // Stem direction: stem_down = (ystem > yd)
+                let stem_down = note.ystem > note.yd;
+
+                // Grace note head width is 70% of regular (Defs.h GRACESIZE macro = 7*size/10)
+                let head_width = 1.125 * lnspace * 0.7;
+
+                // X position: same calculation as regular beams
+                let note_x = d2r_sum3(staff_ctx.measure_left, grsync_obj.header.xd, note.xd);
+                let stem_x = if stem_down {
+                    note_x
+                } else {
+                    note_x + head_width
+                };
+
+                // Y position at stem endpoint and notehead
+                let ystem_y = d2r_sum(staff_ctx.staff_top, note.ystem);
+                let note_yd_y = d2r_sum(staff_ctx.staff_top, note.yd);
+
+                points.push(BeamPoint {
+                    x: stem_x,
+                    ystem_y,
+                    note_yd: note_yd_y,
+                    l_dur: note.header.sub_type,
+                    startend: notebeam.startend,
+                });
+            }
+        }
+    }
+
+    if points.len() < 2 {
+        return;
+    }
+
+    // Beam thickness for grace notes: 70% of regular thickness (GRBeam.cp:882)
+    let staff_ctx = match ctx.get(beamset.ext_header.staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    let lnspace = if staff_ctx.staff_lines > 1 {
+        ddist_to_render(staff_ctx.staff_height) / (staff_ctx.staff_lines as f32 - 1.0)
+    } else {
+        8.0
+    };
+    let beam_thickness = lnspace * 0.5 * 0.7; // 70% of regular beam thickness
+
+    // Determine stem direction
+    let stem_up = points[0].ystem_y < points[0].note_yd;
+
+    // Grace note beams have only primary beams (GRBeam.cp:813)
+    // Draw primary beam connecting first to last point
+    let first = &points[0];
+    let last = &points[points.len() - 1];
+    let y0_top = if stem_up {
+        first.ystem_y
+    } else {
+        first.ystem_y - beam_thickness
+    };
+    let y1_top = if stem_up {
+        last.ystem_y
+    } else {
+        last.ystem_y - beam_thickness
+    };
+    renderer.beam(
+        first.x,
+        y0_top,
+        last.x,
+        y1_top,
+        beam_thickness,
+        stem_up,
+        stem_up,
+    );
 }
