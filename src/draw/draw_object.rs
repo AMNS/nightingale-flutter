@@ -2433,19 +2433,101 @@ fn tempo_glyph(sub_type: i8) -> Option<MusicGlyph> {
 /// multi-staff barline grouping via ARPTEND.connStaff field.
 ///
 /// Reference: DrawObject.cp, DrawRPTEND(), lines 1330-1381
+/// Draw a RPTEND object (repeat end markers: D.C., D.S., Segno, repeat barlines).
+///
+/// Port of DrawObject.cp DrawRPTEND() (lines 1330-1381).
+///
+/// RPTEND objects mark repeat instructions (D.C. = Da Capo, D.S. = Dal Segno, etc.)
+/// and display repeat barlines (with dots on left, right, or both sides).
+///
+/// The RptEndType enum distinguishes:
+/// - RptDc (1) = D.C. (Da Capo) — jump back to start
+/// - RptDs (2) = D.S. (Dal Segno) — jump to segno mark
+/// - RptSegno1 (3) = Segno symbol (¶)
+/// - RptSegno2 (4) = Alternate segno (often coda symbol)
+/// - RptL (5) = Repeat left (dots on left only)
+/// - RptR (6) = Repeat right (dots on right only)
+/// - RptLr (7) = Repeat both sides (dots on both)
+///
+/// Note: Text rendering for D.C., D.S., and symbols is not yet implemented.
+/// Repeat barlines (RptL/R/Lr) are rendered as repeats in measure-based barlines.
+///
+/// Reference: DrawObject.cp, DrawRPTEND(), lines 1330-1381
 pub fn draw_rptend(
-    _score: &InterpretedScore,
-    _obj: &InterpretedObject,
-    _ctx: &ContextState,
-    _renderer: &mut dyn MusicRenderer,
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
 ) {
-    // TODO: Implement RPTEND rendering
-    // For now, this is a placeholder to allow the rendering pipeline to proceed.
-    // Full implementation will:
-    // 1. Iterate through ARPTEND subobjects in score.rptend_subs
-    // 2. For each staff, determine: draw full barline or dots-only?
-    // 3. Call draw_rpt_bar() helper to render dots and barline
-    // 4. Handle multi-staff barline connections via connStaff field
+    use crate::ngl::interpret::ObjData;
+
+    let rptend = match &obj.data {
+        ObjData::RptEnd(r) => r,
+        _ => return,
+    };
+
+    // Get the ARPTEND subobjects for this RPTEND
+    let rptend_list = match score.rptend_subs.get(&obj.header.first_sub_obj) {
+        Some(list) => list,
+        None => return,
+    };
+
+    if rptend_list.is_empty() {
+        return;
+    }
+
+    let x = ddist_to_render(obj.header.xd);
+
+    // Iterate through each ARPTEND subobject
+    for arptend in rptend_list {
+        if !arptend.header.visible {
+            continue;
+        }
+
+        let staffn = arptend.header.staffn;
+        let staff_ctx = match ctx.get(staffn) {
+            Some(c) => c,
+            None => continue,
+        };
+
+        if !staff_ctx.visible {
+            continue;
+        }
+
+        // Determine barline type from RptEnd subType
+        // Only RptL, RptR, RptLr actually render a barline
+        // RptDc, RptDs, RptSegno1, RptSegno2 are text/symbol only (not yet implemented)
+        let bar_type = match rptend.sub_type {
+            5 => BarLineType::RepeatLeft,  // RptL
+            6 => BarLineType::RepeatRight, // RptR
+            7 => BarLineType::RepeatBoth,  // RptLr
+            // For RptDc, RptDs, RptSegno variants, skip barline rendering
+            // (these would need text/glyph rendering, not yet implemented)
+            _ => continue,
+        };
+
+        // Draw the barline
+        let top_y = ddist_to_render(staff_ctx.staff_top);
+        let bottom_y = if arptend.conn_staff > 0 {
+            // Extend barline to connected staff below
+            if let Some(target_ctx) = ctx.get(arptend.conn_staff) {
+                d2r_sum(target_ctx.staff_top, target_ctx.staff_height)
+            } else {
+                // Target staff not visible — fall back to just this staff
+                d2r_sum(staff_ctx.staff_top, staff_ctx.staff_height)
+            }
+        } else {
+            d2r_sum(staff_ctx.staff_top, staff_ctx.staff_height)
+        };
+
+        let ls_render = if staff_ctx.staff_lines > 1 {
+            ddist_to_render(staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1))
+        } else {
+            ddist_to_render(staff_ctx.staff_height)
+        };
+
+        renderer.bar_line(top_y, bottom_y, x, bar_type, ls_render);
+    }
 }
 
 pub fn draw_ending(
