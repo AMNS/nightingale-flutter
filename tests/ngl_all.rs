@@ -955,3 +955,44 @@ fn test_tc_05_dump_graphic_ottava_objects() {
         }
     }
 }
+
+/// Diagnostic: scan all fixtures for cross-system slurs.
+#[test]
+fn test_diagnostic_cross_system_slurs() {
+    use nightingale_core::ngl::interpret::ObjData;
+
+    println!("\n=== Cross-System Slur Diagnostic ===\n");
+
+    for ngl_path in ALL_NGL_FILES {
+        let ngl = NglFile::read_from_file(ngl_path).expect("Failed to read NGL");
+        let score = interpret_heap(&ngl).expect("Failed to interpret");
+
+        let mut cross_sys_count = 0;
+        let mut regular_count = 0;
+
+        for obj in &score.objects {
+            if let ObjData::Slur(slur) = &obj.data {
+                if slur.cross_system != 0 {
+                    cross_sys_count += 1;
+                } else {
+                    regular_count += 1;
+                }
+            }
+        }
+
+        let total = cross_sys_count + regular_count;
+        if total > 0 {
+            println!(
+                "[{}] SLUR: {} total, {} cross-system, {} single-system",
+                std::path::Path::new(ngl_path)
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                total,
+                cross_sys_count,
+                regular_count
+            );
+        }
+    }
+}
