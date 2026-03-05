@@ -932,9 +932,16 @@ pub fn draw_slur(
             None
         };
 
+        // Cross-system slurs must have both endpoints defined
+        // (Slurs.cp:881-889 shows paired pieces with matching cross_system IDs)
+        if slur.cross_system != 0 && (first_note.is_none() || last_note.is_none()) {
+            return; // Incomplete cross-system slur, skip
+        }
+
         // Compute start position in DDIST (GetSlurContext, Slurs.cp:940-949)
         let (xd_first, yd_first) = if first_is_measure {
             // Cross-system 2nd piece: X at measure left, Y from last note
+            // For cross-system slurs, both endpoints are required (checked above)
             let meas_xd = score.sys_rel_xd(slur.first_sync_l);
             let yd = last_note.as_ref().map(|n| n.yd as i32).unwrap_or(0);
             (
@@ -952,8 +959,10 @@ pub fn draw_slur(
         };
 
         // Compute end position in DDIST (GetSlurContext, Slurs.cp:951-967)
+        // For cross-system slurs: Y interpolation at system boundary
         let (xd_last, yd_last) = if last_is_system {
             // Cross-system 1st piece: extend to staff right edge
+            // Y position should be first_note.yd (on the first system)
             let yd = first_note.as_ref().map(|n| n.yd as i32).unwrap_or(0);
             (
                 staff_ctx.staff_right as i32,
