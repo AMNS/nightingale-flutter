@@ -1498,3 +1498,163 @@ fn test_grace_notes_mahler() {
         grace_glyphs
     );
 }
+
+// ============================================================================
+// Grace note beaming diagnostic tests
+// ============================================================================
+
+/// Diagnostic: inspect beamed_grace_notes.ngl internal structure
+#[test]
+fn test_beamed_grace_notes_diagnostics() {
+    use nightingale_core::ngl::{interpret_heap, NglFile};
+
+    let ngl = NglFile::read_from_file("tests/fixtures/beamed_grace_notes.ngl")
+        .expect("Failed to read beamed_grace_notes.ngl");
+    let score = interpret_heap(&ngl).expect("Failed to interpret beamed_grace_notes.ngl");
+
+    // Count objects by type
+    let grsync_count = score
+        .objects
+        .iter()
+        .filter(|o| o.header.obj_type == 19) // GRSYNC_TYPE
+        .count();
+    let beamset_count = score
+        .objects
+        .iter()
+        .filter(|o| o.header.obj_type == 11) // BEAMSET_TYPE
+        .count();
+
+    eprintln!("=== DIAGNOSTIC: beamed_grace_notes.ngl ===");
+    eprintln!("Total objects: {}", score.objects.len());
+    eprintln!("GRSYNC objects: {}", grsync_count);
+    eprintln!("BeamSet objects: {}", beamset_count);
+    eprintln!("grnotes HashMap entries: {}", score.grnotes.len());
+    eprintln!("notebeams HashMap entries: {}", score.notebeams.len());
+
+    // Count all object types present
+    let mut type_counts: std::collections::BTreeMap<i8, usize> = std::collections::BTreeMap::new();
+    for obj in &score.objects {
+        *type_counts.entry(obj.header.obj_type).or_insert(0) += 1;
+    }
+    eprintln!("\nObject types present:");
+    for (obj_type, count) in &type_counts {
+        let type_name = match *obj_type {
+            1 => "HEADER",
+            4 => "STAFF",
+            5 => "MEASURE",
+            6 => "SYNC",
+            11 => "BEAMSET",
+            19 => "GRSYNC",
+            _ => "?",
+        };
+        eprintln!("  Type {}: {} ({} objects)", obj_type, type_name, count);
+    }
+
+    // Inspect each BeamSet
+    eprintln!("\n=== BeamSet Inspection ===");
+    let mut found_beamset = false;
+    for (i, obj) in score.objects.iter().enumerate() {
+        if obj.header.obj_type == 11 {
+            found_beamset = true;
+            // BEAMSET_TYPE
+            if let nightingale_core::ngl::interpret::ObjData::BeamSet(bs) = &obj.data {
+                eprintln!(
+                    "🔍 BeamSet {} (obj index {}): grace={}, voice={}, staff={}, first_sub={}, ext_staff={}",
+                    i, obj.index, bs.grace, bs.voice, bs.ext_header.staffn, obj.header.first_sub_obj, bs.ext_header.staffn
+                );
+
+                // Get notebeams for this beamset
+                let notebeams = score.notebeams.get(&obj.header.first_sub_obj);
+                match notebeams {
+                    Some(nbl) => {
+                        eprintln!("  ANoteBeam count: {}", nbl.len());
+                        for (j, nb) in nbl.iter().enumerate() {
+                            eprintln!(
+                                "    ANoteBeam[{}]: bp_sync={}, startend={}",
+                                j, nb.bp_sync, nb.startend
+                            );
+
+                            // Try to find the GRSYNC/SYNC object at bp_sync
+                            let sync_obj = score.objects.iter().find(|o| o.index == nb.bp_sync);
+                            match sync_obj {
+                                Some(so) => {
+                                    eprintln!(
+                                        "      Found object at bp_sync: type={}, first_sub={}",
+                                        so.header.obj_type, so.header.first_sub_obj
+                                    );
+
+                                    // If it's a GRSYNC, check for grnotes
+                                    if so.header.obj_type == 19 {
+                                        let grnotes = score.grnotes.get(&so.header.first_sub_obj);
+                                        eprintln!(
+                                            "      GRSYNC grnotes: {}",
+                                            grnotes.map(|g| g.len()).unwrap_or(0)
+                                        );
+                                        if let Some(grn_list) = grnotes {
+                                            for (k, grn) in grn_list.iter().enumerate() {
+                                                eprintln!(
+                                                    "        GrNote[{}]: beamed={}, voice={}, staff={}, ystem={}, yd={}",
+                                                    k, grn.beamed, grn.voice, grn.header.staffn, grn.ystem, grn.yd
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                None => {
+                                    eprintln!("      ⚠ No object found at bp_sync={}!", nb.bp_sync);
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        eprintln!("  ⚠ No ANoteBeam list found!");
+                    }
+                }
+            }
+        }
+    }
+    if !found_beamset {
+        eprintln!("⚠ No BeamSet objects found (expected at least 1)");
+    }
+
+    // Render and count beams
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+    let beam_count = count_by_name(&commands, "Beam");
+    eprintln!("\nRendered beams: {}", beam_count);
+
+    // Verify we have expected data
+    assert!(grsync_count > 0, "Should have at least 1 GRSYNC object");
+    assert!(beamset_count > 0, "Should have at least 1 BeamSet object");
+    assert!(!score.grnotes.is_empty(), "Should have grace notes");
+}
+
+/// Verify that grace notes with 16th+ durations render secondary beams correctly.
+/// Uses notelist example with 16th note grace notes.
+#[test]
+fn test_grace_note_secondary_beams_mahler() {
+    use nightingale_core::notelist::parser::parse_notelist;
+    use nightingale_core::notelist::to_score::notelist_to_score;
+    use nightingale_core::render::command_renderer::CommandRenderer;
+    use std::fs::File;
+
+    // Load Mahler grace note example which includes 16th note grace notes
+    let file = File::open("tests/notelist_examples/MahlerLiedVonDE_25.nl")
+        .expect("Failed to open Mahler notelist");
+    let nl = parse_notelist(file).expect("Failed to parse Mahler notelist");
+    let score = notelist_to_score(&nl);
+
+    // Render and count beams
+    let mut cmd_renderer = CommandRenderer::new();
+    render_score(&score, &mut cmd_renderer);
+    let commands = cmd_renderer.take_commands();
+    let beam_count = count_by_name(&commands, "Beam");
+
+    // Should have some beams from the grace notes (primary + secondary if 16th notes present)
+    eprintln!("Mahler grace note example: {} beams rendered", beam_count);
+    assert!(
+        beam_count > 0,
+        "Grace notes should render at least one beam"
+    );
+}

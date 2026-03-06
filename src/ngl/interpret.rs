@@ -1089,6 +1089,12 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 // For now, create minimal objects - full implementation can be added later
                 match header.obj_type as u8 {
                     BEAMSET_TYPE => {
+                        // N105 BEAMSET_5 object: 26 bytes total
+                        // 0-22:  OBJECTHEADER_5 (23 bytes)
+                        // 23:    staffn (EXTOBJHEADER)
+                        // 24:    voice (SignedByte)
+                        // 25:    bitfield byte: thin:1|beamRests:1|feather:2|grace:1|firstSystem:1|crossStaff:1|crossSystem:1
+                        // Source: NObjTypesN105.h lines 307-318
                         let ext_header = crate::obj_types::ExtObjHeader {
                             staffn: if obj_bytes.len() > 23 {
                                 obj_bytes[23] as i8
@@ -1096,6 +1102,14 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                                 1
                             },
                         };
+
+                        // Extract bitfield byte at offset 25 if present
+                        let bitfield = if obj_bytes.len() > 25 {
+                            obj_bytes[25]
+                        } else {
+                            0
+                        };
+
                         ObjData::BeamSet(BeamSet {
                             header: header.clone(),
                             ext_header,
@@ -1104,13 +1118,13 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                             } else {
                                 1
                             },
-                            thin: 0,
-                            beam_rests: 0,
-                            feather: 0,
-                            grace: 0,
-                            first_system: 0,
-                            cross_staff: 0,
-                            cross_system: 0,
+                            thin: bitfield & 0x01,                // bit 0
+                            beam_rests: (bitfield >> 1) & 0x01,   // bit 1
+                            feather: (bitfield >> 2) & 0x03,      // bits 2-3 (2 bits)
+                            grace: (bitfield >> 4) & 0x01,        // bit 4
+                            first_system: (bitfield >> 5) & 0x01, // bit 5
+                            cross_staff: (bitfield >> 6) & 0x01,  // bit 6
+                            cross_system: (bitfield >> 7) & 0x01, // bit 7
                         })
                     }
                     SLUR_TYPE => {

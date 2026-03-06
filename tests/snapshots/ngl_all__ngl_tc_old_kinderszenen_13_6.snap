@@ -1,11 +1,10 @@
 ---
 source: tests/ngl_all.rs
-assertion_line: 463
 expression: summary
 ---
 === COMMAND COUNTS ===
 BarLine: 25
-Beam: 26
+Beam: 32
 BeginPage: 1
 Brace: 4
 ConnectorLine: 4
@@ -19,7 +18,7 @@ SetWidths: 1
 Slur: 52
 Staff: 8
 TextString: 12
-TOTAL: 799
+TOTAL: 805
 
 === STAVES ===
 y=67.0 x=[92.0..740.0] lines=5 spacing=5.00
@@ -33,7 +32,7 @@ y=549.0 x=[56.0..740.0] lines=5 spacing=5.00
 
 === BARLINES: 25 total ===
 
-=== BEAMS: 26 total ===
+=== BEAMS: 32 total ===
 
 === STEMS: 196 total ===
 

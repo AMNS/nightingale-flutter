@@ -6,7 +6,7 @@
 //! Reference: Nightingale/src/CFilesBoth/DrawBeam.cp
 
 use crate::context::ContextState;
-use crate::defs::*;
+use crate::defs::{SIXTEENTH_L_DUR, THIRTY2ND_L_DUR};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::render::types::ddist_to_render;
 use crate::render::MusicRenderer;
@@ -46,7 +46,19 @@ pub fn draw_beamset(
     }
 
     // Grace note beams use a separate code path with 70% scaling (Beam.cp:1693-1700, GRBeam.cp)
-    if beamset.grace != 0 {
+    // N105 files may not reliably set the grace flag, so also check if ANoteBeams point to GRSYNC objects
+    let is_grace_beam = beamset.grace != 0 || {
+        notebeam_list.iter().any(|nb| {
+            score
+                .objects
+                .iter()
+                .find(|o| o.index == nb.bp_sync)
+                .map(|o| o.header.obj_type as u8 == crate::defs::GRSYNC_TYPE)
+                .unwrap_or(false)
+        })
+    };
+
+    if is_grace_beam {
         return draw_grace_beamset(score, beamset, notebeam_list, obj, ctx, renderer);
     }
 
@@ -375,7 +387,8 @@ fn draw_grace_beamset(
     // Determine stem direction
     let stem_up = points[0].ystem_y < points[0].note_yd;
 
-    // Grace note beams have only primary beams (GRBeam.cp:813)
+    let beam_gap = (lnspace * 0.25) * 0.7; // Gap between primary and secondary beams (70% scaled)
+
     // Draw primary beam connecting first to last point
     let first = &points[0];
     let last = &points[points.len() - 1];
@@ -398,4 +411,100 @@ fn draw_grace_beamset(
         stem_up,
         stem_up,
     );
+
+    // Helper function to draw secondary or tertiary beams at a given offset level
+    let mut draw_secondary_tertiary_beams = |min_dur: i8, y_level: i32| {
+        let mut i = 0;
+        while i < points.len() {
+            if points[i].l_dur >= min_dur {
+                // Find extent of consecutive notes at this level
+                let start = i;
+                while i < points.len() && points[i].l_dur >= min_dur {
+                    i += 1;
+                }
+                let end = i - 1;
+
+                if start < end {
+                    // Draw beam segment at this level
+                    let y_offset = if stem_up {
+                        (y_level as f32) * (beam_thickness + beam_gap)
+                    } else {
+                        -((y_level as f32) * (beam_thickness + beam_gap))
+                    };
+
+                    // Interpolate Y positions
+                    let p0 = &points[start];
+                    let p1 = &points[end];
+                    let y0_base = if stem_up {
+                        p0.ystem_y
+                    } else {
+                        p0.ystem_y - beam_thickness
+                    };
+                    let y1_base = if stem_up {
+                        p1.ystem_y
+                    } else {
+                        p1.ystem_y - beam_thickness
+                    };
+                    renderer.beam(
+                        p0.x,
+                        y0_base + y_offset,
+                        p1.x,
+                        y1_base + y_offset,
+                        beam_thickness,
+                        stem_up,
+                        stem_up,
+                    );
+                } else {
+                    // Single note at this level — draw fractional beam
+                    let p = &points[start];
+                    let (frac_x, frac_y) = if start > 0 {
+                        let prev = &points[start - 1];
+                        let frac_len = (p.x - prev.x).min(lnspace * 0.7);
+                        (p.x - frac_len, p.ystem_y)
+                    } else if start + 1 < points.len() {
+                        let next = &points[start + 1];
+                        let frac_len = (next.x - p.x).min(lnspace * 0.7);
+                        (p.x + frac_len, p.ystem_y)
+                    } else {
+                        i += 1;
+                        continue;
+                    };
+
+                    let y_offset = if stem_up {
+                        (y_level as f32) * (beam_thickness + beam_gap)
+                    } else {
+                        -((y_level as f32) * (beam_thickness + beam_gap))
+                    };
+
+                    let y_base = if stem_up {
+                        p.ystem_y
+                    } else {
+                        p.ystem_y - beam_thickness
+                    };
+                    let fy_base = if stem_up {
+                        frac_y
+                    } else {
+                        frac_y - beam_thickness
+                    };
+                    renderer.beam(
+                        p.x,
+                        y_base + y_offset,
+                        frac_x,
+                        fy_base + y_offset,
+                        beam_thickness,
+                        stem_up,
+                        stem_up,
+                    );
+                }
+            } else {
+                i += 1;
+            }
+        }
+    };
+
+    // Draw secondary beams for 16th+ notes (SIXTEENTH_L_DUR = 6)
+    draw_secondary_tertiary_beams(SIXTEENTH_L_DUR, 1);
+
+    // Draw tertiary beams for 32nd+ notes (THIRTY2ND_L_DUR = 7)
+    draw_secondary_tertiary_beams(THIRTY2ND_L_DUR, 2);
 }

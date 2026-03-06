@@ -642,7 +642,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("tc_schumann_reconnaissance", 17377376872017884626),
         ("tc_old_alpherqt_16", 7083497211708614460),
         ("tc_old_debussy_images_play", 8148608601112330816),
-        ("tc_old_kinderszenen_13_6", 13101439711916887274),
+        ("tc_old_kinderszenen_13_6", 2541411182711924915),
         ("tc_old_ravel_scarbo_10", 2817145496059695337),
         ("tc_old_babbitt_guit_8", 7731324948961827629),
         ("tc_old_berlioz_valse_proteus", 4051771586171542178),
