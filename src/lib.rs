@@ -22,6 +22,7 @@ pub mod draw;
 pub mod duration;
 pub mod limits;
 pub mod music_font;
+pub mod musicxml;
 pub mod ngl;
 pub mod notelist;
 pub mod obj_types;

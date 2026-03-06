@@ -13,10 +13,12 @@ binrw = "0.14"
 thiserror = "2"
 # PDF generation — maps directly from PS_Stdio.cp PostScript primitives
 pdf-writer = "0.14"
-# OpenType/TrueType font parsing — for SMuFL glyph rendering in PDF + bitmap
+# OpenType/TrueFont font parsing — for SMuFL glyph rendering in PDF + bitmap
 ttf-parser = "0.25"
 # Pure-Rust 2D rendering — BitmapRenderer for visual regression tests
 tiny-skia = "0.11"
+# MusicXML 4.0 export (partwise format)
+quick-xml = "0.37"
 
 # macOS-only: native CoreGraphics PDF rendering for OG reference comparison
 [target.'cfg(target_os = "macos")'.dependencies]
