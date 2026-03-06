@@ -632,15 +632,15 @@ pub fn render_score_from_path_landscape(path: String, landscape: bool) -> Vec<Re
                 let mut config = NotelistLayoutConfig::default();
                 if landscape {
                     // Swap width/height for landscape orientation
-                    let w = config.page_width;
-                    let h = config.page_height;
-                    config.page_width = h;
-                    config.page_height = w;
+                    let w = config.layout.page_width;
+                    let h = config.layout.page_height;
+                    config.layout.page_width = h;
+                    config.layout.page_height = w;
                     // Recalculate system_right for wider page
                     let margin_right_pt: i16 = 54;
-                    config.system_right = (config.page_width - margin_right_pt) * 16;
+                    config.layout.system_right = (config.layout.page_width - margin_right_pt) * 16;
                     // Allow more measures per system in landscape
-                    config.max_measures = 6;
+                    config.layout.max_measures = 6;
                 }
                 let score = notelist_to_score_with_config(&notelist, &config);
                 render_to_dtos(&score)

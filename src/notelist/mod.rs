@@ -19,6 +19,8 @@ pub use parser::{parse_notelist, Notelist, NotelistRecord, ParseError};
 pub use to_score::{
     notelist_to_score, notelist_to_score_with_config, NotelistLayoutConfig, VoiceRole,
 };
+// Re-export LayoutConfig so callers can construct NotelistLayoutConfig's layout field.
+pub use crate::layout::LayoutConfig;
 // Pitch/accidental re-exports: canonical location is now crate::pitch_utils,
 // but kept here for backward compatibility with existing callers.
 pub use crate::pitch_utils::{

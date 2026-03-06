@@ -41,6 +41,7 @@ use crate::defs::{
     CLEF_TYPE, EIGHTH_L_DUR, GRSYNC_TYPE, KEYSIG_TYPE, TEMPO_TYPE, TIMESIG_TYPE, TUPLET_TYPE,
 };
 use crate::duration::{beat_l_dur, code_to_l_dur, measure_dur};
+use crate::layout::LayoutConfig;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
@@ -67,26 +68,15 @@ pub use crate::pitch_utils::{
 // ===========================================================================
 
 /// Layout configuration for the Notelist typesetter.
+///
+/// Embeds a [`LayoutConfig`] for shared page geometry and staff sizing,
+/// and adds Notelist-specific fields for stems, voices, and beams.
 #[derive(Debug, Clone)]
 pub struct NotelistLayoutConfig {
-    /// Page width in points (US Letter = 612).
-    pub page_width: i16,
-    /// Page height in points (US Letter = 792).
-    pub page_height: i16,
+    /// Shared page geometry, margins, and staff sizing.
+    pub layout: LayoutConfig,
     /// Staff rastral size (5 = default from NotelistOpen.cp NL_RASTRAL).
     pub rastral: u8,
-    /// Staff height in DDIST (derived from rastral).
-    pub staff_height: Ddist,
-    /// System left margin in DDIST.
-    pub system_left: Ddist,
-    /// System right limit (page_width - right_margin) in DDIST.
-    pub system_right: Ddist,
-    /// System top in DDIST.
-    pub system_top: Ddist,
-    /// Distance between systems in DDIST (for multi-system layout).
-    pub inter_system: Ddist,
-    /// Distance between staves within a system in DDIST (top-to-top).
-    pub inter_staff: Ddist,
     /// Default stem length in quarter-spaces (OG Nightingale config.stemLenNormal).
     /// Default: 14 (= 3.5 interline spaces). Reference: Initialize.cp:757.
     pub stem_len_normal: i8,
@@ -96,8 +86,6 @@ pub struct NotelistLayoutConfig {
     /// Stem length when stem is entirely outside staff (quarter-spaces).
     /// Default: 10. Reference: Initialize.cp:759.
     pub stem_len_outside: i8,
-    /// Maximum measures per system (0 = no limit).
-    pub max_measures: usize,
     /// Maximum voices per staff (0 = no limit). Voice 1 is always included;
     /// higher-numbered voices are filtered out if this is set to 1.
     pub max_voices_per_staff: usize,
@@ -114,47 +102,30 @@ pub struct NotelistLayoutConfig {
 
 impl Default for NotelistLayoutConfig {
     fn default() -> Self {
-        // Standard values matching Nightingale defaults.
-        // Rastral 5 → staff height ≈ 24 points = 384 DDIST (24 * 16).
-        // Line spacing = 384/4 = 96 DDIST = 6 points.
-        let staff_height: Ddist = 384; // 24pt staff
-        let page_width: i16 = 612; // US Letter portrait (8.5")
-        let margin_left_pt: i16 = 72; // 1 inch
-        let margin_right_pt: i16 = 54;
-        let margin_top_pt: i16 = 72;
-
         Self {
-            page_width,
-            page_height: 792, // US Letter portrait (11")
+            layout: LayoutConfig::default(),
             rastral: 5,
-            staff_height,
-            system_left: margin_left_pt * 16, // 1152 DDIST
-            system_right: (page_width - margin_right_pt) * 16, // 8928 DDIST
-            system_top: margin_top_pt * 16,   // 1152 DDIST
-            inter_system: 2800,               // ~175pt (system height + gap)
-            inter_staff: staff_height * 5 / 2, // 2.5× staff height (Score.cp:200 initStfTop2)
-            stem_len_normal: 14,              // 3.5 interline spaces (Initialize.cp:757)
-            stem_len_2v: 12,                  // 3 interline spaces (Initialize.cp:758)
-            stem_len_outside: 12, // 3 interline spaces (Initialize.cp:926 STEMLEN_OUTSIDE_DFLT)
-            max_measures: 4,      // Anacrusis + 3 full measures
+            stem_len_normal: 14,     // 3.5 interline spaces (Initialize.cp:757)
+            stem_len_2v: 12,         // 3 interline spaces (Initialize.cp:758)
+            stem_len_outside: 12,    // 3 interline spaces (Initialize.cp:926 STEMLEN_OUTSIDE_DFLT)
             max_voices_per_staff: 0, // No limit — render all voices
-            rest_mv_offset: 2,    // 1 staff space (Initialize.cp config.restMVOffset)
-            skip_anacrusis: false, // Include pickup beats by default
-            rel_beam_slope: 33,   // 33% of natural slope (Beam.cp:214)
+            rest_mv_offset: 2,       // 1 staff space (Initialize.cp config.restMVOffset)
+            skip_anacrusis: false,   // Include pickup beats by default
+            rel_beam_slope: 33,      // 33% of natural slope (Beam.cp:214)
         }
     }
 }
 
 impl NotelistLayoutConfig {
-    /// Usable music width in DDIST.
+    /// Usable music width in DDIST (delegates to LayoutConfig).
     fn content_width(&self) -> Ddist {
-        self.system_right - self.system_left
+        self.layout.content_width()
     }
 
-    /// Inter-line distance in DDIST.
+    /// Inter-line distance in DDIST (delegates to LayoutConfig).
     #[allow(dead_code)]
     fn d_interline(&self) -> Ddist {
-        self.staff_height / 4
+        self.layout.d_line_sp()
     }
 
     /// How many systems fit on one page, given the current config and
@@ -165,21 +136,21 @@ impl NotelistLayoutConfig {
     /// `inter_system` to the Y position.  A system fits if its bottom
     /// (top + system_height) is within the usable page height.
     fn systems_per_page(&self, system_height: i32) -> usize {
-        let page_height_ddist = self.page_height as i32 * 16;
+        let page_height_ddist = self.layout.page_height as i32 * 16;
         // Bottom margin same as top margin
-        let bottom_margin = self.system_top as i32;
+        let bottom_margin = self.layout.system_top as i32;
         let usable_bottom = page_height_ddist - bottom_margin;
 
         // First system
-        let first_bottom = self.system_top as i32 + system_height;
+        let first_bottom = self.layout.system_top as i32 + system_height;
         if first_bottom > usable_bottom {
             return 1; // At least one system per page
         }
 
         let mut count = 1;
-        let mut top = self.system_top as i32;
+        let mut top = self.layout.system_top as i32;
         loop {
-            top += self.inter_system as i32;
+            top += self.layout.inter_system as i32;
             let bottom = top + system_height;
             if bottom > usable_bottom {
                 break;
@@ -478,8 +449,8 @@ pub fn notelist_to_score_with_config(
 
     // Preamble layout: faithful port of CreateSystem (Score.cp:1785-1814).
     // OG positions each preamble object using dLineSp-based formulas from Ross.
-    let d_line_sp = config.staff_height / 4; // STFLINES-1 = 4 for standard 5-line staff
-                                             //   Clef xd      = dLineSp                           (Score.cp:1406 MakeClef)
+    let d_line_sp = config.layout.staff_height / 4; // STFLINES-1 = 4 for standard 5-line staff
+                                                    //   Clef xd      = dLineSp                           (Score.cp:1406 MakeClef)
     let clef_xd: Ddist = d_line_sp;
     //   KeySig xd    = Clef.xd + 3.5*dLineSp             (Score.cp:1449 MakeKeySig, Ross p.145)
     let keysig_xd: Ddist = clef_xd + (7 * d_line_sp) / 2; // 3.5 * dLineSp
@@ -491,7 +462,7 @@ pub fn notelist_to_score_with_config(
     let ks_width: Ddist = if has_keysig {
         stdist_to_ddist(
             ks_acc_space_stdist * max_ks_items as f32,
-            config.staff_height,
+            config.layout.staff_height,
         ) + d_line_sp // small gap after key sig
     } else {
         0
@@ -571,8 +542,8 @@ pub fn notelist_to_score_with_config(
     // ---- SYSTEM BREAK: group measures into systems ----
     // Port of NewSysNums (Reformat.cp): split measures across systems.
     // max_measures > 0 means N measures per system; 0 = all on one system.
-    let measures_per_sys = if config.max_measures > 0 {
-        config.max_measures
+    let measures_per_sys = if config.layout.max_measures > 0 {
+        config.layout.max_measures
     } else {
         measure_spans.len() // all on one system
     };
@@ -843,7 +814,7 @@ pub fn notelist_to_score_with_config(
 
         // Total ideal space for measures in this system
         let sys_ideal: f32 = measure_total_stdist[sys_start..sys_end].iter().sum();
-        let sys_ideal_ddist = stdist_to_ddist(sys_ideal, config.staff_height);
+        let sys_ideal_ddist = stdist_to_ddist(sys_ideal, config.layout.staff_height);
 
         // Scale factor: stretch/compress to fill system width
         let sys_scale = if sys_ideal_ddist > 0 {
@@ -856,7 +827,7 @@ pub fn notelist_to_score_with_config(
         #[allow(clippy::needless_range_loop)]
         for mi in sys_start..sys_end {
             measure_abs_xd.push(x_cursor);
-            let w = (stdist_to_ddist(measure_total_stdist[mi], config.staff_height) as f32
+            let w = (stdist_to_ddist(measure_total_stdist[mi], config.layout.staff_height) as f32
                 * sys_scale) as Ddist;
             let w = w.max(200);
             measure_width_ddist.push(w);
@@ -882,7 +853,7 @@ pub fn notelist_to_score_with_config(
         let positions = &measure_positions_stdist[mi];
 
         // Scale: actual DDIST width / ideal STDIST-to-DDIST width
-        let ideal_ddist = stdist_to_ddist(ideal_total, config.staff_height);
+        let ideal_ddist = stdist_to_ddist(ideal_total, config.layout.staff_height);
         let inner_scale = if ideal_ddist > 0 {
             actual_width as f32 / ideal_ddist as f32
         } else {
@@ -898,7 +869,7 @@ pub fn notelist_to_score_with_config(
         let clef_indent: Ddist = if has_clef_at_start {
             stdist_to_ddist(
                 crate::space_time::clef_width_right(true) as f32 + 4.0,
-                config.staff_height,
+                config.layout.staff_height,
             )
         } else {
             0
@@ -912,14 +883,14 @@ pub fn notelist_to_score_with_config(
             .map(|&(num, denom)| {
                 stdist_to_ddist(
                     crate::space_time::timesig_width_right(num as u8, denom as u8) as f32 + 4.0,
-                    config.staff_height,
+                    config.layout.staff_height,
                 )
             })
             .unwrap_or(0);
 
         for (ei, &et) in span.event_times.iter().enumerate() {
             let stdist_pos = positions.get(ei).copied().unwrap_or(0) as f32;
-            let raw_ddist = stdist_to_ddist(stdist_pos, config.staff_height);
+            let raw_ddist = stdist_to_ddist(stdist_pos, config.layout.staff_height);
             let rel = clef_indent + timesig_indent + (raw_ddist as f32 * inner_scale) as Ddist;
             event_rel_xd.insert(et, rel);
         }
@@ -945,8 +916,8 @@ pub fn notelist_to_score_with_config(
     score.head_l = header_link;
 
     // Calculate pagination: how many systems fit per page?
-    let system_height_for_pagination =
-        (num_staves as i32 - 1) * config.inter_staff as i32 + config.staff_height as i32;
+    let system_height_for_pagination = (num_staves as i32 - 1) * config.layout.inter_staff as i32
+        + config.layout.staff_height as i32;
     let sys_per_page = config.systems_per_page(system_height_for_pagination);
     let num_pages = num_systems.div_ceil(sys_per_page);
 
@@ -1087,7 +1058,8 @@ pub fn notelist_to_score_with_config(
 
     // ---- BUILD EACH SYSTEM ----
     // Port of CreateSystem loop from Score.cp
-    let system_height = (num_staves as Ddist - 1) * config.inter_staff + config.staff_height;
+    let system_height =
+        (num_staves as Ddist - 1) * config.layout.inter_staff + config.layout.staff_height;
 
     for (sys_idx, &(sys_meas_start, sys_meas_end)) in system_measure_ranges.iter().enumerate() {
         let system_link = system_links[sys_idx];
@@ -1146,17 +1118,17 @@ pub fn notelist_to_score_with_config(
         // System vertical position — page-relative, reset each page.
         // Port of PageFixSysRects (Score.cp:329-381): first system on page
         // starts at marginRect.top; subsequent systems spaced by yBetweenSys.
-        let sys_top_i32 =
-            config.system_top as i32 + sys_in_page as i32 * config.inter_system as i32;
+        let sys_top_i32 = config.layout.system_top as i32
+            + sys_in_page as i32 * config.layout.inter_system as i32;
         let sys_top = sys_top_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
         let sys_bottom_i32 = sys_top_i32 + system_height as i32;
         let sys_bottom = sys_bottom_i32.clamp(Ddist::MIN as i32, Ddist::MAX as i32) as Ddist;
 
         let system_rect = DRect {
             top: sys_top,
-            left: config.system_left,
+            left: config.layout.system_left,
             bottom: sys_bottom,
-            right: config.system_right,
+            right: config.layout.system_right,
         };
 
         // Allocate STAFF, CONNECT, CLEF links for this system
@@ -1248,7 +1220,7 @@ pub fn notelist_to_score_with_config(
 
         #[allow(clippy::needless_range_loop)]
         for s in 1..=num_staves {
-            let staff_top = (s as Ddist - 1) * config.inter_staff;
+            let staff_top = (s as Ddist - 1) * config.layout.inter_staff;
             staff_subs.push(AStaff {
                 next: if s < num_staves {
                     staff_sub_link + s as Link
@@ -1262,7 +1234,7 @@ pub fn notelist_to_score_with_config(
                 staff_top,
                 staff_left: 0,
                 staff_right: config.content_width(),
-                staff_height: config.staff_height,
+                staff_height: config.layout.staff_height,
                 staff_lines: 5,
                 font_size: 24,
                 flag_leading: 0,
@@ -1270,7 +1242,7 @@ pub fn notelist_to_score_with_config(
                 ledger_width: 96,
                 note_head_width: 96,
                 frac_beam_width: 48,
-                space_below: config.inter_staff - config.staff_height,
+                space_below: config.layout.inter_staff - config.layout.staff_height,
                 clef_type: clef_types[s] as i8,
                 dynamic_type: 0,
                 ks_info: setup_ks_info(key_sigs[s].0, key_sigs[s].1),
@@ -1697,7 +1669,7 @@ pub fn notelist_to_score_with_config(
                             // OG: GRACESIZE(STD_LINEHT*4/3) ≈ 7.5 STDIST per grace note.
                             let grace_w_stdist = 7.5_f32 * gr_indices.len() as f32 + 4.0;
                             let grace_w_ddist =
-                                stdist_to_ddist(grace_w_stdist, config.staff_height);
+                                stdist_to_ddist(grace_w_stdist, config.layout.staff_height);
                             let gr_xd = (rel_xd - grace_w_ddist).max(0);
                             let gr_link = next_link();
                             music_objs.push(MusicObj {
@@ -2067,7 +2039,7 @@ pub fn notelist_to_score_with_config(
                                     nl_midi_to_half_ln(*note_num, *effective_acc, mid_c_hl)
                                         .unwrap_or(4); // Default to middle of staff
 
-                                let yd = half_ln_to_yd(half_ln, config.staff_height);
+                                let yd = half_ln_to_yd(half_ln, config.layout.staff_height);
 
                                 // Stem and accidental calculations — faithful port from OG Nightingale
                                 let n_staff_lines: i16 = 5; // Standard 5-line staff
@@ -2110,7 +2082,7 @@ pub fn notelist_to_score_with_config(
                                         yd,
                                         num_flags,
                                         stem_down,
-                                        config.staff_height,
+                                        config.layout.staff_height,
                                         n_staff_lines,
                                         qtr_sp,
                                         false, // allow midline extension
@@ -2172,7 +2144,7 @@ pub fn notelist_to_score_with_config(
                                     // Note in space: 2 (same level). 0 = invisible.
                                     // (Objects.cp:858-861)
                                     y_move_dots: if *dots > 0 {
-                                        let half_ln_unit = config.staff_height / 8;
+                                        let half_ln_unit = config.layout.staff_height / 8;
                                         let half_ln = if half_ln_unit > 0 {
                                             yd / half_ln_unit
                                         } else {
@@ -2251,7 +2223,7 @@ pub fn notelist_to_score_with_config(
                                     VoiceRole::Upper => base_half_ln - config.rest_mv_offset,
                                     VoiceRole::Lower => base_half_ln + config.rest_mv_offset,
                                 };
-                                let yd = half_ln_to_yd(rest_half_ln, config.staff_height);
+                                let yd = half_ln_to_yd(rest_half_ln, config.layout.staff_height);
 
                                 notes.push(ANote {
                                     header: SubObjHeader {
@@ -2365,8 +2337,12 @@ pub fn notelist_to_score_with_config(
                             .get(&(staffn, voice))
                             .copied()
                             .unwrap_or(VoiceRole::Single);
-                        let stem_down =
-                            normal_stem_up_down_chord(min_yd, max_yd, config.staff_height, role);
+                        let stem_down = normal_stem_up_down_chord(
+                            min_yd,
+                            max_yd,
+                            config.layout.staff_height,
+                            role,
+                        );
 
                         // Use shorter stems for multi-voice
                         let chord_qtr_sp = match role {
@@ -2389,7 +2365,7 @@ pub fn notelist_to_score_with_config(
                                     far_note_yd,
                                     nflags(far_note_dur),
                                     stem_down,
-                                    config.staff_height,
+                                    config.layout.staff_height,
                                     n_staff_lines,
                                     chord_qtr_sp,
                                     false,
@@ -2413,7 +2389,7 @@ pub fn notelist_to_score_with_config(
                             // Compute other_stem_side for seconds in chords
                             let chord_yds: Vec<i16> =
                                 indices.iter().map(|&idx| notes[idx].yd).collect();
-                            let half_ln = config.staff_height / 8;
+                            let half_ln = config.layout.staff_height / 8;
                             let other_sides = arrange_chord_notes(&chord_yds, stem_down, half_ln);
                             for (i, &idx) in indices.iter().enumerate() {
                                 notes[idx].other_stem_side = other_sides[i];
@@ -2445,7 +2421,7 @@ pub fn notelist_to_score_with_config(
                                     note_yd,
                                     nflags(note_dur),
                                     stem_down,
-                                    config.staff_height,
+                                    config.layout.staff_height,
                                     n_staff_lines,
                                     chord_qtr_sp,
                                     false,
@@ -2526,7 +2502,7 @@ pub fn notelist_to_score_with_config(
                             // Compute Y position (same as regular notes)
                             let half_ln = nl_midi_to_half_ln(*note_num, *effective_acc, mid_c_hl)
                                 .unwrap_or(4);
-                            let yd = half_ln_to_yd(half_ln, config.staff_height);
+                            let yd = half_ln_to_yd(half_ln, config.layout.staff_height);
 
                             // Stem direction — grace notes use single-note rules.
                             // stem_char: '.' = auto, '+' = up, '-' = down
@@ -2563,7 +2539,7 @@ pub fn notelist_to_score_with_config(
                                     yd,
                                     num_flags,
                                     stem_down,
-                                    config.staff_height,
+                                    config.layout.staff_height,
                                     n_staff_lines,
                                     qtr_sp,
                                     false,
@@ -2577,7 +2553,7 @@ pub fn notelist_to_score_with_config(
                             let gr_note_spacing_stdist = 7.5_f32; // ~0.94 interline
                             let xd_offset = stdist_to_ddist(
                                 gr_note_spacing_stdist * grnotes.len() as f32,
-                                config.staff_height,
+                                config.layout.staff_height,
                             );
 
                             grnotes.push(ANote {
@@ -2989,7 +2965,7 @@ pub fn notelist_to_score_with_config(
             // Determine beam group stem direction using NormalStemUpDown (Objects.cp:1457)
             // For SINGLE voice, gather extreme yd across the entire beam group.
             let group_stem_down = if role != VoiceRole::Single {
-                normal_stem_up_down_chord(0, 0, config.staff_height, role)
+                normal_stem_up_down_chord(0, 0, config.layout.staff_height, role)
             } else {
                 let mut max_yd: Ddist = i16::MIN;
                 let mut min_yd: Ddist = i16::MAX;
@@ -3017,7 +2993,7 @@ pub fn notelist_to_score_with_config(
                     continue;
                 }
 
-                normal_stem_up_down_chord(min_yd, max_yd, config.staff_height, role)
+                normal_stem_up_down_chord(min_yd, max_yd, config.layout.staff_height, role)
             };
 
             // Recompute ystem for all notes in the group using the unified direction.
@@ -3048,7 +3024,7 @@ pub fn notelist_to_score_with_config(
                                 &chord_yds,
                                 &chord_durs,
                                 group_stem_down,
-                                config.staff_height,
+                                config.layout.staff_height,
                                 n_staff_lines,
                                 qtr_sp,
                             );
@@ -3334,7 +3310,7 @@ pub fn notelist_to_score_with_config(
                 } else {
                     -5.0 * STD_LINEHT_TUPLET / 4.0
                 };
-                let margin_ddist = (margin_stdist * config.staff_height as f32
+                let margin_ddist = (margin_stdist * config.layout.staff_height as f32
                     / (STD_LINEHT_TUPLET * 4.0)) as Ddist;
 
                 let bracket_yd: Ddist = if bracket_below {
@@ -3507,7 +3483,7 @@ pub fn notelist_to_score_with_config(
             // Y position: above staff 1, about 2 interline spaces above top line.
             // OG default yd for tempo marks is typically around -2*lineSpace.
             // lineSpace = staff_height / 4 for 5-line staff.
-            let line_space = config.staff_height / 4;
+            let line_space = config.layout.staff_height / 4;
             let yd: Ddist = -(line_space * 2);
 
             let tempo_link = tempo_link_counter;
@@ -3628,8 +3604,8 @@ pub fn notelist_to_score_with_config(
     });
 
     // Set page geometry from layout config
-    score.page_width_pt = config.page_width as f32;
-    score.page_height_pt = config.page_height as f32;
+    score.page_width_pt = config.layout.page_width as f32;
+    score.page_height_pt = config.layout.page_height as f32;
 
     score
 }

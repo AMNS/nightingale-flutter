@@ -80,7 +80,10 @@ fn test_notelist_hbd33_render_to_pdf() {
     assert!(stem_count > 0, "Should render stems");
 
     // 4. Render through PdfRenderer with embedded Bravura font
-    let mut pdf_renderer = PdfRenderer::new(config.page_width as f32, config.page_height as f32);
+    let mut pdf_renderer = PdfRenderer::new(
+        config.layout.page_width as f32,
+        config.layout.page_height as f32,
+    );
 
     // Load Bravura SMuFL font for real glyph rendering
     let font_path = Path::new("assets/fonts/Bravura.otf");

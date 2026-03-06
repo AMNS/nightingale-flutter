@@ -367,8 +367,10 @@ fn test_all_notelists_produce_valid_pdf() {
         let notelist = parse_notelist(file).unwrap();
         let score = notelist_to_score(&notelist);
 
-        let mut pdf_renderer =
-            PdfRenderer::new(config.page_width as f32, config.page_height as f32);
+        let mut pdf_renderer = PdfRenderer::new(
+            config.layout.page_width as f32,
+            config.layout.page_height as f32,
+        );
 
         if font_path.exists() {
             pdf_renderer.load_music_font_file(font_path);
@@ -685,7 +687,10 @@ fn test_all_notelists_bitmap_regression() {
 
         // Render directly to bitmap (no PDF intermediate)
         let mut bmp = BitmapRenderer::new(72.0); // 72 DPI = 1 pixel per point
-        bmp.set_page_size(config.page_width as f32, config.page_height as f32);
+        bmp.set_page_size(
+            config.layout.page_width as f32,
+            config.layout.page_height as f32,
+        );
         if let Some(ref data) = font_data {
             bmp.load_music_font(data.clone());
         }
