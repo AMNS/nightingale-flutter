@@ -710,17 +710,11 @@ pub fn draw_grsync(
                         grnote.yd
                     };
 
-                    let beam_extend = if grnote.beamed { 0.5_f32 } else { 0.0 };
-                    let stem_top = if stem_down {
-                        d2r_sum(note_ctx.staff_top, grnote.ystem.min(stem_near_yd))
-                    } else {
-                        d2r_sum(note_ctx.staff_top, grnote.ystem.min(stem_near_yd)) - beam_extend
-                    };
-                    let stem_bottom = if stem_down {
-                        d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd)) + beam_extend
-                    } else {
-                        d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd))
-                    };
+                    // No beam extension — stems end flush at ystem, matching regular notes.
+                    // The beam is positioned at ystem by draw_grace_beamset().
+                    // Reference: Regular note fix in commit e6a7c2c
+                    let stem_top = d2r_sum(note_ctx.staff_top, grnote.ystem.min(stem_near_yd));
+                    let stem_bottom = d2r_sum(note_ctx.staff_top, grnote.ystem.max(stem_near_yd));
 
                     // Stem width: 8% of staff interline space (same as regular notes).
                     // Reference: PS_Stdio.cp:952, STEMLW_DFLT = 8 (% of lnSpace)

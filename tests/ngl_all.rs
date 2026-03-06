@@ -48,6 +48,8 @@ const ALL_NGL_FILES: &[&str] = &[
     "tests/fixtures/15_selfsame_twin.ngl",
     "tests/fixtures/16_esmerelda.ngl",
     "tests/fixtures/17_capital_regiment_march.ngl",
+    // ── Grace note test fixtures ──
+    "tests/fixtures/beamed_grace_notes.ngl",
     // ── Tim Crawford's scores (with OG PostScript reference output) ──
     "tests/fixtures/tc_02.ngl",
     "tests/fixtures/tc_03a.ngl",
@@ -541,6 +543,9 @@ fn test_all_ngl_score_structure() {
         for notes_vec in score.notes.values() {
             total_note_subobjects += notes_vec.len();
         }
+        for grnotes_vec in score.grnotes.values() {
+            total_note_subobjects += grnotes_vec.len();
+        }
 
         // Allow larger discrepancy for N101/N102 files (struct layout may be significantly different)
         let is_legacy = name.starts_with("tc_schumann") || name.starts_with("tc_old_");
@@ -642,7 +647,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("tc_schumann_reconnaissance", 17377376872017884626),
         ("tc_old_alpherqt_16", 7083497211708614460),
         ("tc_old_debussy_images_play", 8148608601112330816),
-        ("tc_old_kinderszenen_13_6", 2541411182711924915),
+        ("tc_old_kinderszenen_13_6", 9808280289547466935),
         ("tc_old_ravel_scarbo_10", 2817145496059695337),
         ("tc_old_babbitt_guit_8", 7731324948961827629),
         ("tc_old_berlioz_valse_proteus", 4051771586171542178),
