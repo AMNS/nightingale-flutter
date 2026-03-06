@@ -222,18 +222,52 @@ pub fn draw_part_names(
 
         // --- Horizontal position ---
         // OG centered mode (DrawObject.cp:370-377) centers the name in the indent
-        // area using: xd = systemLeft - connWidth - indent/2 - pt2d(nameWidth/2)
+        // area: xd = systemLeft - connWidth - indent/2 - pt2d(nameWidth/2)
         //
-        // In NGL files the system rect already incorporates the first-system indent
-        // (e.g. System 1 left=2032 vs System 2 left=1504), so we use a simpler
-        // right-aligned approach: place text ending a small margin to the left of
-        // systemLeft, with approximate width based on character count.
+        // connWidth = 7*lineSpace/4 (for curly brace, the widest connector type).
+        // OG always uses CONNECTCURLY here regardless of actual connect type.
+        // Reference: SpaceTime.cp ConnectDWidth() lines 525-543
+        //
+        // indent = d_indent_first (system 1) or d_indent_other (subsequent).
+        // Many NGL files store d_indent_first=0 even when the first system is
+        // indented (the indent is baked into the system rect). For these cases
+        // we right-align the name to the left of the brace.
         //
         // Reference: DrawObject.cp:360-377, SpaceTime.cp:525-543
-        let system_left_pt = ddist_to_render(first_ctx.system_left);
-        let margin = 4.0_f32; // small gap between name and staff/clef
-        let approx_name_width = name.len() as f32 * font.size * 0.5;
-        let text_x = system_left_pt - margin - approx_name_width;
+        let indent = if system_num <= 1 {
+            score.d_indent_first
+        } else {
+            score.d_indent_other
+        };
+
+        // connWidth = 7 * lineSpace / 4 (DDIST) — OG SpaceTime.cp:536
+        let conn_width = (7 * line_space) / 4;
+
+        // Approximate name width in points, then convert to DDIST (pt * 16)
+        let approx_name_width_pt = name.len() as f32 * font.size * 0.5;
+        let name_width_ddist = (approx_name_width_pt * 16.0) as i16; // full width in DDIST
+
+        let xd = if indent > 0 {
+            // OG centering formula: center the name in the indent area,
+            // leaving room for the brace.
+            let half_name = name_width_ddist / 2;
+            first_ctx
+                .system_left
+                .saturating_sub(conn_width)
+                .saturating_sub(indent / 2)
+                .saturating_sub(half_name)
+        } else {
+            // No explicit indent — right-align the name to the left of the
+            // brace with a small margin. The 4pt gap keeps names clear of
+            // the brace/bracket.
+            let margin_ddist = 64_i16; // 4pt * 16
+            first_ctx
+                .system_left
+                .saturating_sub(conn_width)
+                .saturating_sub(margin_ddist)
+                .saturating_sub(name_width_ddist)
+        };
+        let text_x = ddist_to_render(xd);
 
         renderer.text_string(text_x, text_y, &name, &font);
     }
