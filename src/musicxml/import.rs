@@ -25,9 +25,9 @@ use crate::defs::{
 };
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
-    AClef, AConnect, AKeySig, AMeasure, ANote, AStaff, ATimeSig, Clef, Connect, Header, KeySig,
-    Measure, ObjectHeader, Page, PartInfo, Staff, SubObjHeader, System, Tail, TimeSig,
-    SHOW_ALL_LINES,
+    AClef, AConnect, AKeySig, AMeasure, ANote, ANoteBeam, AStaff, ATimeSig, BeamSet, Clef, Connect,
+    Dynamic, ExtObjHeader, Header, KeySig, Measure, ObjectHeader, Page, PartInfo, Staff,
+    SubObjHeader, System, Tail, TimeSig, SHOW_ALL_LINES,
 };
 use crate::objects::setup_ks_info;
 
@@ -91,6 +91,15 @@ struct XmlNote {
     tie_start: bool,
     tie_stop: bool,
     accidental: String,
+    /// True if this note has a slur starting here (type="start").
+    slur_start: bool,
+    /// True if this note has a slur ending here (type="stop").
+    slur_stop: bool,
+    /// True if this note is a grace note (<grace/> element).
+    grace: bool,
+    /// Beam values from MusicXML: beam_levels[0] = primary beam (number=1), etc.
+    /// Values: "begin", "continue", "end", "forward hook", "backward hook"
+    beam_levels: Vec<String>,
 }
 
 /// Parsed attributes from a MusicXML `<attributes>` element.
@@ -112,12 +121,22 @@ enum XmlDirection {
     Backup(i32),
 }
 
+/// A dynamic marking parsed from MusicXML `<direction><dynamics>`.
+#[derive(Debug, Clone)]
+struct XmlDynamic {
+    /// NGL dynamic type code (1–21 for text dynamics).
+    dynamic_type: u8,
+    /// Staff number (from `<staff>` inside `<direction>`), default 1.
+    staff: i32,
+}
+
 /// An element within a MusicXML measure.
 #[derive(Debug, Clone)]
 enum XmlMeasureElement {
     Attributes(XmlAttributes),
     Note(XmlNote),
     Direction(XmlDirection),
+    DynamicMarking(XmlDynamic),
 }
 
 /// A parsed MusicXML measure.
@@ -296,6 +315,11 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
     let mut current_clef_sign: String = String::new();
     let mut current_clef_line: i32 = 2;
     let mut current_clef_oct_change: i32 = 0;
+    // State for parsing <direction><direction-type><dynamics> elements
+    let mut current_dynamic_type: Option<u8> = None;
+    let mut current_direction_staff: i32 = 1;
+    // State for parsing <beam number="N"> elements inside <note>
+    let mut current_beam_number: i32 = 0;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -345,7 +369,16 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             tie_start: false,
                             tie_stop: false,
                             accidental: String::new(),
+                            slur_start: false,
+                            slur_stop: false,
+                            grace: false,
+                            beam_levels: Vec::new(),
                         });
+                    }
+                    "direction" => {
+                        // Reset direction state for a new <direction> element.
+                        current_dynamic_type = None;
+                        current_direction_staff = 1;
                     }
                     "clef" => {
                         current_clef_num = attr_str(e, "number").parse::<i32>().unwrap_or(1);
@@ -362,6 +395,18 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             }
                         }
                     }
+                    "slur" => {
+                        if let Some(ref mut note) = current_note {
+                            match attr_str(e, "type").as_str() {
+                                "start" => note.slur_start = true,
+                                "stop" => note.slur_stop = true,
+                                _ => {}
+                            }
+                        }
+                    }
+                    "beam" => {
+                        current_beam_number = attr_str(e, "number").parse::<i32>().unwrap_or(1);
+                    }
                     _ => {}
                 }
                 path.push(tag);
@@ -374,12 +419,45 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                         "rest" => note.rest = true,
                         "chord" => note.chord = true,
                         "dot" => note.dots += 1,
+                        "grace" => note.grace = true,
                         "tie" => match attr_str(e, "type").as_str() {
                             "start" => note.tie_start = true,
                             "stop" => note.tie_stop = true,
                             _ => {}
                         },
+                        "slur" => match attr_str(e, "type").as_str() {
+                            "start" => note.slur_start = true,
+                            "stop" => note.slur_stop = true,
+                            _ => {}
+                        },
                         _ => {}
+                    }
+                }
+                // Dynamic element names appear as self-closing tags inside <dynamics>.
+                // path should contain "dynamics" when we're inside a <dynamics> element.
+                if path.last().map(|s| s.as_str()) == Some("dynamics") {
+                    let dtype = match tag.as_str() {
+                        "pppp" => Some(1u8),
+                        "ppp" => Some(2),
+                        "pp" => Some(3),
+                        "p" => Some(4),
+                        "mp" => Some(5),
+                        "mf" => Some(6),
+                        "f" => Some(7),
+                        "ff" => Some(8),
+                        "fff" => Some(9),
+                        "ffff" => Some(10),
+                        "sf" => Some(15),
+                        "fz" => Some(16),
+                        "sfz" => Some(17),
+                        "rf" => Some(18),
+                        "rfz" => Some(19),
+                        "fp" => Some(20),
+                        "sfp" => Some(21),
+                        _ => None,
+                    };
+                    if let Some(d) = dtype {
+                        current_dynamic_type = Some(d);
                     }
                 }
             }
@@ -477,6 +555,10 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             n.note_type = text;
                         }
                     }
+                    // Staff number inside <direction> (for multi-staff parts)
+                    "staff" if current_note.is_none() && path.iter().any(|p| p == "direction") => {
+                        current_direction_staff = text.parse().unwrap_or(1);
+                    }
                     "voice" => {
                         if let Some(ref mut n) = current_note {
                             n.voice = text.parse().unwrap_or(1);
@@ -490,6 +572,16 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                     "accidental" => {
                         if let Some(ref mut n) = current_note {
                             n.accidental = text;
+                        }
+                    }
+                    "beam" => {
+                        if let Some(ref mut n) = current_note {
+                            // Ensure beam_levels has enough entries for this beam number
+                            let idx = (current_beam_number - 1).max(0) as usize;
+                            while n.beam_levels.len() <= idx {
+                                n.beam_levels.push(String::new());
+                            }
+                            n.beam_levels[idx] = text;
                         }
                     }
                     _ => {}
@@ -540,6 +632,18 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                                 current_clef_line,
                                 current_clef_oct_change,
                             ));
+                        }
+                    }
+                    "direction" => {
+                        // Flush any dynamic collected during this <direction>.
+                        if let Some(dtype) = current_dynamic_type.take() {
+                            if let Some(ref mut meas) = current_measure {
+                                meas.elements
+                                    .push(XmlMeasureElement::DynamicMarking(XmlDynamic {
+                                        dynamic_type: dtype,
+                                        staff: current_direction_staff,
+                                    }));
+                            }
                         }
                     }
                     _ => {}
@@ -716,10 +820,16 @@ fn build_score(
         acc: u8,
         tied_l: bool,
         tied_r: bool,
+        slurred_l: bool,
+        slurred_r: bool,
         play_dur: i16,
+        /// Beam levels from MusicXML: beam_levels[0] = primary beam, etc.
+        beam_levels: Vec<String>,
     }
 
     let mut all_notes: Vec<NoteEntry> = Vec::new();
+    // Collected dynamics: (measure_num, global_staff, dynamic_type).
+    let mut collected_dynamics: Vec<(i32, i8, u8)> = Vec::new();
     let num_measures = parts.iter().map(|p| p.measures.len()).max().unwrap_or(0);
 
     // Track mid-score attribute changes per measure (key, time, clefs).
@@ -772,6 +882,12 @@ fn build_score(
                         }
                     }
                     XmlMeasureElement::Note(note) => {
+                        // Skip grace notes for now — they have zero duration and
+                        // would break time accounting. TODO: handle grace notes.
+                        if note.grace {
+                            continue;
+                        }
+
                         let global_staff = psi.first_staff + note.staff as i8 - 1;
                         let pdur = xml_dur_to_pdur(note.duration, divisions);
 
@@ -808,7 +924,10 @@ fn build_score(
                             acc,
                             tied_l: note.tie_stop,
                             tied_r: note.tie_start,
+                            slurred_l: note.slur_stop,
+                            slurred_r: note.slur_start,
                             play_dur: pdur as i16,
+                            beam_levels: note.beam_levels.clone(),
                         });
 
                         if !note.chord {
@@ -826,6 +945,10 @@ fn build_score(
                             }
                         }
                     },
+                    XmlMeasureElement::DynamicMarking(dyn_mark) => {
+                        let global_staff = psi.first_staff + dyn_mark.staff as i8 - 1;
+                        collected_dynamics.push((meas.number, global_staff, dyn_mark.dynamic_type));
+                    }
                 }
             }
         }
@@ -1197,6 +1320,8 @@ fn build_score(
     let mut current_key_fifths = init_key_fifths;
     let mut current_time_num = init_time_num;
     let mut current_time_denom = init_time_denom;
+    // Collect beam info during Sync creation: (sync_link, staff, voice, beam_levels)
+    let mut beam_notes_with_links: Vec<(Link, i8, i8, Vec<String>)> = Vec::new();
 
     for meas_num in 1..=(num_measures as i32) {
         // ---- Insert mid-score Clef/KeySig/TimeSig objects before this measure ----
@@ -1503,7 +1628,7 @@ fn build_score(
                     in_chord: ne.chord,
                     rest: ne.rest,
                     unpitched: false,
-                    beamed: false,
+                    beamed: !ne.beam_levels.is_empty(),
                     other_stem_side: false,
                     yqpit,
                     xd: 0,
@@ -1532,8 +1657,8 @@ fn build_score(
                     double_dur: 0,
                     head_shape: 1, // NormalVis
                     first_mod: NILINK,
-                    slurred_l: false,
-                    slurred_r: false,
+                    slurred_l: ne.slurred_l,
+                    slurred_r: ne.slurred_r,
                     in_tuplet: false,
                     in_ottava: false,
                     small: false,
@@ -1567,6 +1692,19 @@ fn build_score(
             );
             score.notes.insert(sync_sub_link, note_subs);
             objects[prev_link as usize].header.right = sync_link;
+
+            // Collect beam info for each beamed note at this sync
+            for ne in notes_at_time {
+                if !ne.beam_levels.is_empty() {
+                    beam_notes_with_links.push((
+                        sync_link,
+                        ne.global_staff,
+                        ne.voice,
+                        ne.beam_levels.clone(),
+                    ));
+                }
+            }
+
             prev_link = sync_link;
         }
 
@@ -1574,6 +1712,220 @@ fn build_score(
         let meas_dur =
             (PDUR_QUARTER as i64 * 4 * init_time_num as i64 / init_time_denom as i64) as i32;
         measure_start_time += meas_dur;
+    }
+
+    // ---- 9b. BEAMSET OBJECTS ----
+    // Create BeamSet + ANoteBeam objects from beam info collected during Sync creation.
+    // beam_notes_with_links: (sync_link, staff, voice, beam_levels) — already in order.
+    // Group consecutive beamed notes by (staff, voice) into beam groups.
+    // A beam group starts with "begin" on primary beam and ends with "end".
+    {
+        let mut current_group: Vec<(Link, Vec<String>)> = Vec::new();
+        let mut current_sv: Option<(i8, i8)> = None;
+
+        let flush_group = |group: &mut Vec<(Link, Vec<String>)>,
+                           sv: (i8, i8),
+                           objects: &mut Vec<InterpretedObject>,
+                           score: &mut InterpretedScore,
+                           next_sub_link: &mut Link,
+                           prev_link: &mut Link| {
+            if group.len() < 2 {
+                group.clear();
+                return;
+            }
+
+            // Create ANoteBeam subobjects
+            let beam_sub_link = alloc_sub(next_sub_link);
+            let mut notebeam_subs: Vec<ANoteBeam> = Vec::new();
+
+            for (gi, (sync_link, beam_levels)) in group.iter().enumerate() {
+                // Compute startend from beam_levels:
+                // Count how many non-hook beams at this note.
+                let active_beams = beam_levels
+                    .iter()
+                    .filter(|bv| {
+                        let s = bv.as_str();
+                        s == "begin" || s == "continue" || s == "end"
+                    })
+                    .count() as i8;
+                // For first note: startend = +active_beams (beams starting)
+                // For last note: startend = -active_beams (beams ending)
+                // For middle notes: startend = change from previous
+                let startend = if gi == 0 {
+                    active_beams
+                } else {
+                    let prev_active = group[gi - 1]
+                        .1
+                        .iter()
+                        .filter(|bv| {
+                            let s = bv.as_str();
+                            s == "begin" || s == "continue" || s == "end"
+                        })
+                        .count() as i8;
+                    active_beams - prev_active
+                };
+
+                // Count fractional beams (forward/backward hooks)
+                let fracs = beam_levels
+                    .iter()
+                    .filter(|bv| bv.as_str() == "forward hook" || bv.as_str() == "backward hook")
+                    .count() as u8;
+                let frac_go_left =
+                    beam_levels.iter().any(|bv| bv.as_str() == "backward hook") as u8;
+
+                notebeam_subs.push(ANoteBeam {
+                    next: if gi + 1 < group.len() {
+                        beam_sub_link + (gi + 1) as Link
+                    } else {
+                        NILINK
+                    },
+                    bp_sync: *sync_link,
+                    startend,
+                    fracs,
+                    frac_go_left,
+                    filler: 0,
+                });
+            }
+
+            *next_sub_link += group.len() as Link;
+
+            let blink = push_obj(
+                objects,
+                InterpretedObject {
+                    index: 0,
+                    header: ObjectHeader {
+                        obj_type: 11, // BEAMSET_TYPE
+                        left: *prev_link,
+                        first_sub_obj: beam_sub_link,
+                        n_entries: group.len() as u8,
+                        visible: true,
+                        valid: true,
+                        ..Default::default()
+                    },
+                    data: ObjData::BeamSet(BeamSet {
+                        header: ObjectHeader::default(),
+                        ext_header: ExtObjHeader { staffn: sv.0 },
+                        voice: sv.1,
+                        thin: 0,
+                        beam_rests: 0,
+                        feather: 0,
+                        grace: 0,
+                        first_system: 0,
+                        cross_staff: 0,
+                        cross_system: 0,
+                    }),
+                },
+            );
+            score.notebeams.insert(beam_sub_link, notebeam_subs);
+            objects[*prev_link as usize].header.right = blink;
+            *prev_link = blink;
+
+            group.clear();
+        };
+
+        for (sync_link, staff, voice, beam_levels) in &beam_notes_with_links {
+            let sv = (*staff, *voice);
+            let is_begin = beam_levels.first().map(|s| s.as_str()) == Some("begin");
+            let is_end = beam_levels.first().map(|s| s.as_str()) == Some("end");
+
+            if current_sv != Some(sv) || is_begin {
+                // Flush previous group if any
+                if !current_group.is_empty() {
+                    let old_sv = current_sv.unwrap_or(sv);
+                    flush_group(
+                        &mut current_group,
+                        old_sv,
+                        &mut objects,
+                        &mut score,
+                        &mut next_sub_link,
+                        &mut prev_link,
+                    );
+                }
+                current_sv = Some(sv);
+            }
+
+            current_group.push((*sync_link, beam_levels.clone()));
+
+            if is_end {
+                flush_group(
+                    &mut current_group,
+                    sv,
+                    &mut objects,
+                    &mut score,
+                    &mut next_sub_link,
+                    &mut prev_link,
+                );
+                current_sv = None;
+            }
+        }
+        // Flush any remaining group
+        if !current_group.is_empty() {
+            if let Some(sv) = current_sv {
+                flush_group(
+                    &mut current_group,
+                    sv,
+                    &mut objects,
+                    &mut score,
+                    &mut next_sub_link,
+                    &mut prev_link,
+                );
+            }
+        }
+    }
+
+    // ---- 9c. DYNAMIC OBJECTS ----
+    // Create Dynamic + ADynamic objects for collected dynamics.
+    // These are inserted into the object list after all Syncs but before the Tail.
+    // The exporter's collect_measure_data() will pick them up during the walk.
+    for &(measure_num, global_staff, dynamic_type) in &collected_dynamics {
+        let dsub_link = alloc_sub(&mut next_sub_link);
+        let adyn = crate::obj_types::ADynamic {
+            header: SubObjHeader {
+                next: NILINK,
+                staffn: global_staff,
+                sub_type: 0,
+                selected: false,
+                visible: true,
+                soft: false,
+            },
+            mouth_width: 0,
+            small: 0,
+            other_width: 0,
+            xd: 0,
+            yd: 0,
+            endxd: 0,
+            endyd: 0,
+            d_mod_code: 0,
+            cross_staff: 0,
+        };
+        next_sub_link += 1;
+        let dlink = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 13, // DYNAMIC_TYPE
+                    left: prev_link,
+                    first_sub_obj: dsub_link,
+                    n_entries: 1,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::Dynamic(Dynamic {
+                    header: ObjectHeader::default(),
+                    dynamic_type: dynamic_type as i8,
+                    filler: false,
+                    cross_sys: false,
+                    first_sync_l: NILINK,
+                    last_sync_l: NILINK,
+                }),
+            },
+        );
+        let _ = measure_num; // future: associate with specific sync
+        score.dynamics.insert(dsub_link, vec![adyn]);
+        objects[prev_link as usize].header.right = dlink;
+        prev_link = dlink;
     }
 
     // ---- 10. TAIL ----

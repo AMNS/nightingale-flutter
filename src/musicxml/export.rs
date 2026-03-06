@@ -10,7 +10,7 @@ use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
 use std::io::Cursor;
 
-use crate::basic_types::KsItem;
+use crate::basic_types::{KsItem, Link};
 use crate::defs::*;
 use crate::ngl::interpret::*;
 use crate::obj_types::PartInfo;
@@ -193,6 +193,61 @@ fn clef_to_xml(clef_type: u8) -> (&'static str, i32, i32) {
     }
 }
 
+/// Convert NGL dynamic type code to MusicXML dynamic element name.
+/// Returns None for hairpins (types 22-23) which use `<wedge>` instead.
+fn dynamic_type_to_xml(dtype: u8) -> Option<&'static str> {
+    match dtype {
+        PPPP_DYNAM => Some("pppp"),
+        PPP_DYNAM => Some("ppp"),
+        PP_DYNAM => Some("pp"),
+        P_DYNAM => Some("p"),
+        MP_DYNAM => Some("mp"),
+        MF_DYNAM => Some("mf"),
+        F_DYNAM => Some("f"),
+        FF_DYNAM => Some("ff"),
+        FFF_DYNAM => Some("fff"),
+        FFFF_DYNAM => Some("ffff"),
+        SF_DYNAM => Some("sf"),
+        16 => Some("fz"),
+        SFZ_DYNAM => Some("sfz"),
+        RF_DYNAM => Some("rf"),
+        19 => Some("rfz"),
+        FP_DYNAM => Some("fp"),
+        SFP_DYNAM => Some("sfp"),
+        // Types 11-14 (relative dynamics) mapped to closest absolute
+        11 => Some("p"),  // più p → p
+        12 => Some("mp"), // meno p → mp
+        13 => Some("mf"), // meno f → mf
+        14 => Some("f"),  // più f → f
+        _ => None,        // hairpins or unknown
+    }
+}
+
+/// Convert MusicXML dynamic element name to NGL dynamic type code.
+#[allow(dead_code)]
+fn xml_to_dynamic_type(name: &str) -> Option<u8> {
+    match name {
+        "pppp" => Some(PPPP_DYNAM),
+        "ppp" => Some(PPP_DYNAM),
+        "pp" => Some(PP_DYNAM),
+        "p" => Some(P_DYNAM),
+        "mp" => Some(MP_DYNAM),
+        "mf" => Some(MF_DYNAM),
+        "f" => Some(F_DYNAM),
+        "ff" => Some(FF_DYNAM),
+        "fff" => Some(FFF_DYNAM),
+        "ffff" => Some(FFFF_DYNAM),
+        "sf" => Some(SF_DYNAM),
+        "fz" => Some(16),
+        "sfz" => Some(SFZ_DYNAM),
+        "rf" => Some(RF_DYNAM),
+        "rfz" => Some(19),
+        "fp" => Some(FP_DYNAM),
+        "sfp" => Some(SFP_DYNAM),
+        _ => None,
+    }
+}
+
 /// Convert NGL key signature items to MusicXML fifths value.
 fn ks_to_fifths(ks_items: &[KsItem; 7], n_ks_items: i8) -> i32 {
     if n_ks_items <= 0 {
@@ -203,6 +258,32 @@ fn ks_to_fifths(ks_items: &[KsItem; 7], n_ks_items: i8) -> i32 {
         n_ks_items as i32
     } else {
         -(n_ks_items as i32)
+    }
+}
+
+// ============================================================
+// Beam info for MusicXML export
+// ============================================================
+
+/// Beam state for a single beam level on a note.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BeamValue {
+    Begin,
+    Continue,
+    End,
+    ForwardHook,
+    BackwardHook,
+}
+
+impl BeamValue {
+    fn as_str(&self) -> &'static str {
+        match self {
+            BeamValue::Begin => "begin",
+            BeamValue::Continue => "continue",
+            BeamValue::End => "end",
+            BeamValue::ForwardHook => "forward hook",
+            BeamValue::BackwardHook => "backward hook",
+        }
     }
 }
 
@@ -224,6 +305,10 @@ struct NoteEvent {
     in_chord: bool,
     tied_l: bool,
     tied_r: bool,
+    slurred_l: bool,
+    slurred_r: bool,
+    /// Beam levels for this note: beam_levels[0] = primary beam (number=1), etc.
+    beam_levels: Vec<BeamValue>,
     /// Duration in PDUR ticks (computed).
     #[allow(dead_code)]
     duration: i32,
@@ -386,10 +471,23 @@ pub fn export_musicxml(score: &InterpretedScore) -> String {
 // Measure data collection
 // ============================================================
 
+/// A dynamic marking collected during score walk.
+#[derive(Debug, Clone)]
+struct DynamicEvent {
+    /// NGL dynamic type code (1–23).
+    dynamic_type: u8,
+    /// Staff number this dynamic applies to.
+    staff: i8,
+    /// Timestamp of the Sync this dynamic is attached to (approximate).
+    #[allow(dead_code)]
+    time_stamp: u16,
+}
+
 /// Data for one measure in the score.
 struct MeasureData {
     measure_num: i32,
     notes: Vec<NoteEvent>,
+    dynamics: Vec<DynamicEvent>,
     /// Time sig at start of measure (numerator, denominator), if changed.
     time_sig: Option<(i8, i8)>,
     /// Key sig at start of measure (fifths), if changed.
@@ -401,9 +499,112 @@ struct MeasureData {
     is_first: bool,
 }
 
+/// Compute MusicXML beam levels for each note in a beam group.
+///
+/// Takes an ordered list of (startend, fracs, frac_go_left) from ANoteBeam subobjects
+/// and returns a Vec of beam level assignments for each note.
+///
+/// NGL `startend`:
+///   +N means N beams begin at this note (first note has + equal to max beams)
+///   -N means N beams end at this note (last note has - equal to max beams)
+///   The absolute value indicates beam count change, not total beams.
+///
+/// MusicXML beam levels:
+///   <beam number="1">begin|continue|end</beam>  (primary beam)
+///   <beam number="2">begin|continue|end|forward hook|backward hook</beam>  (secondary)
+///   etc.
+fn compute_beam_levels(beam_notes: &[(i8, u8, u8)]) -> Vec<Vec<BeamValue>> {
+    let n = beam_notes.len();
+    if n == 0 {
+        return Vec::new();
+    }
+
+    // Determine the number of beam levels active at each note position.
+    // NGL startend: the first note's startend = total beams to start,
+    // subsequent notes adjust the count up or down.
+    //
+    // We track active_beams at each position:
+    //   - first note: active_beams = startend (positive = how many beams start)
+    //   - subsequent: active_beams changes based on startend:
+    //     positive startend = new beams starting, negative = beams ending
+    //
+    // Actually, the simplest reliable approach: compute active beam count
+    // at each note based on its l_dur. But we don't have l_dur here.
+    //
+    // Alternative: derive active beams from startend accumulation.
+    // At note i: active_beams[i] = active_beams[i-1] + startend[i]
+    // where startend[0] = initial positive count
+    let mut active: Vec<i32> = vec![0; n];
+    let mut running = 0i32;
+    for (i, &(startend, _fracs, _fgl)) in beam_notes.iter().enumerate() {
+        running += startend as i32;
+        active[i] = running.max(1); // at least 1 beam while in group
+    }
+
+    // The maximum beam level across the group
+    let max_level = active.iter().copied().max().unwrap_or(1) as usize;
+    if max_level == 0 {
+        return vec![Vec::new(); n];
+    }
+
+    // For each beam level (1-indexed), determine begin/continue/end per note.
+    let mut result: Vec<Vec<BeamValue>> = vec![Vec::new(); n];
+
+    for level in 1..=max_level {
+        let level_i = level as i32;
+
+        // Find which notes have this beam level active
+        let has_level: Vec<bool> = active.iter().map(|&a| a >= level_i).collect();
+
+        for i in 0..n {
+            if !has_level[i] {
+                // Check for hooks: a beam level that's active only at this note
+                // NGL uses fracs/frac_go_left for fractional beams
+                let (_, fracs, frac_go_left) = beam_notes[i];
+                if fracs as usize >= level && level > active[i] as usize {
+                    if frac_go_left != 0 {
+                        result[i].push(BeamValue::BackwardHook);
+                    } else {
+                        result[i].push(BeamValue::ForwardHook);
+                    }
+                }
+                continue;
+            }
+
+            let prev_has = if i > 0 { has_level[i - 1] } else { false };
+            let next_has = if i + 1 < n { has_level[i + 1] } else { false };
+
+            let value = match (prev_has, next_has) {
+                (false, true) => BeamValue::Begin,
+                (false, false) => {
+                    // Isolated note at this level — use hook based on position
+                    let (_, fracs, frac_go_left) = beam_notes[i];
+                    if fracs > 0 {
+                        if frac_go_left != 0 {
+                            BeamValue::BackwardHook
+                        } else {
+                            BeamValue::ForwardHook
+                        }
+                    } else if i == 0 {
+                        BeamValue::ForwardHook
+                    } else {
+                        BeamValue::BackwardHook
+                    }
+                }
+                (true, true) => BeamValue::Continue,
+                (true, false) => BeamValue::End,
+            };
+            result[i].push(value);
+        }
+    }
+
+    result
+}
+
 fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     let mut measures: Vec<MeasureData> = Vec::new();
     let mut current_notes: Vec<NoteEvent> = Vec::new();
+    let mut current_dynamics: Vec<DynamicEvent> = Vec::new();
     let mut pending_time_sig: Option<(i8, i8)> = None;
     let mut pending_key_fifths: Option<i32> = None;
     let mut pending_clefs: Vec<(i8, u8)> = Vec::new();
@@ -415,6 +616,37 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     let mut initial_key: Option<i32> = None;
     let mut initial_time: Option<(i8, i8)> = None;
     let mut initial_clefs: Vec<(i8, u8)> = Vec::new();
+
+    // Pre-pass: collect beam info from all BeamSet objects.
+    // Maps sync_link -> (voice, staff, Vec<BeamValue>) for beam assignment.
+    // We use a HashMap keyed by (sync_link, staff, voice) -> beam_levels.
+    let mut beam_map: std::collections::HashMap<(Link, i8, i8), Vec<BeamValue>> =
+        std::collections::HashMap::new();
+
+    for obj in score.walk() {
+        if let ObjData::BeamSet(beamset) = &obj.data {
+            if beamset.grace != 0 {
+                continue; // Skip grace note beams for now
+            }
+            if let Some(notebeams) = score.notebeams.get(&obj.header.first_sub_obj) {
+                // Collect ordered list of (startend, fracs, frac_go_left) per note in beam
+                let beam_note_infos: Vec<(i8, u8, u8)> = notebeams
+                    .iter()
+                    .map(|nb| (nb.startend, nb.fracs, nb.frac_go_left))
+                    .collect();
+
+                let beam_levels = compute_beam_levels(&beam_note_infos);
+
+                // Assign beam levels to each sync in the beam group
+                for (i, nb) in notebeams.iter().enumerate() {
+                    if i < beam_levels.len() && !beam_levels[i].is_empty() {
+                        let key = (nb.bp_sync, beamset.ext_header.staffn, beamset.voice);
+                        beam_map.insert(key, beam_levels[i].clone());
+                    }
+                }
+            }
+        }
+    }
 
     for obj in score.walk() {
         match &obj.data {
@@ -482,6 +714,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     measures.push(MeasureData {
                         measure_num,
                         notes: std::mem::take(&mut current_notes),
+                        dynamics: std::mem::take(&mut current_dynamics),
                         time_sig: time,
                         key_fifths: key,
                         clefs,
@@ -498,9 +731,29 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                 }
                 measure_num += 1;
             }
+            ObjData::Dynamic(dyn_obj) => {
+                // Collect text dynamics (not hairpins) as direction events.
+                let dtype = dyn_obj.dynamic_type as u8;
+                if (1..=23).contains(&dtype) {
+                    if let Some(subs) = score.dynamics.get(&obj.header.first_sub_obj) {
+                        for adyn in subs {
+                            // Use timestamp 0 — dynamic objects don't carry their own
+                            // timestamp; they're positioned relative to their firstSyncL.
+                            // We'll use the last seen sync timestamp as approximation.
+                            let ts = current_notes.last().map(|n| n.time_stamp).unwrap_or(0);
+                            current_dynamics.push(DynamicEvent {
+                                dynamic_type: dtype,
+                                staff: adyn.header.staffn,
+                                time_stamp: ts,
+                            });
+                        }
+                    }
+                }
+            }
             ObjData::Sync(sync) => {
                 // Access note subobjects from the HashMap
                 let notes = score.get_notes(obj.header.first_sub_obj);
+                let sync_link = obj.index as Link;
                 for note in &notes {
                     // In the current API:
                     // - l_dur is stored in note.header.sub_type (i8)
@@ -521,6 +774,10 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         sync.time_stamp
                     };
 
+                    // Look up beam info for this note from the pre-pass beam map.
+                    let beam_key = (sync_link, note.header.staffn, note.voice);
+                    let beam_levels = beam_map.get(&beam_key).cloned().unwrap_or_default();
+
                     current_notes.push(NoteEvent {
                         time_stamp: effective_ts,
                         staff: note.header.staffn,
@@ -533,6 +790,9 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         in_chord: note.in_chord,
                         tied_l: note.tied_l,
                         tied_r: note.tied_r,
+                        slurred_l: note.slurred_l,
+                        slurred_r: note.slurred_r,
+                        beam_levels,
                         duration,
                     });
                 }
@@ -563,6 +823,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
         measures.push(MeasureData {
             measure_num,
             notes: current_notes,
+            dynamics: current_dynamics,
             time_sig: time,
             key_fifths: key,
             clefs,
@@ -670,6 +931,25 @@ fn write_part_measures(
 
             let _ = w.write_event(Event::End(BytesEnd::new("attributes")));
             ctx.attrs_dirty = false;
+        }
+
+        // Write dynamics as <direction> elements for this part's staves
+        for dyn_ev in &mdata.dynamics {
+            if dyn_ev.staff >= part.first_staff && dyn_ev.staff <= part.last_staff {
+                if let Some(dyn_name) = dynamic_type_to_xml(dyn_ev.dynamic_type) {
+                    let _ = w.write_event(Event::Start(BytesStart::new("direction")));
+                    let _ = w.write_event(Event::Start(BytesStart::new("direction-type")));
+                    let _ = w.write_event(Event::Start(BytesStart::new("dynamics")));
+                    write_empty_element(w, dyn_name);
+                    let _ = w.write_event(Event::End(BytesEnd::new("dynamics")));
+                    let _ = w.write_event(Event::End(BytesEnd::new("direction-type")));
+                    if n_part_staves > 1 {
+                        let staff_in_part = dyn_ev.staff - part.first_staff + 1;
+                        write_simple_element(w, "staff", &staff_in_part.to_string());
+                    }
+                    let _ = w.write_event(Event::End(BytesEnd::new("direction")));
+                }
+            }
         }
 
         // Filter notes for this part's staves
@@ -834,6 +1114,18 @@ fn write_measure_notes(
                 write_empty_element(w, "dot");
             }
 
+            // Beams — MusicXML <beam number="N"> after <dot/>, before <accidental>
+            if !note.beam_levels.is_empty() {
+                for (i, bv) in note.beam_levels.iter().enumerate() {
+                    let num = (i + 1).to_string();
+                    let mut beam_elem = BytesStart::new("beam");
+                    beam_elem.push_attribute(("number", num.as_str()));
+                    let _ = w.write_event(Event::Start(beam_elem));
+                    let _ = w.write_event(Event::Text(BytesText::new(bv.as_str())));
+                    let _ = w.write_event(Event::End(BytesEnd::new("beam")));
+                }
+            }
+
             // Accidental (visible accidental marking)
             if !note.rest && note.accident != 0 {
                 let acc_text = match note.accident {
@@ -854,8 +1146,9 @@ fn write_measure_notes(
                 write_simple_element(w, "staff", &staff_in_part.to_string());
             }
 
-            // Notations (ties)
-            if note.tied_l || note.tied_r {
+            // Notations (ties, slurs)
+            let has_notations = note.tied_l || note.tied_r || note.slurred_l || note.slurred_r;
+            if has_notations {
                 let _ = w.write_event(Event::Start(BytesStart::new("notations")));
                 if note.tied_l {
                     let mut tied = BytesStart::new("tied");
@@ -866,6 +1159,18 @@ fn write_measure_notes(
                     let mut tied = BytesStart::new("tied");
                     tied.push_attribute(("type", "start"));
                     let _ = w.write_event(Event::Empty(tied));
+                }
+                if note.slurred_l {
+                    let mut slur = BytesStart::new("slur");
+                    slur.push_attribute(("number", "1"));
+                    slur.push_attribute(("type", "stop"));
+                    let _ = w.write_event(Event::Empty(slur));
+                }
+                if note.slurred_r {
+                    let mut slur = BytesStart::new("slur");
+                    slur.push_attribute(("number", "1"));
+                    slur.push_attribute(("type", "start"));
+                    let _ = w.write_event(Event::Empty(slur));
                 }
                 let _ = w.write_event(Event::End(BytesEnd::new("notations")));
             }

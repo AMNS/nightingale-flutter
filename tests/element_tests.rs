@@ -946,6 +946,211 @@ fn roundtrip_stability_complex_measure() {
 }
 
 // ============================================================================
+// SLURS
+// ============================================================================
+
+#[test]
+fn slur_simple_two_notes() {
+    // Slur from C4 to D4
+    let xml = make_xml_default(
+        r#"<note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+        <notations><slur number="1" type="start"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+        <notations><slur number="1" type="stop"/></notations>
+      </note>
+      <note>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>960</duration><type>half</type><voice>1</voice>
+      </note>"#,
+    );
+    let score = import(&xml);
+    assert_eq!(total_notes(&score), 3);
+
+    // Verify slur flags on notes
+    let all_notes: Vec<_> = score.notes.values().flat_map(|v| v.iter()).collect();
+    let slurred_r_count = all_notes.iter().filter(|n| n.slurred_r).count();
+    let slurred_l_count = all_notes.iter().filter(|n| n.slurred_l).count();
+    assert_eq!(slurred_r_count, 1, "Should have 1 slur start");
+    assert_eq!(slurred_l_count, 1, "Should have 1 slur end");
+
+    // Re-export and verify slur elements appear
+    let rexml = export_musicxml(&score);
+    assert!(
+        rexml.contains(r#"type="start""#),
+        "Should export slur start"
+    );
+    assert!(rexml.contains(r#"type="stop""#), "Should export slur stop");
+    assert!(rexml.contains("<slur"), "Should contain slur elements");
+}
+
+#[test]
+fn slur_with_tie() {
+    // A note that has BOTH a tie and a slur start
+    let xml = make_xml_default(
+        r#"<note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>960</duration><type>half</type>
+        <tie type="start"/><voice>1</voice>
+        <notations>
+          <tied type="start"/>
+          <slur number="1" type="start"/>
+        </notations>
+      </note>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type>
+        <tie type="stop"/><voice>1</voice>
+        <notations><tied type="stop"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+        <notations><slur number="1" type="stop"/></notations>
+      </note>"#,
+    );
+    let score = import(&xml);
+    assert_eq!(total_notes(&score), 3);
+
+    let all_notes: Vec<_> = score.notes.values().flat_map(|v| v.iter()).collect();
+    // First note: tied_r AND slurred_r
+    let tied_and_slurred = all_notes.iter().filter(|n| n.tied_r && n.slurred_r).count();
+    assert_eq!(
+        tied_and_slurred, 1,
+        "One note should have both tie and slur start"
+    );
+
+    let rexml = export_musicxml(&score);
+    assert!(rexml.contains("<tied"), "Should have tied notations");
+    assert!(rexml.contains("<slur"), "Should have slur notations");
+}
+
+#[test]
+fn slur_roundtrip_stability() {
+    // Slur roundtrip: import→export→re-import→export should be stable
+    let xml = make_xml_default(
+        r#"<note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+        <notations><slur number="1" type="start"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+        <notations><slur number="1" type="stop"/></notations>
+      </note>
+      <note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>480</duration><type>quarter</type><voice>1</voice>
+      </note>"#,
+    );
+    let score1 = import(&xml);
+    let xml1 = export_musicxml(&score1);
+    let score2 = import(&xml1);
+    let xml2 = export_musicxml(&score2);
+
+    assert_eq!(
+        count(&xml1, "<slur"),
+        count(&xml2, "<slur"),
+        "Slur count should be stable across roundtrips"
+    );
+}
+
+#[test]
+fn slur_ngl_fixture_export() {
+    // NGL fixture tc_55_1 has slurs — verify they export to MusicXML
+    use nightingale_core::ngl::{interpret::interpret_heap, NglFile};
+    let data = std::fs::read("tests/fixtures/tc_55_1.ngl").unwrap();
+    let ngl = NglFile::read_from_bytes(&data).unwrap();
+    let score = interpret_heap(&ngl).unwrap();
+
+    // Count notes with slur flags
+    let slurred_r: usize = score
+        .notes
+        .values()
+        .flat_map(|v| v.iter())
+        .filter(|n| n.slurred_r)
+        .count();
+    let slurred_l: usize = score
+        .notes
+        .values()
+        .flat_map(|v| v.iter())
+        .filter(|n| n.slurred_l)
+        .count();
+    eprintln!(
+        "tc_55_1: {} slur starts, {} slur ends",
+        slurred_r, slurred_l
+    );
+
+    let xml = export_musicxml(&score);
+    if slurred_r > 0 {
+        assert!(
+            xml.contains("<slur"),
+            "NGL score with slurred notes should export slur elements"
+        );
+    }
+}
+
+#[test]
+fn slur_from_musicxml_canonical_file() {
+    // Import ActorPreludeSample which has 594 slurs
+    let path = "tests/musicxml_examples/ActorPreludeSample.musicxml";
+    if !std::path::Path::new(path).exists() {
+        eprintln!("Skipping: {} not found", path);
+        return;
+    }
+    let xml = std::fs::read_to_string(path).unwrap();
+    let score = import(&xml);
+
+    let slurred_r: usize = score
+        .notes
+        .values()
+        .flat_map(|v| v.iter())
+        .filter(|n| n.slurred_r)
+        .count();
+    let slurred_l: usize = score
+        .notes
+        .values()
+        .flat_map(|v| v.iter())
+        .filter(|n| n.slurred_l)
+        .count();
+    eprintln!(
+        "ActorPrelude import: {} slur starts, {} slur ends",
+        slurred_r, slurred_l
+    );
+
+    // Should have imported many slurs (file has 594 slur elements)
+    assert!(
+        slurred_r > 100,
+        "Should import many slur starts from ActorPrelude: got {}",
+        slurred_r
+    );
+    assert!(
+        slurred_l > 100,
+        "Should import many slur stops from ActorPrelude: got {}",
+        slurred_l
+    );
+
+    // Re-export and verify slurs appear
+    let rexml = export_musicxml(&score);
+    let slur_count = count(&rexml, "<slur");
+    eprintln!("ActorPrelude re-export: {} slur elements", slur_count);
+    assert!(
+        slur_count > 200,
+        "Re-exported XML should have many slur elements: got {}",
+        slur_count
+    );
+}
+
+// ============================================================================
 // NGL FIXTURE → MusicXML ELEMENT VERIFICATION
 // ============================================================================
 
@@ -1104,4 +1309,208 @@ mod ngl_fixture_elements {
         eprintln!("Validated MusicXML export for {} NGL fixtures", count);
         assert!(count > 20, "Should validate many fixtures: got {}", count);
     }
+}
+
+// ============================================================
+// Dynamics tests
+// ============================================================
+
+/// Test that a simple dynamic marking (mf) roundtrips through import→export.
+#[test]
+fn dynamics_simple_mf() {
+    let xml = make_xml_default(
+        r#"<direction placement="below">
+        <direction-type><dynamics><mf/></dynamics></direction-type>
+      </direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1920</duration><voice>1</voice><type>whole</type></note>"#,
+    );
+    let score = import_musicxml(&xml).expect("import");
+    let exported = export_musicxml(&score);
+    // Verify the dynamic marking appears in re-export
+    assert!(
+        exported.contains("<dynamics>") && exported.contains("<mf/>"),
+        "Exported XML should contain <dynamics><mf/>"
+    );
+}
+
+/// Test that multiple dynamic types import and re-export correctly.
+#[test]
+fn dynamics_multiple_types() {
+    let xml = make_xml_default(
+        r#"<direction placement="below">
+        <direction-type><dynamics><pp/></dynamics></direction-type>
+      </direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>960</duration><voice>1</voice><type>half</type></note>
+      <direction placement="below">
+        <direction-type><dynamics><ff/></dynamics></direction-type>
+      </direction>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>960</duration><voice>1</voice><type>half</type></note>"#,
+    );
+    let score = import_musicxml(&xml).expect("import");
+    let exported = export_musicxml(&score);
+    assert!(exported.contains("<pp/>"), "Should re-export pp dynamic");
+    assert!(exported.contains("<ff/>"), "Should re-export ff dynamic");
+}
+
+/// Test dynamics from NGL fixture export.
+#[test]
+fn dynamics_ngl_fixture_export() {
+    use nightingale_core::ngl::{interpret::interpret_heap, NglFile};
+    // tc_55_1 has dynamics in the NGL score
+    let data = std::fs::read("tests/fixtures/tc_55_1.ngl").expect("read NGL fixture");
+    let ngl = NglFile::read_from_bytes(&data).unwrap();
+    let score = interpret_heap(&ngl).unwrap();
+    let xml = export_musicxml(&score);
+    // tc_55_1 has dynamic markings - verify they export
+    let has_dynamics = xml.contains("<dynamics>");
+    eprintln!(
+        "tc_55_1 MusicXML dynamics export: {}",
+        if has_dynamics { "found" } else { "none" }
+    );
+    // The test primarily verifies no crash; dynamics presence depends on fixture content
+}
+
+// ============================================================
+// Beam tests
+// ============================================================
+
+/// Test that two beamed eighth notes import and re-export beam elements.
+#[test]
+fn beam_simple_two_eighths() {
+    let xml = make_xml_default(
+        r#"<note><pitch><step>C</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">begin</beam></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">end</beam></note>
+      <note><rest/><duration>1440</duration><voice>1</voice><type>half</type></note>"#,
+    );
+    let score = import_musicxml(&xml).expect("import");
+
+    // Verify beamed flag is set on notes
+    let mut beamed_count = 0;
+    for obj in score.walk() {
+        if let nightingale_core::ngl::interpret::ObjData::Sync(_) = &obj.data {
+            if let Some(notes) = score.notes.get(&obj.header.first_sub_obj) {
+                for note in notes {
+                    if note.beamed {
+                        beamed_count += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        beamed_count >= 2,
+        "Should have at least 2 beamed notes, got {}",
+        beamed_count
+    );
+
+    // Verify BeamSet objects exist
+    assert!(
+        !score.notebeams.is_empty(),
+        "Should have notebeams from imported beam data"
+    );
+
+    // Re-export and verify beam elements
+    let exported = export_musicxml(&score);
+    assert!(
+        exported.contains("<beam number=\"1\">begin</beam>"),
+        "Should export beam begin"
+    );
+    assert!(
+        exported.contains("<beam number=\"1\">end</beam>"),
+        "Should export beam end"
+    );
+}
+
+/// Test four beamed sixteenth notes with two beam levels.
+#[test]
+fn beam_four_sixteenths() {
+    let xml = make_xml_default(
+        r#"<note><pitch><step>C</step><octave>4</octave></pitch><duration>120</duration><voice>1</voice><type>16th</type>
+        <beam number="1">begin</beam><beam number="2">begin</beam></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>120</duration><voice>1</voice><type>16th</type>
+        <beam number="1">continue</beam><beam number="2">continue</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>120</duration><voice>1</voice><type>16th</type>
+        <beam number="1">continue</beam><beam number="2">continue</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>120</duration><voice>1</voice><type>16th</type>
+        <beam number="1">end</beam><beam number="2">end</beam></note>
+      <note><rest/><duration>1440</duration><voice>1</voice><type>half</type></note>"#,
+    );
+    let score = import_musicxml(&xml).expect("import");
+    let exported = export_musicxml(&score);
+
+    // Count beam elements in re-export
+    let beam_begins: Vec<_> = exported.match_indices("begin</beam>").collect();
+    let beam_ends: Vec<_> = exported.match_indices("end</beam>").collect();
+    let beam_continues: Vec<_> = exported.match_indices("continue</beam>").collect();
+
+    eprintln!(
+        "Beam elements: {} begins, {} continues, {} ends",
+        beam_begins.len(),
+        beam_continues.len(),
+        beam_ends.len()
+    );
+
+    assert!(
+        beam_begins.len() >= 2,
+        "Should have at least 2 beam begins (2 levels)"
+    );
+    assert!(
+        beam_ends.len() >= 2,
+        "Should have at least 2 beam ends (2 levels)"
+    );
+}
+
+/// Test beam roundtrip stability: import→export→import→export produces same beams.
+#[test]
+fn beam_roundtrip_stability() {
+    let xml = make_xml_default(
+        r#"<note><pitch><step>C</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">begin</beam></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">continue</beam></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">continue</beam></note>
+      <note><pitch><step>F</step><octave>4</octave></pitch><duration>240</duration><voice>1</voice><type>eighth</type>
+        <beam number="1">end</beam></note>"#,
+    );
+
+    let score1 = import_musicxml(&xml).expect("import 1");
+    let export1 = export_musicxml(&score1);
+    let beam_count_1 = export1.matches("<beam ").count();
+
+    let score2 = import_musicxml(&export1).expect("import 2");
+    let export2 = export_musicxml(&score2);
+    let beam_count_2 = export2.matches("<beam ").count();
+
+    eprintln!(
+        "Beam roundtrip: pass1={} beams, pass2={} beams",
+        beam_count_1, beam_count_2
+    );
+    assert!(beam_count_1 > 0, "First export should have beam elements");
+    assert_eq!(
+        beam_count_1, beam_count_2,
+        "Beam count should be stable across roundtrips"
+    );
+}
+
+/// Test that NGL fixtures with beams export beam elements.
+#[test]
+fn beam_ngl_fixture_export() {
+    use nightingale_core::ngl::{interpret::interpret_heap, NglFile};
+    // me_and_lucy has beamed eighth notes
+    let data = std::fs::read("tests/fixtures/01_me_and_lucy.ngl").expect("read NGL fixture");
+    let ngl = NglFile::read_from_bytes(&data).unwrap();
+    let score = interpret_heap(&ngl).unwrap();
+    let xml = export_musicxml(&score);
+    let beam_count = xml.matches("<beam ").count();
+    eprintln!(
+        "me_and_lucy MusicXML beam export: {} beam elements",
+        beam_count
+    );
+    assert!(
+        beam_count > 0,
+        "me_and_lucy should export beam elements (has beamed eighth notes)"
+    );
 }
