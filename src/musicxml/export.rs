@@ -121,20 +121,28 @@ fn whole_measure_dur(numerator: i8, denominator: i8) -> i32 {
     beat_dur * numerator as i32
 }
 
-/// Convert NGL clef code to MusicXML (sign, line).
+/// Convert NGL clef code to MusicXML (sign, line, octave-change).
 /// Clef constants are u8 in defs.rs; AClef.header.sub_type is i8.
-fn clef_to_xml(clef_type: u8) -> (&'static str, i32) {
+///
+/// TRTENOR_CLEF uses the treble clef *glyph* (G clef) but sounds an octave
+/// lower — it is NOT a C clef despite its constant value being between C clef
+/// variants. See DrawUtils.cp:286-290 where it shares MCH_trebleclef glyph
+/// with TREBLE_CLEF, and PitchUtils.cp:127 where middleCHalfLn=3.
+fn clef_to_xml(clef_type: u8) -> (&'static str, i32, i32) {
     match clef_type {
-        TREBLE_CLEF | TREBLE8_CLEF | FRVIOLIN_CLEF => ("G", 2),
-        SOPRANO_CLEF => ("C", 1),
-        MZSOPRANO_CLEF => ("C", 2),
-        ALTO_CLEF => ("C", 3),
-        TRTENOR_CLEF => ("C", 3), // treble-tenor ~ alto
-        TENOR_CLEF => ("C", 4),
-        BARITONE_CLEF => ("F", 3),
-        BASS_CLEF | BASS8B_CLEF => ("F", 4),
-        PERC_CLEF => ("percussion", 2),
-        _ => ("G", 2),
+        TREBLE8_CLEF => ("G", 2, 1),   // Treble 8va
+        FRVIOLIN_CLEF => ("G", 1, 0),  // French violin (G on line 1)
+        TREBLE_CLEF => ("G", 2, 0),    // Standard treble
+        SOPRANO_CLEF => ("C", 1, 0),   // C on line 1
+        MZSOPRANO_CLEF => ("C", 2, 0), // C on line 2
+        ALTO_CLEF => ("C", 3, 0),      // C on line 3
+        TRTENOR_CLEF => ("G", 2, -1),  // Treble-tenor: G clef, octave down
+        TENOR_CLEF => ("C", 4, 0),     // C on line 4
+        BARITONE_CLEF => ("F", 3, 0),  // F on line 3
+        BASS_CLEF => ("F", 4, 0),      // Standard bass
+        BASS8B_CLEF => ("F", 4, -1),   // Bass 8vb
+        PERC_CLEF => ("percussion", 2, 0),
+        _ => ("G", 2, 0),
     }
 }
 
@@ -385,6 +393,18 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     }
                 }
             }
+            ObjData::Staff(_) => {
+                // Read initial clef context from AStaff subobjects.
+                // STAFF objects appear at the start of each system, carrying
+                // the current clef/key/time state for each staff. We use these
+                // to set the initial clef (before the first measure) and to
+                // refresh clef state at system boundaries.
+                if let Some(astaff_list) = score.staffs.get(&obj.header.first_sub_obj) {
+                    for astaff in astaff_list {
+                        pending_clefs.push((astaff.staffn, astaff.clef_type as u8));
+                    }
+                }
+            }
             ObjData::Measure(_) => {
                 // Save previous measure if we have one
                 if !is_first_measure || !current_notes.is_empty() {
@@ -415,8 +435,16 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         dur_to_ticks(l_dur, note.ndots)
                     };
 
+                    // WHOLEMR rests always start at beat 0 (beginning of measure),
+                    // regardless of their stored timestamp.
+                    let effective_ts = if l_dur == WHOLEMR_L_DUR {
+                        0
+                    } else {
+                        sync.time_stamp
+                    };
+
                     current_notes.push(NoteEvent {
-                        time_stamp: sync.time_stamp,
+                        time_stamp: effective_ts,
                         staff: note.header.staffn,
                         voice: note.voice,
                         note_num: note.note_num,
@@ -519,7 +547,7 @@ fn write_part_measures(
             // Clefs
             for s in part.first_staff..=part.last_staff {
                 let clef_type = ctx.clef.get(s as usize).copied().unwrap_or(TREBLE_CLEF);
-                let (sign, line) = clef_to_xml(clef_type);
+                let (sign, line, oct_change) = clef_to_xml(clef_type);
                 if n_part_staves > 1 {
                     let mut clef_elem = BytesStart::new("clef");
                     clef_elem.push_attribute((
@@ -532,6 +560,9 @@ fn write_part_measures(
                 }
                 write_simple_element(w, "sign", sign);
                 write_simple_element(w, "line", &line.to_string());
+                if oct_change != 0 {
+                    write_simple_element(w, "clef-octave-change", &oct_change.to_string());
+                }
                 let _ = w.write_event(Event::End(BytesEnd::new("clef")));
             }
 
@@ -631,16 +662,6 @@ fn write_measure_notes(
         let staff_in_part = staff - part.first_staff + 1;
         let voice_str = voice.to_string();
 
-        // Collect distinct onset timestamps for computing actual durations.
-        // NGL timestamps tell us exact onset times; we compute each note's
-        // sounding duration as the gap from its onset to the next distinct onset
-        // (or to the measure end for the last group).
-        let distinct_onsets: Vec<u16> = {
-            let mut ts: Vec<u16> = sorted.iter().map(|n| n.time_stamp).collect();
-            ts.dedup(); // sorted already, just remove consecutive duplicates
-            ts
-        };
-
         for note in &sorted {
             let note_time = note.time_stamp as i32;
 
@@ -678,24 +699,16 @@ fn write_measure_notes(
                 let _ = w.write_event(Event::End(BytesEnd::new("pitch")));
             }
 
-            // Duration: use the gap to the next distinct onset time, not the
-            // NGL visual duration. NGL timestamps are authoritative for time
-            // position; visual durations (l_dur) can exceed the gap when notes
-            // overlap or don't tile perfectly.
-            let effective_dur = {
-                let onset_idx = distinct_onsets.iter().position(|&t| t == note.time_stamp);
-                match onset_idx {
-                    Some(idx) if idx + 1 < distinct_onsets.len() => {
-                        // Gap to next onset
-                        (distinct_onsets[idx + 1] as i32) - note_time
-                    }
-                    _ => {
-                        // Last onset group: use gap to measure end, or visual duration
-                        // as fallback (whichever fits the measure).
-                        let gap_to_end = measure_dur - note_time;
-                        gap_to_end.max(1)
-                    }
-                }
+            // Duration: use the notated duration from l_dur + ndots.
+            // For WHOLEMR rests, use the full measure duration.
+            // This ensures time accounting matches the visual notation.
+            let effective_dur = if note.l_dur == WHOLEMR_L_DUR {
+                measure_dur
+            } else {
+                let visual_dur = dur_to_ticks(note.l_dur, note.ndots);
+                // Clamp to remaining measure space to avoid overflow
+                let remaining = measure_dur - note_time;
+                visual_dur.min(remaining.max(1))
             };
             write_simple_element(w, "duration", &effective_dur.to_string());
 
@@ -713,7 +726,7 @@ fn write_measure_notes(
 
             write_simple_element(w, "voice", &voice_str);
 
-            // Note type (visual duration -- for display, not time accounting)
+            // Note type (visual duration)
             let dur_type = if note.l_dur == WHOLEMR_L_DUR {
                 "whole"
             } else {
@@ -927,5 +940,20 @@ mod tests {
             }
         }
         assert!(count > 0, "Should have found NGL fixtures");
+    }
+
+    #[test]
+    fn export_me_and_lucy_to_file() {
+        let data = std::fs::read("tests/fixtures/01_me_and_lucy.ngl").unwrap();
+        let ngl = NglFile::read_from_bytes(&data).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+        let xml = export_musicxml(&score);
+
+        let out_dir = std::path::Path::new("test-output");
+        std::fs::create_dir_all(out_dir).unwrap();
+        let out_path = out_dir.join("me_and_lucy.musicxml");
+        std::fs::write(&out_path, &xml).unwrap();
+        eprintln!("Wrote {}", out_path.display());
+        assert!(xml.contains("<score-partwise"));
     }
 }

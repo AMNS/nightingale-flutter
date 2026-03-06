@@ -858,8 +858,12 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             }),
 
             SYNC_TYPE => {
-                let time_stamp = if obj_bytes.len() >= 25 {
-                    u16::from_be_bytes([obj_bytes[23], obj_bytes[24]])
+                // SYNC_5 layout: OBJECTHEADER_5 (23 bytes) + 1 byte mac68k padding
+                // + timeStamp (unsigned short, 2 bytes) = 26 bytes total.
+                // timeStamp is at offset 24-25 (not 23-24) due to mac68k alignment
+                // padding before the unsigned short.
+                let time_stamp = if obj_bytes.len() >= 26 {
+                    u16::from_be_bytes([obj_bytes[24], obj_bytes[25]])
                 } else {
                     0
                 };
