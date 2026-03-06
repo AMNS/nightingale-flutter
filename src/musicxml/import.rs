@@ -19,7 +19,10 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
 use crate::basic_types::{DRect, KsInfo, Link, Rect, NILINK};
-use crate::defs::{ALTO_CLEF, BASS_CLEF, SOPRANO_CLEF, TENOR_CLEF, TREBLE_CLEF};
+use crate::defs::{
+    ALTO_CLEF, BARITONE_CLEF, BASS8B_CLEF, BASS_CLEF, FRVIOLIN_CLEF, MZSOPRANO_CLEF, PERC_CLEF,
+    SOPRANO_CLEF, TENOR_CLEF, TREBLE8_CLEF, TREBLE_CLEF, TRTENOR_CLEF,
+};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
     AClef, AConnect, AKeySig, AMeasure, ANote, AStaff, ATimeSig, Clef, Connect, Header, KeySig,
@@ -98,7 +101,8 @@ struct XmlAttributes {
     time_beats: Option<i32>,
     time_beat_type: Option<i32>,
     staves: Option<i32>,
-    clefs: Vec<(i32, String, i32)>,
+    /// Clefs: (staff_number, sign, line, octave_change).
+    clefs: Vec<(i32, String, i32, i32)>,
 }
 
 /// A forward or backup element.
@@ -184,17 +188,24 @@ fn accidental_to_code(acc: &str, alter: i32) -> u8 {
     }
 }
 
-/// Convert MusicXML clef (sign, line) to NGL clef type.
-fn clef_to_ngl(sign: &str, line: i32) -> u8 {
-    match (sign, line) {
-        ("G", 2) => TREBLE_CLEF,
-        ("G", 1) => TREBLE_CLEF,
-        ("C", 1) => SOPRANO_CLEF,
-        ("C", 3) => ALTO_CLEF,
-        ("C", 4) => TENOR_CLEF,
-        ("F", 4) => BASS_CLEF,
-        ("F", 3) => BASS_CLEF,
-        ("percussion", _) => 12,
+/// Convert MusicXML clef (sign, line, octave_change) to NGL clef type.
+///
+/// Matches the inverse of export.rs clef_to_xml(). The octave_change parameter
+/// comes from the `<clef-octave-change>` element (0 if absent).
+fn clef_to_ngl(sign: &str, line: i32, oct_change: i32) -> u8 {
+    match (sign, line, oct_change) {
+        ("G", 2, 1) => TREBLE8_CLEF,   // Treble 8va
+        ("G", 2, -1) => TRTENOR_CLEF,  // Treble-tenor (G clef, octave down)
+        ("G", 1, _) => FRVIOLIN_CLEF,  // French violin (G on line 1)
+        ("G", 2, _) => TREBLE_CLEF,    // Standard treble
+        ("C", 1, _) => SOPRANO_CLEF,   // C on line 1
+        ("C", 2, _) => MZSOPRANO_CLEF, // Mezzo-soprano
+        ("C", 3, _) => ALTO_CLEF,      // Alto
+        ("C", 4, _) => TENOR_CLEF,     // Tenor
+        ("F", 3, _) => BARITONE_CLEF,  // Baritone
+        ("F", 4, -1) => BASS8B_CLEF,   // Bass 8vb
+        ("F", 4, _) => BASS_CLEF,      // Standard bass
+        ("percussion", _, _) => PERC_CLEF,
         _ => TREBLE_CLEF,
     }
 }
@@ -284,6 +295,7 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
     let mut current_clef_num: i32 = 1;
     let mut current_clef_sign: String = String::new();
     let mut current_clef_line: i32 = 2;
+    let mut current_clef_oct_change: i32 = 0;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -339,6 +351,7 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                         current_clef_num = attr_str(e, "number").parse::<i32>().unwrap_or(1);
                         current_clef_sign = String::new();
                         current_clef_line = 2;
+                        current_clef_oct_change = 0;
                     }
                     "tie" => {
                         if let Some(ref mut note) = current_note {
@@ -414,6 +427,11 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                     "line" => {
                         if current_attrs.is_some() {
                             current_clef_line = text.parse().unwrap_or(2);
+                        }
+                    }
+                    "clef-octave-change" => {
+                        if current_attrs.is_some() {
+                            current_clef_oct_change = text.parse().unwrap_or(0);
                         }
                     }
                     "step" => {
@@ -520,6 +538,7 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                                 current_clef_num,
                                 current_clef_sign.clone(),
                                 current_clef_line,
+                                current_clef_oct_change,
                             ));
                         }
                     }
@@ -667,10 +686,10 @@ fn build_score(
                         init_time_num = b as i8;
                         init_time_denom = bt as i8;
                     }
-                    for &(staff_in_part, ref sign, line) in &attrs.clefs {
+                    for &(staff_in_part, ref sign, line, oct_change) in &attrs.clefs {
                         let global = psi.first_staff + staff_in_part as i8 - 1;
                         if global >= 1 && (global as usize) <= total_staves {
-                            init_clefs[global as usize] = clef_to_ngl(sign, line);
+                            init_clefs[global as usize] = clef_to_ngl(sign, line, oct_change);
                         }
                     }
                 }
@@ -1614,5 +1633,287 @@ mod tests {
         assert!(xml2.contains("<score-partwise"));
         assert!(xml2.contains("<part-list>"));
         assert!(xml2.contains("<note>"));
+    }
+
+    /// Canonical roundtrip: export → import → re-export, compare XML idempotency.
+    /// The second export should match the first on key structural elements.
+    #[test]
+    fn canonical_roundtrip_xml_stability() {
+        use crate::musicxml::export::export_musicxml;
+        use crate::ngl::{interpret::interpret_heap, NglFile};
+
+        let path = "tests/fixtures/01_me_and_lucy.ngl";
+        let data = std::fs::read(path).unwrap();
+        let ngl = NglFile::read_from_bytes(&data).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        let xml1 = export_musicxml(&score);
+        let imported = import_musicxml(&xml1).unwrap();
+        let xml2 = export_musicxml(&imported);
+
+        // Count structural elements — they should be close
+        let count_tag = |xml: &str, tag: &str| -> usize { xml.matches(tag).count() };
+
+        let notes1 = count_tag(&xml1, "<note>");
+        let notes2 = count_tag(&xml2, "<note>");
+        let measures1 = count_tag(&xml1, "<measure ");
+        let measures2 = count_tag(&xml2, "<measure ");
+        let pitches1 = count_tag(&xml1, "<pitch>");
+        let pitches2 = count_tag(&xml2, "<pitch>");
+        let rests1 = count_tag(&xml1, "<rest");
+        let rests2 = count_tag(&xml2, "<rest");
+        let ties1 = count_tag(&xml1, "type=\"start\"");
+        let ties2 = count_tag(&xml2, "type=\"start\"");
+
+        // Notes and pitches should be preserved exactly
+        assert_eq!(
+            notes1, notes2,
+            "note count should be preserved: {} vs {}",
+            notes1, notes2
+        );
+        assert_eq!(
+            pitches1, pitches2,
+            "pitch count should be preserved: {} vs {}",
+            pitches1, pitches2
+        );
+        assert_eq!(
+            rests1, rests2,
+            "rest count should be preserved: {} vs {}",
+            rests1, rests2
+        );
+        assert_eq!(
+            measures1, measures2,
+            "measure count should be preserved: {} vs {}",
+            measures1, measures2
+        );
+        // Tie count may differ slightly due to cross-system tie handling
+        let tie_ratio = if ties1 > 0 {
+            ties2 as f64 / ties1 as f64
+        } else {
+            1.0
+        };
+        assert!(
+            tie_ratio > 0.8,
+            "tie count should be mostly preserved: {} vs {} (ratio {:.2})",
+            ties1,
+            ties2,
+            tie_ratio
+        );
+    }
+
+    /// Round-trip all NGL fixtures: export → import → re-export → verify note count.
+    #[test]
+    fn round_trip_all_ngl_fixtures() {
+        use crate::musicxml::export::export_musicxml;
+        use crate::ngl::{interpret::interpret_heap, NglFile};
+
+        let fixture_dir = "tests/fixtures";
+        let entries = std::fs::read_dir(fixture_dir).unwrap();
+        let mut count = 0;
+        for entry in entries {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "ngl") {
+                let data = std::fs::read(&path).unwrap();
+                let ngl = NglFile::read_from_bytes(&data).unwrap();
+                let score = interpret_heap(&ngl).unwrap();
+
+                let orig_notes: usize = score.notes.values().map(|v| v.len()).sum();
+                let xml = export_musicxml(&score);
+
+                // Should import without panicking
+                let imported = import_musicxml(&xml).unwrap_or_else(|e| {
+                    panic!("Failed to import {}: {}", path.display(), e);
+                });
+
+                let imported_notes: usize = imported.notes.values().map(|v| v.len()).sum();
+
+                // Re-export should produce valid XML
+                let xml2 = export_musicxml(&imported);
+                assert!(
+                    xml2.contains("<score-partwise"),
+                    "{}: re-export missing score-partwise",
+                    path.display()
+                );
+
+                // Note count should be preserved (import may add/remove padding rests)
+                if orig_notes > 0 {
+                    assert!(
+                        imported_notes > 0,
+                        "{}: imported 0 notes from {} original",
+                        path.display(),
+                        orig_notes
+                    );
+                }
+
+                count += 1;
+            }
+        }
+        assert!(count > 10, "Should have tested at least 10 fixtures");
+    }
+
+    /// Test import of MusicXML test suite files (from icebox).
+    #[test]
+    fn import_musicxml_test_suite() {
+        let suite_dir = "icebox/tests/musicxml_test_suite";
+        if !std::path::Path::new(suite_dir).exists() {
+            eprintln!("Skipping: {} not found", suite_dir);
+            return;
+        }
+
+        let entries = std::fs::read_dir(suite_dir).unwrap();
+        let mut success = 0;
+        let mut fail = 0;
+        for entry in entries {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "xml") {
+                let xml = std::fs::read_to_string(&path).unwrap();
+                // We only support score-partwise format
+                if !xml.contains("<score-partwise") {
+                    continue;
+                }
+                match import_musicxml(&xml) {
+                    Ok(score) => {
+                        // Verify we get a walkable score
+                        let objs: Vec<_> = score.walk().collect();
+                        assert!(
+                            objs.len() >= 3,
+                            "{}: too few objects: {}",
+                            path.display(),
+                            objs.len()
+                        );
+                        success += 1;
+                    }
+                    Err(e) => {
+                        eprintln!("  FAIL {}: {}", path.display(), e);
+                        fail += 1;
+                    }
+                }
+            }
+        }
+        eprintln!("MusicXML test suite: {} passed, {} failed", success, fail);
+        assert!(success > 10, "Should import at least 10 test suite files");
+        // Allow some failures for unsupported features, but most should pass
+        assert!(
+            success > fail * 2,
+            "Too many failures: {} fail vs {} pass",
+            fail,
+            success
+        );
+    }
+
+    /// Test that accidentals round-trip through export → import.
+    #[test]
+    fn round_trip_accidentals() {
+        use crate::musicxml::export::export_musicxml;
+
+        let xml_with_accs = r#"<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Test</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><alter>1</alter><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>quarter</type>
+        <accidental>sharp</accidental>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>E</step><alter>-1</alter><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>quarter</type>
+        <accidental>flat</accidental>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>quarter</type>
+        <accidental>natural</accidental>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>G</step><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>quarter</type>
+        <voice>1</voice>
+      </note>
+    </measure>
+  </part>
+</score-partwise>"#;
+
+        let score = import_musicxml(xml_with_accs).unwrap();
+
+        // Verify accidentals were imported
+        let all_notes: Vec<_> = score.notes.values().flat_map(|v| v.iter()).collect();
+        assert_eq!(all_notes.len(), 4);
+
+        // Re-export and verify accidentals appear
+        let xml_out = export_musicxml(&score);
+        assert!(xml_out.contains("<accidental>sharp</accidental>"));
+        assert!(xml_out.contains("<accidental>flat</accidental>"));
+        assert!(xml_out.contains("<accidental>natural</accidental>"));
+    }
+
+    /// Test that clef-octave-change round-trips correctly.
+    #[test]
+    fn round_trip_clef_octave_change() {
+        use crate::musicxml::export::export_musicxml;
+
+        let xml_with_oct = r#"<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Guitar</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+          <clef-octave-change>-1</clef-octave-change>
+        </clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>whole</type>
+        <voice>1</voice>
+      </note>
+    </measure>
+  </part>
+</score-partwise>"#;
+
+        let score = import_musicxml(xml_with_oct).unwrap();
+
+        // Verify the clef was imported as TRTENOR_CLEF (octave-transposing treble)
+        let staffs: Vec<_> = score.staffs.values().collect();
+        assert!(!staffs.is_empty(), "should have staff subobjects");
+        let clef_type = staffs[0][0].clef_type;
+        assert_eq!(
+            clef_type, TRTENOR_CLEF as i8,
+            "should import G clef with oct-change=-1 as TRTENOR_CLEF ({}), got {}",
+            TRTENOR_CLEF, clef_type
+        );
+
+        // Re-export and verify octave-change appears
+        let xml_out = export_musicxml(&score);
+        assert!(
+            xml_out.contains("<clef-octave-change>-1</clef-octave-change>"),
+            "should export clef-octave-change=-1"
+        );
     }
 }

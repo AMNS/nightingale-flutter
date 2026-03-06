@@ -734,6 +734,21 @@ fn write_measure_notes(
             };
             write_simple_element(w, "type", dur_type);
 
+            // Accidental (visible accidental marking)
+            if !note.rest && note.accident != 0 {
+                let acc_text = match note.accident {
+                    AC_DBLFLAT => "flat-flat",
+                    AC_FLAT => "flat",
+                    AC_NATURAL => "natural",
+                    AC_SHARP => "sharp",
+                    AC_DBLSHARP => "double-sharp",
+                    _ => "",
+                };
+                if !acc_text.is_empty() {
+                    write_simple_element(w, "accidental", acc_text);
+                }
+            }
+
             // Dots
             for _ in 0..note.ndots {
                 write_empty_element(w, "dot");
