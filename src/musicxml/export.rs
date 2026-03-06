@@ -26,10 +26,57 @@ const DIVISIONS: i32 = 480;
 fn midi_to_pitch(midi: u8, accident: u8) -> (&'static str, i32, i32) {
     let octave = (midi as i32 / 12) - 1;
     let pc = midi % 12;
+
+    // For double accidentals, the sounding pitch (MIDI) is 2 semitones away from
+    // the written pitch. We need to find the diatonic step that, when altered by
+    // ±2, produces the sounding MIDI pitch.
+    if accident == AC_DBLSHARP {
+        // Double-sharp: written note is 2 semitones below sounding pitch.
+        // E.g., F## sounds as G (midi 67): we need step=F, alter=+2.
+        let written_midi = midi.wrapping_sub(2);
+        let written_pc = written_midi % 12;
+        let written_octave = (written_midi as i32 / 12) - 1;
+        let step = match written_pc {
+            0 => "C",
+            2 => "D",
+            4 => "E",
+            5 => "F",
+            7 => "G",
+            9 => "A",
+            11 => "B",
+            // Written pitch is on a chromatic note — shouldn't normally happen
+            // for double-sharps, but fall back to sharp spelling.
+            _ => return midi_to_pitch(midi, AC_SHARP),
+        };
+        return (step, 2, written_octave);
+    }
+
+    if accident == AC_DBLFLAT {
+        // Double-flat: written note is 2 semitones above sounding pitch.
+        // E.g., Bbb sounds as A (midi 69): we need step=B, alter=-2.
+        let written_midi = midi + 2;
+        let written_pc = written_midi % 12;
+        let written_octave = (written_midi as i32 / 12) - 1;
+        let step = match written_pc {
+            0 => "C",
+            2 => "D",
+            4 => "E",
+            5 => "F",
+            7 => "G",
+            9 => "A",
+            11 => "B",
+            _ => return midi_to_pitch(midi, AC_FLAT),
+        };
+        return (step, -2, written_octave);
+    }
+
+    // Single accidentals and naturals: use the accident code to choose
+    // enharmonic spelling for chromatic pitches.
+    let is_flat = accident == AC_FLAT;
     match pc {
         0 => ("C", 0, octave),
         1 => {
-            if accident == AC_FLAT {
+            if is_flat {
                 ("D", -1, octave)
             } else {
                 ("C", 1, octave)
@@ -46,7 +93,7 @@ fn midi_to_pitch(midi: u8, accident: u8) -> (&'static str, i32, i32) {
         4 => ("E", 0, octave),
         5 => ("F", 0, octave),
         6 => {
-            if accident == AC_FLAT {
+            if is_flat {
                 ("G", -1, octave)
             } else {
                 ("F", 1, octave)
@@ -54,7 +101,7 @@ fn midi_to_pitch(midi: u8, accident: u8) -> (&'static str, i32, i32) {
         }
         7 => ("G", 0, octave),
         8 => {
-            if accident == AC_FLAT {
+            if is_flat {
                 ("A", -1, octave)
             } else {
                 ("G", 1, octave)
@@ -363,6 +410,11 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     let mut measure_num = 0i32;
     let mut is_first_measure = true;
     let mut current_ts = (4i8, 4i8);
+    // Snapshot of initial attributes, consumed at first measure boundary so
+    // mid-score objects before measure 2 don't overwrite them.
+    let mut initial_key: Option<i32> = None;
+    let mut initial_time: Option<(i8, i8)> = None;
+    let mut initial_clefs: Vec<(i8, u8)> = Vec::new();
 
     for obj in score.walk() {
         match &obj.data {
@@ -408,15 +460,41 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
             ObjData::Measure(_) => {
                 // Save previous measure if we have one
                 if !is_first_measure || !current_notes.is_empty() {
+                    // For the first real measure, restore initial attributes
+                    // that were snapshot at the first Measure boundary.
+                    let key = if is_first_measure {
+                        initial_key.take().or_else(|| pending_key_fifths.take())
+                    } else {
+                        pending_key_fifths.take()
+                    };
+                    let time = if is_first_measure {
+                        initial_time.take().or_else(|| pending_time_sig.take())
+                    } else {
+                        pending_time_sig.take()
+                    };
+                    let clefs = if is_first_measure && !initial_clefs.is_empty() {
+                        let mut c = std::mem::take(&mut initial_clefs);
+                        c.extend(std::mem::take(&mut pending_clefs));
+                        c
+                    } else {
+                        std::mem::take(&mut pending_clefs)
+                    };
                     measures.push(MeasureData {
                         measure_num,
                         notes: std::mem::take(&mut current_notes),
-                        time_sig: pending_time_sig.take(),
-                        key_fifths: pending_key_fifths.take(),
-                        clefs: std::mem::take(&mut pending_clefs),
+                        time_sig: time,
+                        key_fifths: key,
+                        clefs,
                         is_first: is_first_measure,
                     });
                     is_first_measure = false;
+                } else if is_first_measure {
+                    // At the first Measure boundary with no notes yet, snapshot
+                    // the initial attributes so that mid-score objects between
+                    // Measure_1 and Measure_2 don't overwrite them.
+                    initial_key = pending_key_fifths.take();
+                    initial_time = pending_time_sig.take();
+                    initial_clefs = std::mem::take(&mut pending_clefs);
                 }
                 measure_num += 1;
             }
@@ -465,12 +543,29 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
 
     // Flush last measure
     if !current_notes.is_empty() || measure_num > 0 {
+        let key = if is_first_measure {
+            initial_key.or(pending_key_fifths)
+        } else {
+            pending_key_fifths
+        };
+        let time = if is_first_measure {
+            initial_time.or(pending_time_sig)
+        } else {
+            pending_time_sig
+        };
+        let clefs = if is_first_measure && !initial_clefs.is_empty() {
+            let mut c = initial_clefs;
+            c.extend(pending_clefs);
+            c
+        } else {
+            pending_clefs
+        };
         measures.push(MeasureData {
             measure_num,
             notes: current_notes,
-            time_sig: pending_time_sig,
-            key_fifths: pending_key_fifths,
-            clefs: pending_clefs,
+            time_sig: time,
+            key_fifths: key,
+            clefs,
             is_first: is_first_measure,
         });
     }
@@ -734,6 +829,11 @@ fn write_measure_notes(
             };
             write_simple_element(w, "type", dur_type);
 
+            // Dots — MusicXML schema requires <dot/> immediately after <type>
+            for _ in 0..note.ndots {
+                write_empty_element(w, "dot");
+            }
+
             // Accidental (visible accidental marking)
             if !note.rest && note.accident != 0 {
                 let acc_text = match note.accident {
@@ -747,11 +847,6 @@ fn write_measure_notes(
                 if !acc_text.is_empty() {
                     write_simple_element(w, "accidental", acc_text);
                 }
-            }
-
-            // Dots
-            for _ in 0..note.ndots {
-                write_empty_element(w, "dot");
             }
 
             // Staff (for multi-staff parts)

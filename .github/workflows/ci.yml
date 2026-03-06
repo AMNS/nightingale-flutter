@@ -42,9 +42,57 @@ jobs:
 
       - name: cargo test
         run: cargo test --all
-        # Note: visual regression tests (491 golden bitmaps) are gated behind
-        # --features visual-regression and are intentionally skipped in CI.
-        # Run locally with: cargo test --features visual-regression
+        # Note: visual regression tests (622 golden bitmaps) run separately
+        # in the 'visual-tests' job with --features visual-regression and
+        # upload rendered output as downloadable artifacts.
+
+  # ─── Visual tests: bitmap regression + rendered output as artifacts ─────────
+  visual-tests:
+    name: Visual tests + artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-visual-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-visual-
+
+      - name: Run all tests with visual regression
+        run: cargo test --all --features visual-regression -- --nocapture
+        # Includes bitmap regression (622 golden PNGs) + MusicXML pipeline tests.
+        # Pipeline tests produce PDFs and exported MusicXML in test-output/.
+
+      - name: Run golden bitmap diff
+        if: always()
+        run: ./scripts/visual-review.sh --no-open
+
+      - name: Upload test output (PDFs, MusicXML, diffs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-output
+          path: test-output/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload golden bitmaps (current)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-bitmaps
+          path: tests/golden_bitmaps/
+          retention-days: 30
+          if-no-files-found: warn
 
   # ─── Flutter: pub get + analyze + build linux ───────────────────────────────
   flutter:

@@ -722,6 +722,16 @@ fn build_score(
     let mut all_notes: Vec<NoteEntry> = Vec::new();
     let num_measures = parts.iter().map(|p| p.measures.len()).max().unwrap_or(0);
 
+    // Track mid-score attribute changes per measure (key, time, clefs).
+    // Indexed by measure number (1-based).
+    struct MidScoreAttrChange {
+        key_fifths: Option<i32>,
+        time_sig: Option<(i8, i8)>,
+        clefs: Vec<(i8, u8)>, // (global_staff, ngl_clef_type)
+    }
+    let mut mid_score_attrs: std::collections::HashMap<i32, MidScoreAttrChange> =
+        std::collections::HashMap::new();
+
     for (pi, part) in parts.iter().enumerate() {
         let psi = &part_infos_list[pi];
         let mut divisions = init_divisions;
@@ -734,6 +744,31 @@ fn build_score(
                     XmlMeasureElement::Attributes(attrs) => {
                         if let Some(d) = attrs.divisions {
                             divisions = d;
+                        }
+                        // Collect mid-score attribute changes (skip first measure)
+                        if meas.number > 1 {
+                            let entry =
+                                mid_score_attrs
+                                    .entry(meas.number)
+                                    .or_insert(MidScoreAttrChange {
+                                        key_fifths: None,
+                                        time_sig: None,
+                                        clefs: Vec::new(),
+                                    });
+                            if let Some(f) = attrs.key_fifths {
+                                entry.key_fifths = Some(f);
+                            }
+                            if let (Some(b), Some(bt)) = (attrs.time_beats, attrs.time_beat_type) {
+                                entry.time_sig = Some((b as i8, bt as i8));
+                            }
+                            for &(staff_in_part, ref sign, line, oct_change) in &attrs.clefs {
+                                let global = psi.first_staff + staff_in_part as i8 - 1;
+                                if global >= 1 && (global as usize) <= total_staves {
+                                    entry
+                                        .clefs
+                                        .push((global, clef_to_ngl(sign, line, oct_change)));
+                                }
+                            }
                         }
                     }
                     XmlMeasureElement::Note(note) => {
@@ -1158,8 +1193,191 @@ fn build_score(
     // ---- 9. MEASURES + SYNC objects ----
     let mut prev_link = ts_link;
     let mut measure_start_time: i32 = 0;
+    // Track current key/time for AMeasure subobjects (updated on mid-score changes)
+    let mut current_key_fifths = init_key_fifths;
+    let mut current_time_num = init_time_num;
+    let mut current_time_denom = init_time_denom;
 
     for meas_num in 1..=(num_measures as i32) {
+        // ---- Insert mid-score Clef/KeySig/TimeSig objects before this measure ----
+        if let Some(change) = mid_score_attrs.remove(&meas_num) {
+            // Insert Clef object if there are clef changes
+            if !change.clefs.is_empty() {
+                let csub_link = alloc_sub(&mut next_sub_link);
+                let mut csubs: Vec<AClef> = Vec::new();
+                for (i, s) in (1..=total_staves).enumerate() {
+                    // Find if this staff has a clef change
+                    let clef_type = change
+                        .clefs
+                        .iter()
+                        .find(|(gs, _)| *gs == s as i8)
+                        .map(|(_, ct)| *ct)
+                        .unwrap_or(0); // 0 = no change for this staff
+                    if clef_type != 0 {
+                        csubs.push(AClef {
+                            header: SubObjHeader {
+                                next: if i + 1 < total_staves {
+                                    csub_link + (i + 1) as Link
+                                } else {
+                                    NILINK
+                                },
+                                staffn: s as i8,
+                                sub_type: clef_type as i8,
+                                selected: false,
+                                visible: true,
+                                soft: false,
+                            },
+                            filler1: 0,
+                            small: 0,
+                            filler2: 0,
+                            xd: 0,
+                            yd: 0,
+                        });
+                    }
+                }
+                if !csubs.is_empty() {
+                    let n_entries = csubs.len() as u8;
+                    // Fix up linked list for the actual subs we have
+                    for i in 0..csubs.len() {
+                        csubs[i].header.next = if i + 1 < csubs.len() {
+                            csub_link + (i + 1) as Link
+                        } else {
+                            NILINK
+                        };
+                    }
+                    next_sub_link += csubs.len() as Link;
+                    let clink = push_obj(
+                        &mut objects,
+                        InterpretedObject {
+                            index: 0,
+                            header: ObjectHeader {
+                                obj_type: 8, // CLEF_TYPE
+                                left: prev_link,
+                                first_sub_obj: csub_link,
+                                n_entries,
+                                visible: true,
+                                valid: true,
+                                ..Default::default()
+                            },
+                            data: ObjData::Clef(Clef {
+                                header: ObjectHeader::default(),
+                                in_measure: true,
+                            }),
+                        },
+                    );
+                    score.clefs.insert(csub_link, csubs);
+                    objects[prev_link as usize].header.right = clink;
+                    prev_link = clink;
+                }
+            }
+
+            // Insert KeySig object if there is a key change
+            if let Some(fifths) = change.key_fifths {
+                current_key_fifths = fifths;
+                let ksub_link = alloc_sub(&mut next_sub_link);
+                let mut ksubs: Vec<AKeySig> = Vec::new();
+                for s in 1..=total_staves {
+                    ksubs.push(AKeySig {
+                        header: SubObjHeader {
+                            next: if s < total_staves {
+                                ksub_link + s as Link
+                            } else {
+                                NILINK
+                            },
+                            staffn: s as i8,
+                            sub_type: 0,
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                        },
+                        nonstandard: 0,
+                        filler1: 0,
+                        small: 0,
+                        filler2: 0,
+                        xd: 0,
+                        ks_info: fifths_to_ks_info(fifths),
+                    });
+                }
+                next_sub_link += total_staves as Link;
+                let klink = push_obj(
+                    &mut objects,
+                    InterpretedObject {
+                        index: 0,
+                        header: ObjectHeader {
+                            obj_type: 9, // KEYSIG_TYPE
+                            left: prev_link,
+                            first_sub_obj: ksub_link,
+                            n_entries: total_staves as u8,
+                            visible: true,
+                            valid: true,
+                            ..Default::default()
+                        },
+                        data: ObjData::KeySig(KeySig {
+                            header: ObjectHeader::default(),
+                            in_measure: true,
+                        }),
+                    },
+                );
+                score.keysigs.insert(ksub_link, ksubs);
+                objects[prev_link as usize].header.right = klink;
+                prev_link = klink;
+            }
+
+            // Insert TimeSig object if there is a time sig change
+            if let Some((num, denom)) = change.time_sig {
+                current_time_num = num;
+                current_time_denom = denom;
+                let tsub_link = alloc_sub(&mut next_sub_link);
+                let mut tsubs: Vec<ATimeSig> = Vec::new();
+                for s in 1..=total_staves {
+                    tsubs.push(ATimeSig {
+                        header: SubObjHeader {
+                            next: if s < total_staves {
+                                tsub_link + s as Link
+                            } else {
+                                NILINK
+                            },
+                            staffn: s as i8,
+                            sub_type: 1, // NOverD
+                            selected: false,
+                            visible: true,
+                            soft: false,
+                        },
+                        filler: 0,
+                        small: 0,
+                        conn_staff: 0,
+                        xd: 0,
+                        yd: 0,
+                        numerator: num,
+                        denominator: denom,
+                    });
+                }
+                next_sub_link += total_staves as Link;
+                let tlink = push_obj(
+                    &mut objects,
+                    InterpretedObject {
+                        index: 0,
+                        header: ObjectHeader {
+                            obj_type: 10, // TIMESIG_TYPE
+                            left: prev_link,
+                            first_sub_obj: tsub_link,
+                            n_entries: total_staves as u8,
+                            visible: true,
+                            valid: true,
+                            ..Default::default()
+                        },
+                        data: ObjData::TimeSig(TimeSig {
+                            header: ObjectHeader::default(),
+                            in_measure: true,
+                        }),
+                    },
+                );
+                score.timesigs.insert(tsub_link, tsubs);
+                objects[prev_link as usize].header.right = tlink;
+                prev_link = tlink;
+            }
+        }
+
         // Create MEASURE object
         let meas_sub_link = alloc_sub(&mut next_sub_link);
         let mut meas_subs: Vec<AMeasure> = Vec::new();
@@ -1187,10 +1405,10 @@ fn build_score(
                 conn_staff: 0,
                 clef_type: 0,
                 dynamic_type: 0,
-                ks_info: fifths_to_ks_info(init_key_fifths),
+                ks_info: fifths_to_ks_info(current_key_fifths),
                 time_sig_type: 1,
-                numerator: init_time_num,
-                denominator: init_time_denom,
+                numerator: current_time_num,
+                denominator: current_time_denom,
                 x_mn_std_offset: 0,
                 y_mn_std_offset: 0,
             });
