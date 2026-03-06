@@ -20,6 +20,7 @@ pub mod defs;
 pub mod doc_types;
 pub mod draw;
 pub mod duration;
+pub mod layout;
 pub mod limits;
 pub mod music_font;
 pub mod musicxml;

@@ -20,9 +20,10 @@ use quick_xml::reader::Reader;
 
 use crate::basic_types::{DRect, KsInfo, Link, Rect, NILINK};
 use crate::defs::{
-    ALTO_CLEF, BARITONE_CLEF, BASS8B_CLEF, BASS_CLEF, FRVIOLIN_CLEF, MZSOPRANO_CLEF, PERC_CLEF,
-    SOPRANO_CLEF, TENOR_CLEF, TREBLE8_CLEF, TREBLE_CLEF, TRTENOR_CLEF,
+    AC_FLAT, AC_NATURAL, AC_SHARP, ALTO_CLEF, BARITONE_CLEF, BASS8B_CLEF, BASS_CLEF, FRVIOLIN_CLEF,
+    MZSOPRANO_CLEF, PERC_CLEF, SOPRANO_CLEF, TENOR_CLEF, TREBLE8_CLEF, TREBLE_CLEF, TRTENOR_CLEF,
 };
+use crate::layout::{layout_score, LayoutConfig};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
     AClef, AConnect, AKeySig, AMeasure, ANote, ANoteBeam, AStaff, ATimeSig, BeamSet, Clef, Connect,
@@ -227,6 +228,59 @@ fn clef_to_ngl(sign: &str, line: i32, oct_change: i32) -> u8 {
         ("percussion", _, _) => PERC_CLEF,
         _ => TREBLE_CLEF,
     }
+}
+
+/// Convert MusicXML step name to Nightingale letcode.
+/// A=5, B=4, C=3, D=2, E=1, F=0, G=6
+fn step_to_letcode(step: &str) -> Option<i8> {
+    match step {
+        "A" => Some(5),
+        "B" => Some(4),
+        "C" => Some(3),
+        "D" => Some(2),
+        "E" => Some(1),
+        "F" => Some(0),
+        "G" => Some(6),
+        _ => None,
+    }
+}
+
+/// Check whether an accidental is redundant given the key signature.
+/// Returns true if the acc matches what the key signature already implies,
+/// meaning it should NOT be displayed.
+///
+/// For example, in 4 sharps (E major: F#, C#, G#, D#), a sharp on F is
+/// redundant because the key sig already sharps F.
+fn is_acc_redundant_for_ks(step: &str, acc: u8, fifths: i32) -> bool {
+    if acc == 0 || acc == AC_NATURAL {
+        // Natural signs are never redundant — they cancel the key sig
+        return false;
+    }
+    let letcode = match step_to_letcode(step) {
+        Some(l) => l,
+        None => return false,
+    };
+
+    // Build the key sig's sharped/flatted letcodes
+    const SHARP_ORDER: [i8; 7] = [0, 3, 6, 2, 5, 1, 4]; // F C G D A E B
+    const FLAT_ORDER: [i8; 7] = [4, 1, 5, 2, 6, 3, 0]; // B E A D G C F
+
+    let (n_items, is_sharp) = if fifths >= 0 {
+        (fifths.unsigned_abs().min(7) as usize, true)
+    } else {
+        (fifths.unsigned_abs().min(7) as usize, false)
+    };
+
+    let order = if is_sharp { &SHARP_ORDER } else { &FLAT_ORDER };
+    let ks_acc = if is_sharp { AC_SHARP } else { AC_FLAT };
+
+    // Check if this note letter is in the key sig and the acc type matches
+    for &ks_letcode in order.iter().take(n_items) {
+        if ks_letcode == letcode && acc == ks_acc {
+            return true;
+        }
+    }
+    false
 }
 
 /// Convert key fifths to (n_items, is_sharp).
@@ -845,6 +899,7 @@ fn build_score(
     for (pi, part) in parts.iter().enumerate() {
         let psi = &part_infos_list[pi];
         let mut divisions = init_divisions;
+        let mut current_fifths = init_key_fifths;
 
         for meas in &part.measures {
             let mut voice_time: i32 = 0;
@@ -854,6 +909,10 @@ fn build_score(
                     XmlMeasureElement::Attributes(attrs) => {
                         if let Some(d) = attrs.divisions {
                             divisions = d;
+                        }
+                        // Track current key for accidental filtering
+                        if let Some(f) = attrs.key_fifths {
+                            current_fifths = f;
                         }
                         // Collect mid-score attribute changes (skip first measure)
                         if meas.number > 1 {
@@ -909,7 +968,16 @@ fn build_score(
                             pitch_to_midi(&note.step, note.octave, note.alter)
                         };
 
-                        let acc = accidental_to_code(&note.accidental, note.alter);
+                        let raw_acc = accidental_to_code(&note.accidental, note.alter);
+                        // Suppress accidentals that are already implied by the key sig.
+                        // E.g. in 4 sharps (E major), F# doesn't need a visible sharp.
+                        let acc = if !note.rest
+                            && is_acc_redundant_for_ks(&note.step, raw_acc, current_fifths)
+                        {
+                            0
+                        } else {
+                            raw_acc
+                        };
 
                         all_notes.push(NoteEntry {
                             measure_num: meas.number,
@@ -1952,6 +2020,9 @@ fn build_score(
     score.objects = objects;
     score.first_names = 2; // full names on first system
     score.other_names = 0;
+
+    // --- Post-hoc layout: fix geometry + compute spacing ---
+    layout_score(&mut score, &LayoutConfig::default());
 
     Ok(score)
 }

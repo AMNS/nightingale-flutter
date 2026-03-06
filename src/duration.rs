@@ -76,11 +76,16 @@ static L2P_DURS: [i32; (MAX_L_DUR + 1) as usize] = [
 ///
 /// Source: `Nightingale/src/CFilesBoth/SpaceTime.cp:956-964`
 pub fn code_to_l_dur(dur_code: i8, n_dots: u8) -> i32 {
-    let mut note_dur = L2P_DURS[dur_code as usize];
+    let idx = (dur_code as usize).min(L2P_DURS.len() - 1);
+    let mut note_dur = L2P_DURS[idx];
 
     // Add duration for each augmentation dot
     for j in 1..=n_dots {
-        note_dur += L2P_DURS[(dur_code + j as i8) as usize];
+        let dot_idx = (dur_code + j as i8) as usize;
+        if dot_idx >= L2P_DURS.len() {
+            break; // Can't subdivide beyond 128th notes
+        }
+        note_dur += L2P_DURS[dot_idx];
     }
 
     note_dur
