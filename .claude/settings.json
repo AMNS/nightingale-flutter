@@ -80,14 +80,9 @@
       "Bash(gh release:*)",
       "Bash(gh issue:*)",
       "Bash(gh repo create:*)",
-      "WebFetch(domain:code.claude.com)",
-      "WebFetch(domain:docs.claude.com)",
-      "WebFetch(domain:www.vexflow.com)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.rs)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:www.fontsaddict.com)",
-      "WebFetch(domain:adobe-type-tools.github.io)",
+      "Read(../OGNGale_source/**)",
+      "Bash(curl:*)",
+      "WebFetch(domain:*)",
       "WebSearch"
     ]
   }
