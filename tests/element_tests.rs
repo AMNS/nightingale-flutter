@@ -1309,6 +1309,87 @@ mod ngl_fixture_elements {
         eprintln!("Validated MusicXML export for {} NGL fixtures", count);
         assert!(count > 20, "Should validate many fixtures: got {}", count);
     }
+
+    /// DTD-validate every NGL fixture export against the local MusicXML 4.0 DTD.
+    ///
+    /// Uses xmllint (must be on PATH). Skips gracefully if xmllint is missing.
+    #[test]
+    fn ngl_all_fixtures_dtd_valid() {
+        use std::io::Write;
+        use std::process::Command;
+
+        // Check xmllint is available
+        let has_xmllint = Command::new("xmllint").arg("--version").output().is_ok();
+        if !has_xmllint {
+            eprintln!("SKIP: xmllint not found on PATH");
+            return;
+        }
+
+        let dtd_path = std::path::Path::new("tests/schemas/musicxml-4.0/partwise.dtd")
+            .canonicalize()
+            .expect("DTD file should exist");
+
+        let fixture_dir = "tests/fixtures";
+        let mut count = 0;
+        let mut failures = Vec::new();
+
+        for entry in fs::read_dir(fixture_dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "ngl") {
+                let name = path.file_name().unwrap().to_str().unwrap().to_string();
+                let data = fs::read(&path).unwrap();
+                let ngl = NglFile::read_from_bytes(&data).unwrap();
+                let score = interpret_heap(&ngl).unwrap();
+                let xml = export_musicxml(&score);
+
+                // Strip the DOCTYPE line so xmllint uses only our local DTD
+                let stripped: String = xml
+                    .lines()
+                    .filter(|l| !l.contains("<!DOCTYPE"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                // Write to temp file
+                let tmp = std::env::temp_dir().join(format!("dtd_check_{}.musicxml", count));
+                {
+                    let mut f = fs::File::create(&tmp).unwrap();
+                    f.write_all(stripped.as_bytes()).unwrap();
+                }
+
+                let output = Command::new("xmllint")
+                    .arg("--nonet")
+                    .arg("--dtdvalid")
+                    .arg(&dtd_path)
+                    .arg("--noout")
+                    .arg(&tmp)
+                    .output()
+                    .expect("xmllint failed to run");
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    // Grab first 5 error lines for context
+                    let first_errs: String = stderr.lines().take(5).collect::<Vec<_>>().join("\n");
+                    failures.push(format!("{}: {}", name, first_errs));
+                }
+
+                let _ = fs::remove_file(&tmp);
+                count += 1;
+            }
+        }
+
+        eprintln!(
+            "DTD-validated {} fixtures: {} passed, {} failed",
+            count,
+            count - failures.len(),
+            failures.len()
+        );
+        assert!(
+            failures.is_empty(),
+            "DTD validation failures:\n{}",
+            failures.join("\n\n")
+        );
+    }
 }
 
 // ============================================================

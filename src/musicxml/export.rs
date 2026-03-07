@@ -1114,19 +1114,7 @@ fn write_measure_notes(
                 write_empty_element(w, "dot");
             }
 
-            // Beams — MusicXML <beam number="N"> after <dot/>, before <accidental>
-            if !note.beam_levels.is_empty() {
-                for (i, bv) in note.beam_levels.iter().enumerate() {
-                    let num = (i + 1).to_string();
-                    let mut beam_elem = BytesStart::new("beam");
-                    beam_elem.push_attribute(("number", num.as_str()));
-                    let _ = w.write_event(Event::Start(beam_elem));
-                    let _ = w.write_event(Event::Text(BytesText::new(bv.as_str())));
-                    let _ = w.write_event(Event::End(BytesEnd::new("beam")));
-                }
-            }
-
-            // Accidental (visible accidental marking)
+            // Accidental — DTD order: type, dot*, accidental?, ..., staff?, beam*
             if !note.rest && note.accident != 0 {
                 let acc_text = match note.accident {
                     AC_DBLFLAT => "flat-flat",
@@ -1141,9 +1129,21 @@ fn write_measure_notes(
                 }
             }
 
-            // Staff (for multi-staff parts)
+            // Staff (for multi-staff parts) — must come before <beam>
             if n_part_staves > 1 {
                 write_simple_element(w, "staff", &staff_in_part.to_string());
+            }
+
+            // Beams — DTD requires <beam> after <staff>
+            if !note.beam_levels.is_empty() {
+                for (i, bv) in note.beam_levels.iter().enumerate() {
+                    let num = (i + 1).to_string();
+                    let mut beam_elem = BytesStart::new("beam");
+                    beam_elem.push_attribute(("number", num.as_str()));
+                    let _ = w.write_event(Event::Start(beam_elem));
+                    let _ = w.write_event(Event::Text(BytesText::new(bv.as_str())));
+                    let _ = w.write_event(Event::End(BytesEnd::new("beam")));
+                }
             }
 
             // Notations (ties, slurs)
