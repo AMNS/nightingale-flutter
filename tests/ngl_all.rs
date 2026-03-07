@@ -626,7 +626,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("06_melyssa_with_a_y", 11012958786346043549),
         ("07_new_york_debutante", 14730064467147645403),
         ("08_darling_sunshine", 6732785618763763097),
-        ("09_swiss_ann", 369983946002382299),
+        ("09_swiss_ann", 9788784818313323397),
         ("10_ghost_of_fusion_bob", 15785784890015038306),
         ("11_philip", 6998302234819103416),
         ("12_what_do_i_know", 13835013432729174210),
@@ -634,7 +634,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("14_chrome_molly", 4538268198578934231),
         ("15_selfsame_twin", 8841340593499230741),
         ("16_esmerelda", 14613461816388255412),
-        ("17_capital_regiment_march", 15006610361252452032),
+        ("17_capital_regiment_march", 172279410282259873),
         ("beamed_grace_notes", 11843290085437322332),
         ("tc_02", 3275864243590906772),
         ("tc_03a", 7847436811022204174),
@@ -1071,4 +1071,104 @@ fn diag_cross_staff_notation() {
         }
     }
     println!("\n=== End Cross-Staff Diagnostic ===");
+}
+
+#[test]
+#[ignore] // diagnostic — run with: cargo test diag_graphic_objects -- --nocapture
+fn diag_graphic_objects() {
+    use nightingale_core::ngl::interpret::ObjData;
+
+    println!("\n=== GRAPHIC Object Diagnostic (all fixtures) ===\n");
+    println!("Font tables and GRAPHIC details for every NGL fixture.\n");
+
+    for ngl_path in ALL_NGL_FILES {
+        let name = short_name(ngl_path);
+        let ngl = NglFile::read_from_file(ngl_path).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        // Print font table
+        if !score.font_names.is_empty() {
+            println!("[{}] Font table: {:?}", name, score.font_names);
+        }
+
+        let mut graphic_count = 0u32;
+        for obj in &score.objects {
+            if let ObjData::Graphic(gfx) = &obj.data {
+                graphic_count += 1;
+                let gtype_name = match gfx.graphic_type as u8 {
+                    1 => "GrPict",
+                    2 => "GrChar",
+                    3 => "GrString",
+                    4 => "GrLyric",
+                    5 => "GrDraw",
+                    6 => "GrMidiPatch",
+                    7 => "GrRehearsal",
+                    8 => "GrChordSym",
+                    9 => "GrArpeggio",
+                    10 => "GrChordFrame",
+                    11 => "GrMidiPan",
+                    12 => "GrSusPedalDown",
+                    13 => "GrSusPedalUp",
+                    _ => "Unknown",
+                };
+
+                // Resolve font name
+                let font_name = if gfx.info == 0 {
+                    // FONT_THISITEMONLY: use fontInd
+                    let idx = gfx.font_ind as usize;
+                    if idx < score.font_names.len() {
+                        format!("fontTable[{}]={}", idx, score.font_names[idx])
+                    } else {
+                        format!("fontInd={} (out of range)", idx)
+                    }
+                } else {
+                    // Text style index
+                    let si = gfx.info as usize;
+                    if si > 0 && (si - 1) < score.text_styles.len() {
+                        format!("textStyle[{}]={}", si, score.text_styles[si - 1].font_name)
+                    } else {
+                        format!("info={} (style)", gfx.info)
+                    }
+                };
+
+                // Get text content
+                let text = score
+                    .graphic_strings
+                    .get(&obj.header.first_sub_obj)
+                    .cloned()
+                    .unwrap_or_default();
+
+                // Show hex bytes for non-ASCII text
+                let has_non_ascii = text.bytes().any(|b| !(0x20..=0x7E).contains(&b));
+                let hex_str = if has_non_ascii {
+                    format!(
+                        " hex=[{}]",
+                        text.bytes()
+                            .map(|b| format!("{:02X}", b))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    )
+                } else {
+                    String::new()
+                };
+
+                println!(
+                    "  [{}/{}] type={} font=({}) size={}{} style={} text={:?}{}",
+                    name,
+                    graphic_count,
+                    gtype_name,
+                    font_name,
+                    gfx.font_size,
+                    if gfx.rel_f_size != 0 { "rel" } else { "pt" },
+                    gfx.font_style,
+                    text,
+                    hex_str,
+                );
+            }
+        }
+        if graphic_count > 0 {
+            println!("[{}] Total GRAPHICs: {}\n", name, graphic_count);
+        }
+    }
+    println!("=== End GRAPHIC Diagnostic ===");
 }

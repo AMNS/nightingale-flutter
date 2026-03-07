@@ -1897,30 +1897,46 @@ pub fn draw_graphic(
     let is_sonata = is_sonata_font(gfx, score);
     let font = resolve_graphic_font(gfx, score, &gtype, line_space);
 
-    // If the original font is Sonata, render each character as a SMuFL music glyph
-    // rather than as text. Sonata was Nightingale's music font — characters like '%'
-    // are segno symbols, not literal text.
+    // If the original font is a Sonata-compatible music font, render each character
+    // as a SMuFL music glyph rather than as text. Sonata/Briard/etc. music fonts use
+    // the same character encoding where '%' = segno, 'U' = fermata, etc.
+    //
+    // Text has been converted from Mac Roman → UTF-8 during parsing, so we must
+    // convert each UTF-8 char back to its original Mac Roman byte value before
+    // looking up the SMuFL mapping.
+    //
     // Reference: MusicFont.cp MapMusChar(), defs.h MCH_* constants
     if is_sonata {
-        use super::draw_utils::sonata_char_to_smufl;
+        use super::draw_utils::utf8_music_char_to_smufl;
         use crate::render::types::MusicGlyph;
 
         // Compute size_percent from font size relative to the music font size
         // (line_space * 4 is roughly the staff height; standard music font = ~24pt)
         let size_pct = (font.size / 24.0 * 100.0).max(50.0);
         let mut char_x = x;
-        for byte in text.bytes() {
-            if byte == 0x20 {
+        for ch in text.chars() {
+            if ch == ' ' {
                 // Space: advance by ~0.5 em width
                 char_x += font.size * 0.5;
                 continue;
             }
-            if let Some(smufl_cp) = sonata_char_to_smufl(byte) {
+            if ch == '~' {
+                // Tilde in music font context often means "hairpin" or space-like separator
+                char_x += font.size * 0.3;
+                continue;
+            }
+            if let Some(smufl_cp) = utf8_music_char_to_smufl(ch) {
                 renderer.music_char(char_x, y, MusicGlyph::Smufl(smufl_cp), size_pct);
                 // Advance by approximate glyph width (~1.0 em for most music chars)
                 char_x += font.size * 1.0;
+            } else if ch.is_ascii_graphic() {
+                // Unmapped ASCII chars (e.g. 'd' in "D.S." text) — render as text
+                // using the resolved font. This handles music fonts like Briard that
+                // contain both Sonata glyphs AND regular letterforms.
+                let s = ch.to_string();
+                renderer.text_string(char_x, y, &s, &font);
+                char_x += font.size * 0.5; // narrower than music glyphs
             }
-            // Skip unmapped characters silently
         }
         return;
     }
@@ -2115,11 +2131,14 @@ fn resolve_graphic_font(
     }
 }
 
-/// Check whether a GRAPHIC object's font is the Sonata music font.
+/// Check whether a GRAPHIC object's font is a Sonata-compatible music font.
 ///
-/// When Sonata is the font, the text characters are music symbol codes
+/// When a music font is detected, the text characters are music symbol codes
 /// (e.g. '%' = segno, 'U' = fermata, 'q' = quarter note) and must be
 /// mapped to SMuFL glyphs rather than rendered as normal text.
+///
+/// Recognizes Sonata and compatible music fonts (Briard, Petrucci, Opus, etc.)
+/// via `is_music_font_name()`.
 ///
 /// For info > FONT_THISITEMONLY: checks text_styles[info-1].font_name.
 /// For info == FONT_THISITEMONLY (0): checks font_names[fontInd] from
@@ -2127,19 +2146,20 @@ fn resolve_graphic_font(
 ///
 /// Reference: DrawUtils.cp GetGraphicFontInfo() (line 2481-2506)
 fn is_sonata_font(gfx: &crate::obj_types::Graphic, score: &InterpretedScore) -> bool {
+    use super::draw_utils::is_music_font_name;
     use crate::defs::FONT_THISITEMONLY;
 
     let style_idx = gfx.info as usize;
     if style_idx > FONT_THISITEMONLY as usize && (style_idx - 1) < score.text_styles.len() {
         let ts = &score.text_styles[style_idx - 1];
-        if ts.font_name == "Sonata" {
+        if is_music_font_name(&ts.font_name) {
             return true;
         }
     } else if gfx.info == FONT_THISITEMONLY as i16 {
         // FONT_THISITEMONLY: use the graphic's own fontInd to look up the font table.
         // Reference: GetGraphicFontInfo() — doc->fontTable[p->fontInd].fontID
         let font_idx = gfx.font_ind as usize;
-        if font_idx < score.font_names.len() && score.font_names[font_idx] == "Sonata" {
+        if font_idx < score.font_names.len() && is_music_font_name(&score.font_names[font_idx]) {
             return true;
         }
     }

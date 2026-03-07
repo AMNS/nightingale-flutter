@@ -361,11 +361,190 @@ pub fn get_ks_y_offset(clef_type: i8, letcode: i8, is_sharp: bool) -> i8 {
     }
 }
 
-/// Map a Sonata font character code to its SMuFL codepoint equivalent.
+/// Check whether a font name refers to a Sonata-compatible music font.
+///
+/// Several music fonts share the Sonata character encoding (same byte → same glyph):
+/// Sonata, Briard, Petrucci, Opus, Maestro, etc. If a GRAPHIC object uses any of
+/// these fonts, its text characters are music symbol codes (not literal text) and
+/// must be mapped through sonata_char_to_smufl().
+///
+/// Reference: MusicFont.cp MapMusChar(), Elbsound music font comparison
+pub fn is_music_font_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Sonata"
+            | "Briard"
+            | "Petrucci"
+            | "Opus"
+            | "Opus Std"
+            | "Maestro"
+            | "Engraver"
+            | "November"
+            | "Bravura" // SMuFL, but Sonata-compat encoding possible
+    )
+}
+
+/// Convert a Unicode code point (from UTF-8 text) back to the original Mac Roman
+/// byte value. This is needed because NGL string pool data is stored in Mac Roman
+/// encoding and gets converted to UTF-8 by `mac_roman_to_string()` during parsing.
+/// For music font text, we need the original byte values to look up in
+/// `sonata_char_to_smufl()`.
+///
+/// For ASCII (< 0x80), the byte value is unchanged. For high bytes (0x80-0xFF),
+/// the Mac Roman → Unicode conversion must be reversed.
+pub fn utf8_char_to_mac_roman(ch: char) -> Option<u8> {
+    let cp = ch as u32;
+    if cp < 0x80 {
+        return Some(cp as u8);
+    }
+    // Mac Roman 0x80-0xFF → Unicode mapping (reverse lookup)
+    // Reference: https://en.wikipedia.org/wiki/Mac_OS_Roman
+    match cp {
+        0x00C4 => Some(0x80), // Ä
+        0x00C5 => Some(0x81), // Å
+        0x00C7 => Some(0x82), // Ç
+        0x00C9 => Some(0x83), // É
+        0x00D1 => Some(0x84), // Ñ
+        0x00D6 => Some(0x85), // Ö
+        0x00DC => Some(0x86), // Ü
+        0x00E1 => Some(0x87), // á
+        0x00E0 => Some(0x88), // à
+        0x00E2 => Some(0x89), // â
+        0x00E4 => Some(0x8A), // ä
+        0x00E3 => Some(0x8B), // ã
+        0x00E5 => Some(0x8C), // å
+        0x00E7 => Some(0x8D), // ç
+        0x00E9 => Some(0x8E), // é
+        0x00E8 => Some(0x8F), // è
+        0x00EA => Some(0x90), // ê
+        0x00EB => Some(0x91), // ë
+        0x00ED => Some(0x92), // í
+        0x00EC => Some(0x93), // ì
+        0x00EE => Some(0x94), // î
+        0x00EF => Some(0x95), // ï
+        0x00F1 => Some(0x96), // ñ
+        0x00F3 => Some(0x97), // ó
+        0x00F2 => Some(0x98), // ò
+        0x00F4 => Some(0x99), // ô
+        0x00F6 => Some(0x9A), // ö
+        0x00F5 => Some(0x9B), // õ
+        0x00FA => Some(0x9C), // ú
+        0x00F9 => Some(0x9D), // ù
+        0x00FB => Some(0x9E), // û → Mac Roman 0x9E (= Sonata coda!)
+        0x00FC => Some(0x9F), // ü
+        0x2020 => Some(0xA0), // †
+        0x00B0 => Some(0xA1), // °
+        0x00A2 => Some(0xA2), // ¢
+        0x00A3 => Some(0xA3), // £
+        0x00A7 => Some(0xA4), // §
+        0x2022 => Some(0xA5), // •
+        0x00B6 => Some(0xA6), // ¶
+        0x00DF => Some(0xA7), // ß
+        0x00AE => Some(0xA8), // ®
+        0x00A9 => Some(0xA9), // ©
+        0x2122 => Some(0xAA), // ™
+        0x00B4 => Some(0xAB), // ´
+        0x00A8 => Some(0xAC), // ¨
+        0x2260 => Some(0xAD), // ≠
+        0x00C6 => Some(0xAE), // Æ
+        0x00D8 => Some(0xAF), // Ø
+        0x221E => Some(0xB0), // ∞
+        0x00B1 => Some(0xB1), // ±
+        0x2264 => Some(0xB2), // ≤
+        0x2265 => Some(0xB3), // ≥
+        0x00A5 => Some(0xB4), // ¥
+        0x00B5 => Some(0xB5), // µ
+        0x2202 => Some(0xB6), // ∂
+        0x2211 => Some(0xB7), // ∑
+        0x220F => Some(0xB8), // ∏
+        0x03C0 => Some(0xB9), // π
+        0x222B => Some(0xBA), // ∫
+        0x00AA => Some(0xBB), // ª
+        0x00BA => Some(0xBC), // º
+        0x2126 => Some(0xBD), // Ω
+        0x00E6 => Some(0xBE), // æ
+        0x00F8 => Some(0xBF), // ø
+        0x00BF => Some(0xC0), // ¿
+        0x00A1 => Some(0xC1), // ¡
+        0x00AC => Some(0xC2), // ¬
+        0x221A => Some(0xC3), // √
+        0x0192 => Some(0xC4), // ƒ
+        0x2248 => Some(0xC5), // ≈
+        0x2206 => Some(0xC6), // ∆
+        0x00AB => Some(0xC7), // «
+        0x00BB => Some(0xC8), // »
+        0x2026 => Some(0xC9), // …
+        0x00A0 => Some(0xCA), // non-breaking space
+        0x00C0 => Some(0xCB), // À
+        0x00C3 => Some(0xCC), // Ã
+        0x00D5 => Some(0xCD), // Õ
+        0x0152 => Some(0xCE), // Œ
+        0x0153 => Some(0xCF), // œ
+        0x2013 => Some(0xD0), // –
+        0x2014 => Some(0xD1), // —
+        0x201C => Some(0xD2), // "
+        0x201D => Some(0xD3), // "
+        0x2018 => Some(0xD4), // '
+        0x2019 => Some(0xD5), // '
+        0x00F7 => Some(0xD6), // ÷
+        0x25CA => Some(0xD7), // ◊
+        0x00FF => Some(0xD8), // ÿ
+        0x0178 => Some(0xD9), // Ÿ
+        0x2044 => Some(0xDA), // ⁄
+        0x20AC => Some(0xDB), // €
+        0x2039 => Some(0xDC), // ‹
+        0x203A => Some(0xDD), // ›
+        0xFB01 => Some(0xDE), // ﬁ → Mac Roman 0xDE
+        0xFB02 => Some(0xDF), // ﬂ → Mac Roman 0xDF
+        0x2021 => Some(0xE0), // ‡
+        0x00B7 => Some(0xE1), // ·
+        0x201A => Some(0xE2), // ‚
+        0x201E => Some(0xE3), // „
+        0x2030 => Some(0xE4), // ‰
+        0x00C2 => Some(0xE5), // Â
+        0x00CA => Some(0xE6), // Ê
+        0x00C1 => Some(0xE7), // Á
+        0x00CB => Some(0xE8), // Ë
+        0x00C8 => Some(0xE9), // È
+        0x00CD => Some(0xEA), // Í
+        0x00CE => Some(0xEB), // Î
+        0x00CF => Some(0xEC), // Ï
+        0x00CC => Some(0xED), // Ì
+        0x00D3 => Some(0xEE), // Ó
+        0x00D4 => Some(0xEF), // Ô
+        0xF8FF => Some(0xF0), //  (Apple logo)
+        0x00D2 => Some(0xF1), // Ò
+        0x00DA => Some(0xF2), // Ú
+        0x00DB => Some(0xF3), // Û
+        0x00D9 => Some(0xF4), // Ù
+        0x0131 => Some(0xF5), // ı
+        0x02C6 => Some(0xF6), // ˆ
+        0x02DC => Some(0xF7), // ˜
+        0x00AF => Some(0xF8), // ¯
+        0x02D8 => Some(0xF9), // ˘
+        0x02D9 => Some(0xFA), // ˙
+        0x02DA => Some(0xFB), // ˚
+        0x00B8 => Some(0xFC), // ¸
+        0x02DD => Some(0xFD), // ˝
+        0x02DB => Some(0xFE), // ˛
+        0x02C7 => Some(0xFF), // ˇ
+        _ => None,
+    }
+}
+
+/// Map a UTF-8 character from a music font GRAPHIC's text to a SMuFL glyph.
+///
+/// This combines `utf8_char_to_mac_roman()` with `sonata_char_to_smufl()` to handle
+/// the full pipeline: NGL Mac Roman bytes → UTF-8 string → back to Mac Roman → SMuFL.
+pub fn utf8_music_char_to_smufl(ch: char) -> Option<u32> {
+    utf8_char_to_mac_roman(ch).and_then(sonata_char_to_smufl)
+}
+
+/// Map a Sonata font character code (Mac Roman byte) to its SMuFL codepoint.
 ///
 /// The Sonata font was the OG Nightingale music font. GRAPHIC text objects
-/// that use the Sonata font contain music character codes, not normal text.
-/// This function maps those codes to SMuFL (Bravura) glyph codepoints.
+/// that use Sonata (or compatible fonts like Briard) contain music character
+/// codes rather than normal text. This maps those codes to SMuFL (Bravura) glyphs.
 ///
 /// Reference: defs.h MCH_* constants (lines 137-210), vars.h (lines 325-343)
 ///
@@ -478,8 +657,13 @@ pub fn sonata_char_to_smufl(ch: u8) -> Option<u32> {
 
         // ==== Segno and Coda ====
         // The Sonata font places segno at '%' (0x25) and coda at 0x9E.
+        // Briard/Sonata also has a coda glyph at 0xDE (Mac Roman "fi ligature" position).
         0x25 => Some(0xE047), // '%' = segno -> segno (SMuFL U+E047)
         0x9E => Some(0xE048), // coda -> coda (SMuFL U+E048)
+        0xDE => Some(0xE048), // coda (alternate position, used by Briard) -> coda
+
+        // Pedal markings (from vars.h symtable[]: GRSusPedalDown at line 263)
+        0xB6 => Some(0xE650), // sustain pedal down "Ped." -> keyboardPedalPed
 
         // Rest glyphs (MCH_rests[] from vars.h)
         0xE3 => Some(0xE4E2), // rests[0] -> restDoubleWhole (breve)

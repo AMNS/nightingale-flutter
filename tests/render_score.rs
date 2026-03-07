@@ -1661,3 +1661,73 @@ fn test_grace_note_secondary_beams_mahler() {
         "Grace notes should render at least one beam"
     );
 }
+
+/// Dump all GRAPHIC objects from Capital Regiment March to inspect Sonata font usage
+#[test]
+fn test_dump_crm_graphics() {
+    use nightingale_core::ngl::{interpret_heap, NglFile};
+
+    let ngl = NglFile::read_from_file("tests/fixtures/17_capital_regiment_march.ngl")
+        .expect("Failed to read file");
+    let score = interpret_heap(&ngl).expect("Failed to interpret");
+
+    println!("\n=== GRAPHIC OBJECTS IN CAPITAL REGIMENT MARCH ===");
+    println!(
+        "Total GRAPHIC objects: {}",
+        score
+            .objects
+            .iter()
+            .filter(|o| o.header.obj_type == 15)
+            .count()
+    );
+    println!("\nFont table:");
+    for (i, font) in score.font_names.iter().enumerate() {
+        println!("  [{}] {}", i, font);
+    }
+
+    println!("\n=== GRAPHIC Strings ===");
+    for obj in &score.objects {
+        if obj.header.obj_type == 15 {
+            if let nightingale_core::ngl::interpret::ObjData::Graphic(gfx) = &obj.data {
+                let text = score
+                    .graphic_strings
+                    .get(&obj.header.first_sub_obj)
+                    .map(|s| s.as_str())
+                    .unwrap_or("<no string>");
+
+                let type_name = match gfx.graphic_type {
+                    3 => "GrString",
+                    4 => "GrLyric",
+                    7 => "GrRehearsal",
+                    8 => "GrChordSym",
+                    _ => "Unknown",
+                };
+
+                println!(
+                    "\nGRAPHIC #{}: type={} ({})",
+                    obj.index, gfx.graphic_type, type_name
+                );
+                println!(
+                    "  font_ind={} info={} font_size={} rel_f_size={}",
+                    gfx.font_ind, gfx.info, gfx.font_size, gfx.rel_f_size
+                );
+
+                if gfx.font_ind >= 0 && (gfx.font_ind as usize) < score.font_names.len() {
+                    println!("  Font name: {}", score.font_names[gfx.font_ind as usize]);
+                }
+
+                println!("  Text ({} bytes): {:?}", text.len(), text);
+
+                // Show hex bytes for Sonata font text
+                if gfx.font_ind >= 0
+                    && (gfx.font_ind as usize) < score.font_names.len()
+                    && score.font_names[gfx.font_ind as usize] == "Sonata"
+                {
+                    let hex_bytes: Vec<String> =
+                        text.bytes().map(|b| format!("{:02X}", b)).collect();
+                    println!("  Hex: {}", hex_bytes.join(" "));
+                }
+            }
+        }
+    }
+}
