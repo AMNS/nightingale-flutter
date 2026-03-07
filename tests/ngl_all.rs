@@ -634,7 +634,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("14_chrome_molly", 4538268198578934231),
         ("15_selfsame_twin", 8841340593499230741),
         ("16_esmerelda", 14613461816388255412),
-        ("17_capital_regiment_march", 172279410282259873),
+        ("17_capital_regiment_march", 14599790037079485358),
         ("beamed_grace_notes", 11843290085437322332),
         ("tc_02", 3275864243590906772),
         ("tc_03a", 7847436811022204174),

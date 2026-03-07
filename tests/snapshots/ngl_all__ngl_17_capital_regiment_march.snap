@@ -11,13 +11,13 @@ EndPage: 14
 FrameRect: 4
 LedgerLine: 361
 Line: 86
-MusicChar: 3705
+MusicChar: 3706
 NoteStem: 2119
 SetMusicSize: 126
 SetWidths: 1
 Slur: 276
 Staff: 126
-TextString: 236
+TextString: 235
 TOTAL: 8137
 
 === STAVES ===
@@ -157,6 +157,7 @@ y=410.1 x=[94.0..746.0] lines=5 spacing=4.00
 === SLURS: 276 total ===
 
 === GLYPHS ===
+Smufl(57413): 1
 Smufl(57415): 1
 Smufl(57416): 2
 Smufl(57424): 70

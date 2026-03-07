@@ -655,10 +655,13 @@ pub fn sonata_char_to_smufl(ch: u8) -> Option<u32> {
         // Grace note slash
         0x47 => Some(0xE560), // 'G' = MCH_graceSlash -> graceNoteSlashStemUp
 
-        // ==== Segno and Coda ====
+        // ==== Segno, Coda, Dal Segno, Da Capo ====
         // The Sonata font places segno at '%' (0x25) and coda at 0x9E.
         // Briard/Sonata also has a coda glyph at 0xDE (Mac Roman "fi ligature" position).
+        // Dal segno ("D.S.") is at 'd' (0x64), da capo ("D.C.") at 'D' (0x44).
         0x25 => Some(0xE047), // '%' = segno -> segno (SMuFL U+E047)
+        0x44 => Some(0xE046), // 'D' = da capo -> daCapo (SMuFL U+E046)
+        0x64 => Some(0xE045), // 'd' = dal segno -> dalSegno (SMuFL U+E045)
         0x9E => Some(0xE048), // coda -> coda (SMuFL U+E048)
         0xDE => Some(0xE048), // coda (alternate position, used by Briard) -> coda
 
