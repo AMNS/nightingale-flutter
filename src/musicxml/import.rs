@@ -30,7 +30,9 @@ use crate::obj_types::{
     Dynamic, ExtObjHeader, Header, KeySig, Measure, ObjectHeader, Page, PartInfo, Staff,
     SubObjHeader, System, Tail, TimeSig, SHOW_ALL_LINES,
 };
-use crate::objects::setup_ks_info;
+use crate::objects::{normal_stem_up_down_single, setup_ks_info, VoiceRole};
+use crate::pitch_utils::{clef_middle_c_half_ln, half_ln_to_yd};
+use crate::utility::{calc_ystem, nflags, shorten_stem};
 
 // Re-import Sync from obj_types (shadows std::marker::Sync in this module only)
 use crate::obj_types::Sync as NglSync;
@@ -1391,10 +1393,59 @@ fn build_score(
     // Collect beam info during Sync creation: (sync_link, staff, voice, beam_levels)
     let mut beam_notes_with_links: Vec<(Link, i8, i8, Vec<String>)> = Vec::new();
 
+    // Staff height for yd/ystem computation — must match LayoutConfig::default().
+    // layout_score() will later set the definitive value, but we compute yd/ystem here
+    // using the same default so they're consistent.
+    let layout_cfg = LayoutConfig::default();
+    let staff_height = layout_cfg.staff_height;
+    let n_staff_lines: i16 = 5;
+    // Stem length defaults (quarter-spaces) — same as NotelistLayoutConfig
+    let stem_len_normal: i16 = 14;
+    let stem_len_outside: i16 = 12;
+    let stem_len_2v: i16 = 13;
+
+    // Determine voice roles per (staff, voice) pair for stem direction.
+    // If a staff has multiple voices, the lowest-numbered is Upper, others are Lower.
+    // If only one voice on a staff, it's Single.
+    let mut staff_voices: std::collections::HashMap<i8, std::collections::BTreeSet<i8>> =
+        std::collections::HashMap::new();
+    for ne in &all_notes {
+        if !ne.rest {
+            staff_voices
+                .entry(ne.global_staff)
+                .or_default()
+                .insert(ne.voice);
+        }
+    }
+    let mut voice_roles: std::collections::HashMap<(i8, i8), VoiceRole> =
+        std::collections::HashMap::new();
+    for (staff, voices) in &staff_voices {
+        if voices.len() <= 1 {
+            for v in voices {
+                voice_roles.insert((*staff, *v), VoiceRole::Single);
+            }
+        } else {
+            let min_voice = *voices.iter().next().unwrap();
+            for v in voices {
+                if *v == min_voice {
+                    voice_roles.insert((*staff, *v), VoiceRole::Upper);
+                } else {
+                    voice_roles.insert((*staff, *v), VoiceRole::Lower);
+                }
+            }
+        }
+    }
+
     for meas_num in 1..=(num_measures as i32) {
         // ---- Insert mid-score Clef/KeySig/TimeSig objects before this measure ----
         if let Some(change) = mid_score_attrs.remove(&meas_num) {
             // Insert Clef object if there are clef changes
+            // Also update running clef tracker so yd computation uses the right clef
+            for (gs, ct) in &change.clefs {
+                if (*gs as usize) < init_clefs.len() {
+                    init_clefs[*gs as usize] = *ct;
+                }
+            }
             if !change.clefs.is_empty() {
                 let csub_link = alloc_sub(&mut next_sub_link);
                 let mut csubs: Vec<AClef> = Vec::new();
@@ -1680,6 +1731,66 @@ fn build_score(
             for (ni, ne) in notes_at_time.iter().enumerate() {
                 let yqpit = if ne.rest { 0 } else { midi_to_yqpit(ne.midi) };
 
+                // Compute yd (vertical position) from yqpit + clef context.
+                // yqpit is clef-independent half-lines from middle C (negative = above).
+                // half_ln is clef-relative: 0 = top staff line, positive = downward.
+                // Formula: half_ln = clef_middle_c_half_ln(clef) + yqpit
+                let clef_type = init_clefs
+                    .get(ne.global_staff as usize)
+                    .copied()
+                    .unwrap_or(TREBLE_CLEF);
+                let (yd, ystem) = if ne.rest {
+                    // Rests go at center of staff (half-line 4 for 5-line staff)
+                    let rest_role = voice_roles
+                        .get(&(ne.global_staff, ne.voice))
+                        .copied()
+                        .unwrap_or(VoiceRole::Single);
+                    let rest_hl: i16 = match rest_role {
+                        VoiceRole::Single => 4,
+                        VoiceRole::Upper => 2, // offset up
+                        VoiceRole::Lower => 6, // offset down
+                    };
+                    let yd = half_ln_to_yd(rest_hl, staff_height);
+                    (yd, yd)
+                } else {
+                    let mid_c_hl = clef_middle_c_half_ln(clef_type);
+                    let half_ln = mid_c_hl + yqpit as i16;
+                    let yd = half_ln_to_yd(half_ln, staff_height);
+
+                    // Determine stem direction and compute ystem
+                    let role = voice_roles
+                        .get(&(ne.global_staff, ne.voice))
+                        .copied()
+                        .unwrap_or(VoiceRole::Single);
+                    let stem_down = normal_stem_up_down_single(half_ln, n_staff_lines, role);
+                    let num_flags = nflags(ne.l_dur);
+                    let qtr_sp = match role {
+                        VoiceRole::Single => {
+                            if shorten_stem(half_ln, stem_down, n_staff_lines) {
+                                stem_len_outside
+                            } else {
+                                stem_len_normal
+                            }
+                        }
+                        _ => stem_len_2v,
+                    };
+                    let ystem = if ne.l_dur >= 3 {
+                        // Has stem (half note and shorter)
+                        calc_ystem(
+                            yd,
+                            num_flags,
+                            stem_down,
+                            staff_height,
+                            n_staff_lines,
+                            qtr_sp,
+                            false,
+                        )
+                    } else {
+                        yd // Whole notes/breves: no stem
+                    };
+                    (yd, ystem)
+                };
+
                 note_subs.push(ANote {
                     header: SubObjHeader {
                         next: if ni + 1 < notes_at_time.len() {
@@ -1700,8 +1811,8 @@ fn build_score(
                     other_stem_side: false,
                     yqpit,
                     xd: 0,
-                    yd: 0,
-                    ystem: 0,
+                    yd,
+                    ystem,
                     play_time_delta: 0,
                     play_dur: ne.play_dur,
                     p_time: 0,
