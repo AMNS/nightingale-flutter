@@ -324,6 +324,57 @@ Use Rust tests and approved Bash commands (cargo, xxd, etc.) instead. If a new B
 command is needed, ask the user to add it to the allowed list rather than using an
 unapproved command that will block on permissions.
 
+## Cost Efficiency Plan
+
+### Biggest cost drivers (observed)
+
+1. **Opus for mechanical work** — Regression test updates (INSTA_UPDATE, REGENERATE_REFS,
+   hash copy-paste) don't need Opus. Use the cheapest path that works.
+2. **Context bloat from stale background shells** — Each tool call's response includes
+   reminder text for every open background shell. With 20+ stale shells from prior sessions,
+   every interaction burns context on irrelevant reminders.
+3. **Polling loops while waiting for builds** — Repeatedly checking `BashOutput` while
+   `cargo test` runs (~50s) generates multiple Opus round-trips that do nothing useful.
+4. **Reading large files in full** — Reading entire files (e.g., ngl_all.rs at 700+ lines)
+   when only a specific section is needed wastes context window.
+5. **Session continuations** — Context summaries from prior sessions are large. Keep
+   session scope focused to avoid needing many continuations.
+
+### Rules to follow
+
+1. **Batch rendering changes** — When a change affects multiple regression test layers,
+   chain the updates into a single `&&`-connected Bash command:
+   ```sh
+   INSTA_UPDATE=always cargo test --test ngl_all test_all_ngl_regression_snapshots && \
+   REGENERATE_REFS=1 cargo test --test ngl_all test_all_ngl_command_stream_hashes && \
+   REGENERATE_REFS=1 cargo test --features visual-regression --test ngl_all test_all_ngl_bitmap_regression
+   ```
+2. **Run builds in background, don't poll** — Use `run_in_background: true` for long
+   builds/tests. Do other work while waiting. Check output once, not in a loop.
+3. **Use line ranges when reading** — Always use `offset`/`limit` when reading files
+   where you know the relevant section. Don't read 700 lines to find a 5-line hash.
+4. **Delegate research to subagents** — OG source exploration, grep-heavy research,
+   and file discovery should use Haiku/Sonnet subagents, not Opus.
+5. **Batch related file changes** — When updating hash values in ngl_all.rs, read
+   the test output to get ALL changed hashes at once, then make all edits in one pass.
+   Don't update one hash, re-run, discover another changed, repeat.
+6. **Pre-commit hook runs full test suite** — Don't run `cargo test --all` manually
+   before committing. The pre-commit hook does it. Run only targeted tests during
+   development (e.g., `cargo test --test ngl_all test_all_ngl_command_stream_hashes`).
+7. **Minimize BashOutput checks** — When a background command is expected to take 30+
+   seconds, don't check it every 5 seconds. Wait, then check once.
+
+### Model selection guide
+
+| Task | Model | Examples |
+|------|-------|---------|
+| File search / grep | Haiku subagent | Find OG C function, locate test fixture |
+| Read & summarize OG source | Sonnet subagent | Understand DrawRPTEND logic |
+| Simple code edits | Haiku (if available) or direct | Hash updates, import additions |
+| Port C→Rust algorithm | Opus (main) | Beam slope, spacing, slur curves |
+| Architecture decisions | Opus (main) | Module organization, API design |
+| Debug failing tests | Sonnet subagent for research, Opus for fix | |
+
 ## Module Map (mirrors OG C source files)
 
 Shared algorithm modules (used by both NGL and Notelist pipelines):
