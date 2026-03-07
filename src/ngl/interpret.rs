@@ -162,6 +162,58 @@ pub struct InterpretedScore {
     /// info=0 (FONT_THISITEMONLY) where fontInd indexes into this table.
     /// Reference: NDocAndCnfgTypes.h FONTITEM, DrawUtils.cp GetGraphicFontInfo()
     pub font_names: Vec<String>,
+
+    // === Header/footer text rendering fields ===
+    // Reference: DrawObject.cp DrawHeaderFooter() lines 60-177,
+    //            HeaderFooterDialog.cp GetHeaderFooterStrings() lines 64-118
+    /// True=use header/footer text, False=simple page number only.
+    /// Reference: NDocAndCnfgTypes.h doc->useHeaderFooter
+    pub use_header_footer: bool,
+
+    /// True=page numbers at top of page, else bottom.
+    /// Reference: NDocAndCnfgTypes.h doc->topPGN
+    pub top_pgn: bool,
+
+    /// Page number horizontal position: 1=left, 2=center, 3=right.
+    /// Reference: NDocAndCnfgTypes.h doc->hPosPGN
+    pub h_pos_pgn: u8,
+
+    /// True=page numbers alternately left and right on even/odd pages.
+    /// Reference: NDocAndCnfgTypes.h doc->alternatePGN
+    pub alternate_pgn: bool,
+
+    /// First printed page number (pages before this are not numbered).
+    /// Reference: NDocAndCnfgTypes.h doc->startPageNumber
+    pub start_page_number: i16,
+
+    /// Header template string (decoded from string pool).
+    /// Format: "leftText\x01centerText\x01rightText" with 0x01 delimiters.
+    /// '#' is the page number placeholder character.
+    /// Reference: HeaderFooterDialog.cp HEADERFOOTER_DELIM_CHAR
+    pub header_str: String,
+
+    /// Footer template string (decoded from string pool).
+    /// Same format as header_str.
+    pub footer_str: String,
+
+    /// Header/footer margins (top, left, bottom, right) in points.
+    /// Reference: NDocAndCnfgTypes.h doc->headerFooterMargins
+    pub hf_margin_top: f32,
+    pub hf_margin_left: f32,
+    pub hf_margin_bottom: f32,
+    pub hf_margin_right: f32,
+
+    /// Page header/footer font name.
+    /// Reference: NDocAndCnfgTypes.h doc->fontNamePG
+    pub pg_font_name: String,
+
+    /// Page header/footer font size (points).
+    /// Reference: NDocAndCnfgTypes.h doc->fontSizePG
+    pub pg_font_size: f32,
+
+    /// Page header/footer font style (Mac TextFace bitfield: 1=bold, 2=italic, etc.).
+    /// Reference: NDocAndCnfgTypes.h doc->fontStylePG
+    pub pg_font_style: i16,
 }
 
 /// Text style record parsed from the N105 score header.
@@ -274,6 +326,21 @@ impl InterpretedScore {
             tempo_strings: HashMap::new(),
             text_styles: Vec::new(),
             font_names: Vec::new(),
+            // Header/footer defaults
+            use_header_footer: false,
+            top_pgn: false,
+            h_pos_pgn: 2, // CENTER
+            alternate_pgn: false,
+            start_page_number: 1,
+            header_str: String::new(),
+            footer_str: String::new(),
+            hf_margin_top: 36.0,
+            hf_margin_left: 36.0,
+            hf_margin_bottom: 36.0,
+            hf_margin_right: 36.0,
+            pg_font_name: "Helvetica".to_string(),
+            pg_font_size: 10.0,
+            pg_font_style: 0,
         }
     }
 
@@ -721,6 +788,37 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                         crate::ngl::reader::mac_roman_to_string(&fi.font_name[1..1 + name_len]);
                     score.font_names.push(name);
                 }
+
+                // === Extract header/footer fields from score header ===
+                // Reference: NDocAndCnfgTypes.h, DrawObject.cp DrawHeaderFooter()
+                score.use_header_footer = hdr.use_header_footer != 0;
+                score.top_pgn = hdr.top_pgn != 0;
+                score.h_pos_pgn = hdr.h_pos_pgn;
+                score.alternate_pgn = hdr.alternate_pgn != 0;
+
+                // Decode header/footer template strings from string pool
+                if let Some(h) =
+                    crate::ngl::reader::decode_string(&ngl.string_pool, hdr.header_str_offset)
+                {
+                    score.header_str = h;
+                }
+                if let Some(f) =
+                    crate::ngl::reader::decode_string(&ngl.string_pool, hdr.footer_str_offset)
+                {
+                    score.footer_str = f;
+                }
+
+                // Extract PG font info (page header/footer/number font)
+                let pg_name_len = (hdr.font_name_pg[0] as usize).min(31);
+                if pg_name_len > 0 {
+                    score.pg_font_name = crate::ngl::reader::mac_roman_to_string(
+                        &hdr.font_name_pg[1..1 + pg_name_len],
+                    );
+                }
+                if hdr.font_size_pg > 0 {
+                    score.pg_font_size = hdr.font_size_pg as f32;
+                }
+                score.pg_font_style = hdr.font_style_pg;
             }
             Err(e) => {
                 eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
@@ -740,6 +838,14 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             score.page_height_pt = h;
         }
         score.first_page_number = hdr.first_page_number;
+        score.start_page_number = hdr.start_page_number;
+
+        // Extract header/footer margins
+        // Reference: NDocAndCnfgTypes.h doc->headerFooterMargins (Rect: top, left, bottom, right)
+        score.hf_margin_top = hdr.header_footer_margins.top as f32;
+        score.hf_margin_left = hdr.header_footer_margins.left as f32;
+        score.hf_margin_bottom = hdr.header_footer_margins.bottom as f32;
+        score.hf_margin_right = hdr.header_footer_margins.right as f32;
     }
     // On Err: defaults already set (612x792, firstPageNumber=1)
 

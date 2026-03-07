@@ -14,15 +14,134 @@ use crate::render::MusicRenderer;
 use super::draw_utils::{clef_glyph, clef_halfline_position, get_ks_y_offset};
 use super::helpers::{d2r_sum, d2r_sum3, lnspace_for_staff, TieEndpoint};
 
-/// Draw a page number at the bottom center of the page.
+/// Header/footer delimiter character (0x01).
+///
+/// Template strings use this to separate left|center|right sections.
+/// Reference: HeaderFooterDialog.cp line 46 — HEADERFOOTER_DELIM_CHAR
+const HEADERFOOTER_DELIM_CHAR: char = '\x01';
+
+/// Page number placeholder character.
+///
+/// In OG Nightingale this is loaded from a string resource (HEADERFOOTER_STRS index 3).
+/// In practice it is always '#'.
+/// Reference: HeaderFooterDialog.cp line 84-86
+const PAGE_NUM_CHAR: char = '#';
+
+/// Parse a header/footer template string into (left, center, right) sections.
+///
+/// The template format is: `leftText<0x01>centerText<0x01>rightText`.
+/// The page number placeholder '#' is replaced with the actual page number.
+///
+/// Port of HeaderFooterDialog.cp GetHeaderFooterStrings() (lines 64-118).
+fn parse_header_footer_template(template: &str, page_num: i32) -> (String, String, String) {
+    if template.is_empty() {
+        return (String::new(), String::new(), String::new());
+    }
+
+    let page_num_str = page_num.to_string();
+    let mut sections: Vec<String> = Vec::with_capacity(3);
+    let mut current = String::new();
+
+    for ch in template.chars() {
+        if ch == HEADERFOOTER_DELIM_CHAR {
+            sections.push(current);
+            current = String::new();
+        } else if ch == PAGE_NUM_CHAR {
+            // Substitute page number placeholder
+            current.push_str(&page_num_str);
+        } else {
+            current.push(ch);
+        }
+    }
+    sections.push(current);
+
+    let left = sections.first().cloned().unwrap_or_default();
+    let center = sections.get(1).cloned().unwrap_or_default();
+    let right = sections.get(2).cloned().unwrap_or_default();
+    (left, center, right)
+}
+
+/// Draw page header and footer text.
+///
+/// Port of DrawObject.cp DrawHeaderFooter() (lines 60-177).
+///
+/// Parses the header/footer template strings, handles alternating left/right
+/// positioning for even pages, and renders up to 6 text strings (3 header + 3 footer).
+///
+/// Reference: DrawObject.cp, DrawHeaderFooter(), lines 60-177
+fn draw_header_footer(score: &InterpretedScore, sheet_num: i16, renderer: &mut dyn MusicRenderer) {
+    let page_num = sheet_num as i32 + score.first_page_number as i32;
+
+    // Skip pages before startPageNumber
+    // Reference: DrawObject.cp:73 — if (pageNum < doc->startPageNumber) return;
+    if page_num < score.start_page_number as i32 {
+        return;
+    }
+
+    let font = TextFont::new(&score.pg_font_name, score.pg_font_size);
+    let font_size = score.pg_font_size;
+
+    // Parse header and footer template strings
+    // Reference: DrawObject.cp:82-90 — handles alternate page numbering
+    let (lh, ch, rh, lf, cf, rf) = if score.alternate_pgn && page_num % 2 == 0 {
+        // Even pages: swap left and right
+        let (r, c, l) = parse_header_footer_template(&score.header_str, page_num);
+        let (rf, cf2, lf) = parse_header_footer_template(&score.footer_str, page_num);
+        (l, c, r, lf, cf2, rf)
+    } else {
+        let (l, c, r) = parse_header_footer_template(&score.header_str, page_num);
+        let (lf, cf2, rf) = parse_header_footer_template(&score.footer_str, page_num);
+        (l, c, r, lf, cf2, rf)
+    };
+
+    // Vertical positions
+    // Reference: DrawObject.cp:92-98 — hypt/fypt from margins, adjusted by fontSize/2
+    let hy = score.hf_margin_top + font_size / 2.0;
+    let fy = score.page_height_pt - score.hf_margin_bottom + font_size / 2.0;
+
+    // Horizontal positions
+    let left_x = score.hf_margin_left;
+    let page_right = score.page_width_pt - score.hf_margin_right;
+
+    // Render header strings (left, center, right)
+    if !lh.is_empty() {
+        renderer.text_string(left_x, hy, &lh, &font);
+    }
+    if !ch.is_empty() {
+        // Center: we approximate centering. text_string places at baseline x;
+        // exact centering requires string width which we don't have. Use page center.
+        let cx = score.page_width_pt / 2.0;
+        renderer.text_string(cx, hy, &ch, &font);
+    }
+    if !rh.is_empty() {
+        // Right-aligned: place at right margin (renderer doesn't support right-align,
+        // so we approximate by placing near right margin — exact alignment requires
+        // string width measurement which the renderer doesn't expose yet)
+        renderer.text_string(page_right, hy, &rh, &font);
+    }
+
+    // Render footer strings (left, center, right)
+    if !lf.is_empty() {
+        renderer.text_string(left_x, fy, &lf, &font);
+    }
+    if !cf.is_empty() {
+        let cx = score.page_width_pt / 2.0;
+        renderer.text_string(cx, fy, &cf, &font);
+    }
+    if !rf.is_empty() {
+        renderer.text_string(page_right, fy, &rf, &font);
+    }
+}
+
+/// Draw a simple page number (when useHeaderFooter is false).
 ///
 /// Port of DrawObject.cp DrawPageNum() (lines 183-243).
 ///
-/// Default position: bottom center, matching OG defaults (topPGN=false, hPosPGN=CENTER).
-/// Font: 10pt Helvetica (matching typical page number convention).
+/// Respects topPGN, hPosPGN, alternatePGN, and startPageNumber flags.
+/// Font uses the PG font from the score header.
 ///
 /// Reference: DrawObject.cp, DrawPageNum(), lines 183-243
-pub fn draw_page_number(
+fn draw_page_number_simple(
     score: &InterpretedScore,
     sheet_num: i16,
     renderer: &mut dyn MusicRenderer,
@@ -31,25 +150,66 @@ pub fn draw_page_number(
     // Reference: DrawObject.cp:195 — pageNum = p->sheetNum + doc->firstPageNumber
     let page_num = sheet_num as i32 + score.first_page_number as i32;
 
-    // Skip page 1 (conventional: first page number not shown)
-    // OG checks doc->startPageNumber; we use firstPageNumber >= 1 as the threshold
-    if page_num <= 1 {
+    // Skip pages before startPageNumber
+    // Reference: DrawObject.cp:196 — if (pageNum < doc->startPageNumber) return;
+    if page_num < score.start_page_number as i32 {
         return;
     }
 
     let page_str = page_num.to_string();
+    let font_size = score.pg_font_size;
+    let font = TextFont::new(&score.pg_font_name, font_size);
 
-    // Position: bottom center of page
-    // Reference: DrawObject.cp:206-207 — ypt = origPaperRect.bottom - headerFooterMargins.bottom
-    // Default margin: 36pt (0.5 inch) from bottom
-    let margin_bottom: f32 = 36.0;
-    let font_size: f32 = 10.0;
+    // Vertical position: top or bottom
+    // Reference: DrawObject.cp:206-210
+    let y = if score.top_pgn {
+        score.hf_margin_top + font_size / 2.0
+    } else {
+        score.page_height_pt - score.hf_margin_bottom + font_size / 2.0
+    };
 
-    let x = score.page_width_pt / 2.0;
-    let y = score.page_height_pt - margin_bottom + font_size / 2.0;
+    // Horizontal position: left, center, or right
+    // Reference: DrawObject.cp:212-226
+    let mut h_pos = score.h_pos_pgn;
 
-    let font = TextFont::new("Helvetica", font_size);
+    // Handle alternating page numbers
+    // Reference: DrawObject.cp:201-203
+    if score.alternate_pgn && page_num % 2 == 0 {
+        // Even pages: swap left<->right
+        h_pos = match h_pos {
+            1 => 3, // LEFT -> RIGHT
+            3 => 1, // RIGHT -> LEFT
+            _ => h_pos,
+        };
+    }
+
+    let x = match h_pos {
+        1 => score.hf_margin_left,                        // LEFT
+        3 => score.page_width_pt - score.hf_margin_right, // RIGHT
+        _ => score.page_width_pt / 2.0,                   // CENTER (default)
+    };
+
     renderer.text_string(x, y, &page_str, &font);
+}
+
+/// Draw page number or header/footer for a PAGE object.
+///
+/// Dispatches to either draw_header_footer() or draw_page_number_simple()
+/// based on the score's useHeaderFooter flag.
+///
+/// Port of DrawObject.cp DrawPAGE() (lines 249-257).
+///
+/// Reference: DrawObject.cp, DrawPAGE(), lines 249-257
+pub fn draw_page_number(
+    score: &InterpretedScore,
+    sheet_num: i16,
+    renderer: &mut dyn MusicRenderer,
+) {
+    if score.use_header_footer {
+        draw_header_footer(score, sheet_num, renderer);
+    } else {
+        draw_page_number_simple(score, sheet_num, renderer);
+    }
 }
 
 /// Draw a Staff object (all staves in the system).
