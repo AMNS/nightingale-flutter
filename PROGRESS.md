@@ -139,7 +139,7 @@
 - [x] **Score markings**: fermata, other articulations — all 22 MODNR types implemented (MOD_FERMATA through MOD_LONG_INVMORDENT). Tremolo slashes. Fingerings (0-5) acknowledged but need text rendering. Port of DrawModNR/GetModNRInfo from DrawNRGR.cp/DrawUtils.cp.
 - [x] **Volta brackets (Endings)**: ENDING_5 parsing (32 bytes), horizontal bracket with optional left/right cutoffs, ending number labels. Port of DrawENDING from DrawObject.cp.
 - [x] **Rehearsal marks**: boxed/circled text above system — port of DrawEnclosure (DrawObject.cp:1490-1535), ENCL_BOX type with 2pt margin and 1pt frame. Only 17_capital_regiment_march affected (rehearsal marks A-F on 4 pages).
-- [ ] **Common/cut time**: C and ₵ time signatures (DrawObject.cp C_TIME/CUT_TIME special cases → SMuFL U+E08A timeSigCommon / U+E08B timeSigCutCommon). Currently renders as "4/4" text instead of the C glyph.
+- [x] **Common/cut time**: C and ₵ time signatures (DrawObject.cp C_TIME/CUT_TIME special cases → SMuFL U+E08A timeSigCommon / U+E08B timeSigCutCommon). Checks ATimeSig.header.sub_type and draws single centered glyph at half-line 4. Affects 5 fixtures: 05_abigail, 13_miss_b, 17_capital_regiment_march, tc_old_komm_heiliger_geist, tc_old_komm_heiliger_geist_qt.
 - [ ] **RPTEND** (DrawObject.cp DrawRPTEND): segno (%), coda, D.C., D.S. al fine — repeat-to-end symbols on barlines. Not rendered at all.
 - [ ] **Alias clefs** (TRTENOR_CLEF=7, BASS8B_CLEF=11): Guitar/vocal tenor clef (treble with "8" below) and bass+8 clef. Mapped to glyph but "8" sub/superscript rendering not implemented.
 - [ ] **Header/footer text** (DrawHeaderFooter, DrawObject.cp): score title, composer, copyright on page 1 header; running headers/footers on subsequent pages. Not started.
@@ -267,7 +267,7 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 |--------|-------|
 | Rust source lines | ~24,600 |
 | Rust test lines | ~5,500 |
-| Test count | 258 (257 passed + 1 ignored) |
+| Test count | 350 (346 passed + 4 ignored) |
 | Test fixture files | 17 .ngl + 41 .nl |
 | Insta snapshots | 59 |
 | Bitmap goldens | 491 (17 NGL + 41 Notelist, all pages) |

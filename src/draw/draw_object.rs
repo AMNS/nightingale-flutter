@@ -862,39 +862,58 @@ pub fn draw_timesig(
                     let lnspace =
                         lnspace_for_staff(timesig_ctx.staff_height, timesig_ctx.staff_lines);
 
-                    // Y positions: numerator at half-line 2, denominator at half-line 6
-                    let num_y = ddist_to_render(timesig_ctx.staff_top) + (2.0 * lnspace / 2.0);
-                    let denom_y = ddist_to_render(timesig_ctx.staff_top) + (6.0 * lnspace / 2.0);
+                    // Check for common time (C) or cut time (₵) — single glyph centered
+                    // on staff. Port of DrawObject.cp:1074 + DrawUtils.cp FillTimeSig().
+                    // subType is C_TIME (2) or CUT_TIME (3) from NObjTypes.h:353-355.
+                    let sub_type = atimesig.header.sub_type;
+                    if sub_type == crate::defs::C_TIME || sub_type == crate::defs::CUT_TIME {
+                        // Single glyph at half-line 4 (vertical center of 5-line staff).
+                        // SMuFL: U+E08A timeSigCommon, U+E08B timeSigCutCommon
+                        let glyph = if sub_type == crate::defs::C_TIME {
+                            0xE08A_u32
+                        } else {
+                            0xE08B_u32
+                        };
+                        let center_y =
+                            ddist_to_render(timesig_ctx.staff_top) + (4.0 * lnspace / 2.0);
+                        renderer.music_char(base_x, center_y, MusicGlyph::smufl(glyph), 100.0);
+                    } else {
+                        // N_OVER_D (or other numeric types): draw numerator/denominator digits.
+                        // Y positions: numerator at half-line 2, denominator at half-line 6
+                        let num_y = ddist_to_render(timesig_ctx.staff_top) + (2.0 * lnspace / 2.0);
+                        let denom_y =
+                            ddist_to_render(timesig_ctx.staff_top) + (6.0 * lnspace / 2.0);
 
-                    // Draw numerator digits
-                    let num_str = atimesig.numerator.to_string();
-                    let mut x_offset = 0.0;
-                    for digit_char in num_str.chars() {
-                        if let Some(digit) = digit_char.to_digit(10) {
-                            let glyph = 0xE080 + digit; // SMuFL timeSig0-9
-                            renderer.music_char(
-                                base_x + x_offset,
-                                num_y,
-                                MusicGlyph::smufl(glyph),
-                                100.0,
-                            );
-                            x_offset += lnspace * 0.8; // Space between digits
+                        // Draw numerator digits
+                        let num_str = atimesig.numerator.to_string();
+                        let mut x_offset = 0.0;
+                        for digit_char in num_str.chars() {
+                            if let Some(digit) = digit_char.to_digit(10) {
+                                let glyph = 0xE080 + digit; // SMuFL timeSig0-9
+                                renderer.music_char(
+                                    base_x + x_offset,
+                                    num_y,
+                                    MusicGlyph::smufl(glyph),
+                                    100.0,
+                                );
+                                x_offset += lnspace * 0.8; // Space between digits
+                            }
                         }
-                    }
 
-                    // Draw denominator digits
-                    x_offset = 0.0;
-                    let denom_str = atimesig.denominator.to_string();
-                    for digit_char in denom_str.chars() {
-                        if let Some(digit) = digit_char.to_digit(10) {
-                            let glyph = 0xE080 + digit;
-                            renderer.music_char(
-                                base_x + x_offset,
-                                denom_y,
-                                MusicGlyph::smufl(glyph),
-                                100.0,
-                            );
-                            x_offset += lnspace * 0.8;
+                        // Draw denominator digits
+                        x_offset = 0.0;
+                        let denom_str = atimesig.denominator.to_string();
+                        for digit_char in denom_str.chars() {
+                            if let Some(digit) = digit_char.to_digit(10) {
+                                let glyph = 0xE080 + digit;
+                                renderer.music_char(
+                                    base_x + x_offset,
+                                    denom_y,
+                                    MusicGlyph::smufl(glyph),
+                                    100.0,
+                                );
+                                x_offset += lnspace * 0.8;
+                            }
                         }
                     }
                 }
