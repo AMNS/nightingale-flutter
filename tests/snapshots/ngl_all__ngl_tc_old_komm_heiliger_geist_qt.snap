@@ -4,7 +4,7 @@ expression: summary
 ---
 === COMMAND COUNTS ===
 BarLine: 60
-Beam: 382
+Beam: 385
 BeginPage: 3
 Brace: 11
 ConnectorLine: 11
@@ -17,7 +17,7 @@ SetWidths: 1
 Slur: 62
 Staff: 33
 TextString: 2
-TOTAL: 2777
+TOTAL: 2780
 
 === STAVES ===
 y=63.0 x=[100.0..558.0] lines=5 spacing=4.00
@@ -56,7 +56,7 @@ y=489.0 x=[54.0..558.0] lines=5 spacing=4.00
 
 === BARLINES: 60 total ===
 
-=== BEAMS: 382 total ===
+=== BEAMS: 385 total ===
 
 === STEMS: 842 total ===
 

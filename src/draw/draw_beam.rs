@@ -75,6 +75,27 @@ pub fn draw_beamset(
 
     let mut points: Vec<BeamPoint> = Vec::new();
 
+    // Cross-staff beam handling (port of Beam.cp DrawBEAMSET cross-staff logic).
+    // For cross-staff beams, beamset.ext_header.staffn is the TOP staff.
+    // Notes on the bottom staff have their ystem values transformed to the top
+    // staff's coordinate system by adding heightDiff (the Y distance between
+    // the two staves' staff_top values).
+    // Reference: Beam.cp Staff2TopStaff() line 275, NoteXStfYStem() line 1332
+    let is_cross_staff = beamset.cross_staff != 0;
+    let top_staffn = beamset.ext_header.staffn;
+
+    // For cross-staff beams, compute heightDiff = bottom_staff_top - top_staff_top
+    // (in DDIST, positive because bottom staff is lower on the page = larger Y)
+    let height_diff_ddist: i16 = if is_cross_staff {
+        let bottom_staffn = top_staffn + 1; // Cross-staff always spans adjacent staves
+        match (ctx.get(top_staffn), ctx.get(bottom_staffn)) {
+            (Some(top_ctx), Some(bot_ctx)) => bot_ctx.staff_top - top_ctx.staff_top,
+            _ => 0,
+        }
+    } else {
+        0
+    };
+
     for notebeam in notebeam_list {
         // Find the Sync object for bp_sync
         let sync_obj = match score.objects.iter().find(|o| o.index == notebeam.bp_sync) {
@@ -82,8 +103,8 @@ pub fn draw_beamset(
             None => continue,
         };
 
-        // Get the staff context for this beamset
-        let staff_ctx = match ctx.get(beamset.ext_header.staffn) {
+        // Get the staff context for the top staff (beam's reference staff)
+        let staff_ctx = match ctx.get(top_staffn) {
             Some(c) => c,
             None => continue,
         };
@@ -92,13 +113,17 @@ pub fn draw_beamset(
         // In chords, multiple notes share beamed=true but only the "far" note
         // (farthest from the beam) has a meaningful ystem != yd. Prefer that note
         // so beam endpoints connect to actual stem tips.
+        //
+        // For cross-staff beams, don't filter by staffn — include notes on either
+        // staff (they share the same voice). For normal beams, filter to the beam's staff.
+        // Reference: Beam.cp DrawBEAMSET() line 1680 — GetBeamNotes collects from all staves
         if let Some(anote_list) = score.notes.get(&sync_obj.header.first_sub_obj) {
             let matching: Vec<&_> = anote_list
                 .iter()
                 .filter(|n| {
                     n.beamed
                         && n.voice == beamset.voice
-                        && n.header.staffn == beamset.ext_header.staffn
+                        && (is_cross_staff || n.header.staffn == top_staffn)
                 })
                 .collect();
             // Prefer the note with a real stem (ystem != yd); fall back to first match
@@ -118,6 +143,7 @@ pub fn draw_beamset(
                 let head_width = 1.125 * lnspace;
 
                 // X position: same calculation as in draw_sync
+                // For cross-staff notes, use top staff's measure_left (same system, same X)
                 let note_x = d2r_sum3(staff_ctx.measure_left, sync_obj.header.xd, note.xd);
                 let stem_x = if stem_down {
                     note_x
@@ -125,9 +151,22 @@ pub fn draw_beamset(
                     note_x + head_width
                 };
 
-                // Y position at stem endpoint and notehead
-                let ystem_y = d2r_sum(staff_ctx.staff_top, note.ystem);
-                let note_yd_y = d2r_sum(staff_ctx.staff_top, note.yd);
+                // Y position at stem endpoint and notehead.
+                // For cross-staff beams, transform ystem/yd to the top staff's coordinate
+                // system using Staff2TopStaff: if note is on the bottom staff, add heightDiff.
+                // Reference: Beam.cp NoteXStfYStem() line 1332, Staff2TopStaff() line 275
+                let ystem_ddist = if is_cross_staff && note.header.staffn != top_staffn {
+                    note.ystem + height_diff_ddist
+                } else {
+                    note.ystem
+                };
+                let yd_ddist = if is_cross_staff && note.header.staffn != top_staffn {
+                    note.yd + height_diff_ddist
+                } else {
+                    note.yd
+                };
+                let ystem_y = d2r_sum(staff_ctx.staff_top, ystem_ddist);
+                let note_yd_y = d2r_sum(staff_ctx.staff_top, yd_ddist);
 
                 points.push(BeamPoint {
                     x: stem_x,

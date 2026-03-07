@@ -647,7 +647,7 @@ fn test_all_ngl_command_stream_hashes() {
         ("tc_schumann_eusebius_play", 7011342597992771720),
         ("tc_schumann_reconnaissance", 17377376872017884626),
         ("tc_old_alpherqt_16", 7083497211708614460),
-        ("tc_old_debussy_images_play", 8148608601112330816),
+        ("tc_old_debussy_images_play", 17958932309158265476),
         ("tc_old_kinderszenen_13_6", 2114026258012278193),
         ("tc_old_ravel_scarbo_10", 2817145496059695337),
         ("tc_old_babbitt_guit_8", 7731324948961827629),
@@ -655,12 +655,12 @@ fn test_all_ngl_command_stream_hashes() {
         ("tc_old_berlioz_valse_qt", 7893388186603859198),
         ("tc_old_berlioz_valse_trem", 10403346062066968000),
         ("tc_old_berlioz_valse_proteus_tweaked", 12908360438553718338),
-        ("tc_old_debussy_images_play_converted", 8148608601112330816),
+        ("tc_old_debussy_images_play_converted", 17958932309158265476),
         ("tc_old_icebreaker_6", 885860635046239652),
         ("tc_old_killingme_play", 14166581994906434406),
         ("tc_old_km_play_scellpoporch", 11981550525369543220),
-        ("tc_old_komm_heiliger_geist", 14385225846025875840),
-        ("tc_old_komm_heiliger_geist_qt", 16325733270585284815),
+        ("tc_old_komm_heiliger_geist", 9804395598695334700),
+        ("tc_old_komm_heiliger_geist_qt", 17959459717791783981),
         ("tc_old_babbitt_guitar_piece", 7731324948961827629),
         ("tc_old_pm_calypso", 401985335259901711),
     ]
@@ -1001,4 +1001,74 @@ fn test_diagnostic_cross_system_slurs() {
             );
         }
     }
+}
+
+// ============================================================================
+// Diagnostic: Cross-staff notation detection
+// ============================================================================
+
+/// Scan all NGL fixtures for cross-staff notation indicators:
+/// 1. BeamSet objects with cross_staff flag set
+/// 2. Syncs where notes have different staffn values (multi-staff chords)
+/// 3. Slurs with cross_staff flag set
+#[test]
+fn diag_cross_staff_notation() {
+    use nightingale_core::ngl::interpret::ObjData;
+    use std::collections::HashSet;
+
+    println!("\n=== Cross-Staff Notation Diagnostic ===\n");
+
+    for ngl_path in ALL_NGL_FILES {
+        let name = short_name(ngl_path);
+        let ngl = NglFile::read_from_file(ngl_path).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        let mut cross_staff_beams = 0u32;
+        let mut cross_system_beams = 0u32;
+        let mut cross_staff_slurs = 0u32;
+        let mut multi_staff_syncs = 0u32;
+        let mut cross_staff_notes = 0u32;
+
+        // Check all objects
+        for obj in &score.objects {
+            match &obj.data {
+                ObjData::BeamSet(bs) => {
+                    if bs.cross_staff != 0 {
+                        cross_staff_beams += 1;
+                    }
+                    if bs.cross_system != 0 {
+                        cross_system_beams += 1;
+                    }
+                }
+                ObjData::Slur(sl) => {
+                    if sl.cross_staff != 0 {
+                        cross_staff_slurs += 1;
+                    }
+                }
+                ObjData::Sync(_) => {
+                    // Check if notes in this sync span multiple staves
+                    if let Some(notes) = score.notes.get(&obj.header.first_sub_obj) {
+                        let staffns: HashSet<i8> = notes.iter().map(|n| n.header.staffn).collect();
+                        if staffns.len() > 1 {
+                            multi_staff_syncs += 1;
+                            cross_staff_notes += notes.len() as u32;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let has_cross_staff =
+            cross_staff_beams > 0 || cross_staff_slurs > 0 || multi_staff_syncs > 0;
+
+        if has_cross_staff {
+            println!(
+                "[{}] CROSS-STAFF: beams={}, slurs={}, multi-staff syncs={} ({} notes), cross-sys beams={}",
+                name, cross_staff_beams, cross_staff_slurs,
+                multi_staff_syncs, cross_staff_notes, cross_system_beams
+            );
+        }
+    }
+    println!("\n=== End Cross-Staff Diagnostic ===");
 }

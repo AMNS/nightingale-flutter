@@ -122,7 +122,7 @@
 #### Tier 1 — High Priority (core multi-page & cross-staff engraving)
 - [x] **Cross-system slurs**: Fixed early-return bug in draw_slur() that silently dropped ALL cross-system slurs (982 across 24 fixtures). The existing endpoint computation code already handled cross-system positions correctly — the only bug was a validation at line 990 that required both note endpoints, but cross-system slur pieces always have one boundary endpoint (SYSTEM or MEASURE). Split into per-piece validation: 1st piece needs first_note, 2nd piece needs last_note. Port of GetSlurContext logic (Slurs.cp:865-980).
 - [x] **Pagination with page breaks**: NGL PAGE objects trigger begin_page/end_page in render_score(), with page-relative system_rect coordinates. Multi-page rendering fully functional: 622 golden bitmaps across 26 fixtures (up to 54 pages for 07_new_york_debutante). Page numbers rendered on pages 2+. No PageFixSysRects port needed — NGL files already store correct page-relative coordinates.
-- [ ] **Cross-staff notation**: Notes/beams drawn on a different staff than their anchor (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp). Advanced feature but needed for real piano scores.
+- [x] **Cross-staff notation**: Notes/beams drawn on a different staff than their anchor. Port of Beam.cp DrawBEAMSET cross-staff logic: compute heightDiff between adjacent staff tops, transform ystem/yd coordinates for bottom-staff notes. Notes included from all staves when beamset.cross_staff != 0. Affects 4 fixtures (debussy_images_play x2, komm_heiliger_geist x2).
 
 #### Tier 1B — Already Complete
 - [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
@@ -158,7 +158,7 @@
 - [x] **Rest rendering improvements**: added missing 32nd/64th/128th rest glyph mappings (SMuFL U+E4E8–E4EA), added pseudo-ledger lines for whole/half rests positioned outside the staff (port of DrawNRGR.cp lines 1329-1342). All rest durations breve through 128th now render correctly.
 
 #### Tier 4 — Advanced Layout
-- [ ] **Cross-staff notation**: notes/beams drawn on a different staff than they belong to (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp)
+- [x] **Cross-staff notation**: (see Tier 1 above)
 
 ### Module Refactor — COMPLETE
 Reorganized code to mirror OG Nightingale C source file organization, with shared
