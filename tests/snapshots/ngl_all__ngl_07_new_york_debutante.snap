@@ -10,6 +10,7 @@ Brace: 54
 ConnectorLine: 54
 EndPage: 54
 LedgerLine: 3222
+Line: 8
 LineHorizontalThick: 577
 MusicChar: 7360
 NoteStem: 3712
@@ -18,7 +19,7 @@ SetWidths: 1
 Slur: 254
 Staff: 432
 TextString: 1625
-TOTAL: 20515
+TOTAL: 20523
 
 === STAVES ===
 y=79.9 x=[167.0..763.0] lines=5 spacing=4.50

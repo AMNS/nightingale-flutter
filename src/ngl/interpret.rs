@@ -2055,6 +2055,27 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 }
             }
 
+            PSMEAS_TYPE => {
+                // Unpack APSMEAS subobjects (8 bytes each, same layout as ARPTEND)
+                // Source: NObjTypesN105.h APSMEAS_5
+                let mut psmeas_items = Vec::new();
+                let n_entries = obj.header.n_entries as usize;
+                for i in 0..n_entries {
+                    let sub_idx = (obj.header.first_sub_obj as usize) + i;
+                    let offset = sub_idx * sub_size;
+                    if offset + sub_size <= sub_data.len() {
+                        if let Ok(psm) = unpack_apsmeas_n105(&sub_data[offset..offset + sub_size]) {
+                            psmeas_items.push(psm);
+                        }
+                    }
+                }
+                if !psmeas_items.is_empty() {
+                    score
+                        .psmeas_subs
+                        .insert(obj.header.first_sub_obj, psmeas_items);
+                }
+            }
+
             BEAMSET_TYPE => {
                 // Unpack ANOTEBEAM subobjects
                 let mut notebeams = Vec::new();

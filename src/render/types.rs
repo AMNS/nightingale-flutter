@@ -131,6 +131,8 @@ pub enum BarLineType {
     RepeatRight,
     /// Repeat both directions (:|:).
     RepeatBoth,
+    /// Dotted bar line (PSM_DOTTED pseudo-measure).
+    Dotted,
 }
 
 /// Music glyph identifier.

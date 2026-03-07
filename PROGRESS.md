@@ -142,12 +142,12 @@
 - [x] **Common/cut time**: C and ₵ time signatures (DrawObject.cp C_TIME/CUT_TIME special cases → SMuFL U+E08A timeSigCommon / U+E08B timeSigCutCommon). Checks ATimeSig.header.sub_type and draws single centered glyph at half-line 4. Affects 5 fixtures: 05_abigail, 13_miss_b, 17_capital_regiment_march, tc_old_komm_heiliger_geist, tc_old_komm_heiliger_geist_qt.
 - [ ] **RPTEND** (DrawObject.cp DrawRPTEND): segno (%), coda, D.C., D.S. al fine — repeat-to-end symbols on barlines. Not rendered at all.
 - [x] **Alias clefs** (TREBLE8_CLEF=1, TRTENOR_CLEF=7, BASS8B_CLEF=11): Fixed 3 incorrect SMuFL glyph mappings in clef_glyph(). TREBLE8_CLEF→U+E053 (gClef8va, 8 above), TRTENOR_CLEF→U+E052 (gClef8vb, guitar/vocal 8 below), BASS8B_CLEF→U+E064 (fClef8vb, 8 below). SMuFL glyphs include the "8" indicator natively — no separate sub/superscript rendering needed. Affects 16 NGL fixtures that use TRTENOR_CLEF as default treble clef.
-- [ ] **Header/footer text** (DrawHeaderFooter, DrawObject.cp): score title, composer, copyright on page 1 header; running headers/footers on subsequent pages. Not started.
+- [x] **Header/footer text** (DrawHeaderFooter, DrawObject.cp): template parsing with 0x01 delimiters, left/center/right sections, page number substitution, even/odd alternation. Ported.
 
 #### Tier 3 — Engraving Polish
-- [ ] **Arpeggio signs** (DrawObject.cp DrawArpSign, GRArpeggio): wavy vertical lines indicating rolled chords. Not rendered.
-- [ ] **PSMEAS** (DrawObject.cp DrawPSMEAS): pseudo-measure marker used for partial measures and system overlaps. Not rendered.
-- [ ] **GRDraw** (DrawObject.cp DrawGRDraw): arbitrary line-drawing GRAPHIC type (straight lines as score annotations). Not rendered.
+- [x] **Arpeggio signs** (DrawObject.cp DrawArpSign, GRArpeggio): ARP subtype tiles arpeggio SMuFL glyph (U+E63C) vertically; NONARP draws 3-line bracket. Ported.
+- [x] **PSMEAS** (DrawObject.cp DrawPSMEAS): pseudo-measure barlines (dotted, double, final-double) with APSMEAS unpacker and BarLineType::Dotted support. Ported.
+- [x] **GRDraw** (DrawObject.cp DrawGRDraw): arbitrary line-drawing GRAPHIC type with firstObj/lastObj endpoint computation and gu_thickness scaling. Ported.
 - [x] **Grace notes**: small grace notes before principal notes — DrawGRSync rendering + Notelist G-record pipeline
 - [x] **Notehead collision avoidance**: seconds in chords — ported ArrangeChordNotes (PitchUtils.cp) to objects.rs, NoteXLoc offset in draw_nrgr.rs, ChordNoteToLeft for accidental anchoring. Multi-voice X offsets still TODO.
 - [x] **Accidental staggering**: port ArrangeNCAccs (PitchUtils.cp) → arrange_nc_accs (objects.rs)

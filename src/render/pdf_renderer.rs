@@ -744,6 +744,19 @@ impl MusicRenderer for PdfRenderer {
                 let dot_xr = x - 0.8 * line_space;
                 self.draw_repeat_dots(top_y, bottom_y, dot_xr, line_space);
             }
+            BarLineType::Dotted => {
+                // Dotted barline: dashed vertical line
+                // Reference: DrawObject.cp DrawPSMEAS() — PSM_DOTTED
+                let dash = line_space * 0.4 * self.state.scale_x;
+                self.content.set_line_width(blw);
+                self.content.set_dash_pattern([dash, dash], 0.0);
+                self.content.move_to(self.tx(x), self.ty(top_y));
+                self.content.line_to(self.tx(x), self.ty(bottom_y));
+                self.content.stroke();
+                // Reset dash pattern
+                self.content
+                    .set_dash_pattern(std::iter::empty::<f32>(), 0.0);
+            }
         }
     }
 

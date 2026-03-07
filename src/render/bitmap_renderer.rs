@@ -761,6 +761,23 @@ impl MusicRenderer for BitmapRenderer {
                 let dot_xr = x - 0.8 * line_space;
                 self.draw_repeat_dots(top_y, bottom_y, dot_xr, line_space);
             }
+            BarLineType::Dotted => {
+                // Dotted barline: draw dashes along the vertical line
+                // Reference: DrawObject.cp DrawPSMEAS() — dotted barlines
+                let dash_len = line_space * 0.4;
+                let gap_len = line_space * 0.4;
+                let mut y = top_y;
+                while y < bottom_y {
+                    let y_end = (y + dash_len).min(bottom_y);
+                    let mut pb = PathBuilder::new();
+                    pb.move_to(self.px(x), self.py(y));
+                    pb.line_to(self.px(x), self.py(y_end));
+                    if let Some(path) = pb.finish() {
+                        self.stroke_path(&path, self.pw(blw), LineCap::Butt);
+                    }
+                    y += dash_len + gap_len;
+                }
+            }
         }
     }
 

@@ -1923,6 +1923,220 @@ pub fn draw_dynamic(
     }
 }
 
+/// Draw an arpeggio or non-arpeggio sign.
+///
+/// ARP subtype: tiles the arpeggio SMuFL glyph (U+E63C, mapped from Sonata 'g')
+/// vertically over the specified height. Each glyph tile is 2 staff-spaces tall.
+///
+/// NONARP subtype: draws a 3-line bracket (top horizontal, vertical, bottom horizontal).
+/// Horizontal cutoff length = 3/4 of interline space. Line thickness = 8% of lnSpace.
+///
+/// Height is stored in `info` as SHORTQD, converted via qd2d.
+/// Sub-subtype (ARP/NONARP) is extracted from `info2` via `arpinfo(info2) >> 13`.
+///
+/// Reference: DrawObject.cp DrawArpSign() lines 1672-1718,
+///            PS_Stdio.cp PS_ArpSign() lines 1741-1751,
+///            style.h NONARP_CUTOFF_LEN line 126
+fn draw_arp_sign(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    gfx: &crate::obj_types::Graphic,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::obj_types::arpinfo;
+    use crate::render::types::{ddist_wide_to_render, MusicGlyph};
+
+    let staffn = if gfx.ext_header.staffn > 0 {
+        gfx.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute position (same as other GRAPHIC types)
+    let y_base = if staff_ctx.measure_top != 0 {
+        staff_ctx.measure_top
+    } else {
+        staff_ctx.staff_top
+    };
+    let (xd, yd) = if score.is_page_type(gfx.first_obj) {
+        (obj.header.xd as i32, obj.header.yd as i32)
+    } else {
+        let anchor_staff_left = score
+            .staff_left_at(gfx.first_obj, staffn)
+            .unwrap_or(staff_ctx.staff_left);
+        let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
+        let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+        let yd = y_base as i32 + obj.header.yd as i32;
+        (xd, yd)
+    };
+
+    // Convert height from SHORTQD to DDIST
+    // qd2d(qd, stfHt, lines) = (qd * stfHt) / (4 * (lines - 1))
+    // Reference: DrawObject.cp line 2051
+    let staff_height = staff_ctx.staff_height as i32;
+    let staff_lines = staff_ctx.staff_lines as i32;
+    let divisor = if staff_lines > 1 {
+        4 * (staff_lines - 1)
+    } else {
+        4
+    };
+    let d_height = (gfx.info as i32 * staff_height) / divisor;
+
+    // Determine sub-subtype: ARP or NONARP
+    let sub_type = arpinfo(gfx.info2);
+
+    let x = ddist_wide_to_render(xd);
+    let y = ddist_wide_to_render(yd);
+
+    // Interline space in DDIST and render coords
+    let ln_space_ddist = if staff_lines > 1 {
+        staff_height / (staff_lines - 1)
+    } else {
+        staff_height
+    };
+    let ln_space = ddist_wide_to_render(ln_space_ddist);
+
+    if sub_type == 1 {
+        // NONARP: draw 3 lines forming bracket shape
+        // Reference: DrawObject.cp lines 1692-1698
+        // NONARP_CUTOFF_LEN(lnSp) = (3 * lnSp) / 4
+        let cutoff_d = (3 * ln_space_ddist) / 4;
+        let cutoff = ddist_wide_to_render(cutoff_d);
+        let height = ddist_wide_to_render(d_height);
+
+        // nonarpThick = config.nonarpLW * lnSpace / 100 (default nonarpLW = 8)
+        let thickness = (0.08 * ln_space).max(0.3);
+
+        // Top horizontal line
+        renderer.line(x, y, x + cutoff, y, thickness);
+        // Vertical line
+        renderer.line(x, y, x, y + height, thickness);
+        // Bottom horizontal line
+        renderer.line(x, y + height, x + cutoff, y + height, thickness);
+    } else {
+        // ARP: tile the arpeggio glyph vertically
+        // Reference: PS_Stdio.cp PS_ArpSign() lines 1741-1751
+        // Sonata 'g' (0x67) = MCH_arpeggioSign -> SMuFL U+E63C (arpeggiato)
+        let glyph = MusicGlyph::smufl(0xE63C);
+
+        // charHeight = pt2d(musicPtSize)/2 — Sonata arpeggio char is 2 spaces high
+        // In practice, charHeight ≈ lnSpace (one interline space per tile)
+        let char_height = ln_space;
+        let height = ddist_wide_to_render(d_height);
+
+        if char_height <= 0.0 {
+            return;
+        }
+
+        // Tile the glyph from top to bottom
+        // PS_ArpSign passes sizePercent=100 (full size)
+        let mut y_here = 0.0;
+        while y_here < height {
+            renderer.music_char(x, y + y_here + char_height, glyph, 100.0);
+            y_here += char_height;
+        }
+    }
+}
+
+/// Draw a GRDraw (MiniDraw) line graphic — a straight line between two points.
+///
+/// The first endpoint comes from the GRAPHIC's position relative to firstObj.
+/// The second endpoint is computed from lastObj's position plus the info (x delta)
+/// and info2 (y delta) fields.
+///
+/// Line thickness is gu_thickness percent of the staff interline space.
+///
+/// Reference: DrawObject.cp DrawGRDraw() lines 1724-1784,
+///            DrawUtils.cp GetGRDrawLastDrawInfo() lines 2453-2476
+fn draw_gr_draw(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    gfx: &crate::obj_types::Graphic,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::render::types::ddist_wide_to_render;
+
+    let staffn = if gfx.ext_header.staffn > 0 {
+        gfx.ext_header.staffn
+    } else {
+        1
+    };
+    let staff_ctx = match ctx.get(staffn) {
+        Some(c) => c,
+        None => return,
+    };
+    if !staff_ctx.visible {
+        return;
+    }
+
+    // Compute first endpoint (same logic as text graphics).
+    // Reference: DrawUtils.cp GetGraphicOrTempoDrawInfo() lines 2424-2447
+    let y_base = if staff_ctx.measure_top != 0 {
+        staff_ctx.measure_top
+    } else {
+        staff_ctx.staff_top
+    };
+    let (xd1, yd1) = if score.is_page_type(gfx.first_obj) {
+        (obj.header.xd as i32, obj.header.yd as i32)
+    } else {
+        let anchor_staff_left = score
+            .staff_left_at(gfx.first_obj, staffn)
+            .unwrap_or(staff_ctx.staff_left);
+        let first_obj_sys_xd = score.sys_rel_xd(gfx.first_obj);
+        let xd = anchor_staff_left as i32 + first_obj_sys_xd + obj.header.xd as i32;
+        let yd = y_base as i32 + obj.header.yd as i32;
+        (xd, yd)
+    };
+
+    // Compute second endpoint.
+    // Reference: DrawUtils.cp GetGRDrawLastDrawInfo() lines 2453-2476
+    //
+    // If lastObj is PAGE or missing: second endpoint = first endpoint (degenerate).
+    // Otherwise: GraphicPageRelxd(graphic, lastObj) + info for X,
+    //            PageRelyd(lastObj) + info2 for Y.
+    let (xd2, yd2) = if gfx.last_obj == 0 || score.is_page_type(gfx.last_obj) {
+        (xd1, yd1)
+    } else {
+        let last_staff_left = score
+            .staff_left_at(gfx.last_obj, staffn)
+            .unwrap_or(staff_ctx.staff_left);
+        let last_sys_xd = score.sys_rel_xd(gfx.last_obj);
+        // GraphicPageRelxd = staffLeft + SysRelxd(lastObj) + graphic.xd
+        let xd = last_staff_left as i32 + last_sys_xd + obj.header.xd as i32 + gfx.info as i32;
+        // PageRelyd(lastObj) + info2 (no graphic.yd — that's only for the first endpoint)
+        let yd = y_base as i32 + gfx.info2 as i32;
+        (xd, yd)
+    };
+
+    // Compute line thickness: gu_thickness is percent of interline space.
+    // Reference: DrawObject.cp line 1745: dThick = (long)(lineLW*lnSpace) / 100L
+    let line_space = if staff_ctx.staff_lines > 1 && staff_ctx.staff_height > 0 {
+        staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1)
+    } else if staff_ctx.staff_height > 0 {
+        staff_ctx.staff_height
+    } else {
+        72 // standard LNSPACE fallback
+    };
+    let d_thick = (gfx.gu_thickness as i32 * line_space as i32) / 100;
+    let thickness = ddist_wide_to_render(d_thick).max(0.5); // Minimum 0.5pt visible line
+
+    let x0 = ddist_wide_to_render(xd1);
+    let y0 = ddist_wide_to_render(yd1);
+    let x1 = ddist_wide_to_render(xd2);
+    let y1 = ddist_wide_to_render(yd2);
+
+    renderer.line(x0, y0, x1, y1, thickness);
+}
+
 /// Draw a GRAPHIC object (text strings, lyrics, rehearsal marks, etc.).
 ///
 /// Handles GRString, GRLyric, GRRehearsal, GRChordSym subtypes by rendering
@@ -1952,13 +2166,27 @@ pub fn draw_graphic(
         _ => return,
     };
 
-    // Only handle text-based graphic types for now
+    // Handle GRDraw (line-drawing) graphics before text-based types
+    // Reference: DrawObject.cp DrawGRDraw() lines 1724-1784
+    if gfx.graphic_type as u8 == GraphicType::GrDraw as u8 {
+        draw_gr_draw(score, obj, gfx, ctx, renderer);
+        return;
+    }
+
+    // Handle GRArpeggio (arpeggio / non-arpeggio signs)
+    // Reference: DrawObject.cp DrawArpSign() lines 1672-1718
+    if gfx.graphic_type as u8 == GraphicType::GrArpeggio as u8 {
+        draw_arp_sign(score, obj, gfx, ctx, renderer);
+        return;
+    }
+
+    // Only handle text-based graphic types for the remaining path
     let gtype = match gfx.graphic_type as u8 {
         x if x == GraphicType::GrString as u8 => GraphicType::GrString,
         x if x == GraphicType::GrLyric as u8 => GraphicType::GrLyric,
         x if x == GraphicType::GrRehearsal as u8 => GraphicType::GrRehearsal,
         x if x == GraphicType::GrChordSym as u8 => GraphicType::GrChordSym,
-        _ => return, // Skip GRDraw, GRArpeggio, etc. for now
+        _ => return, // Skip remaining unimplemented types
     };
 
     // Get the resolved text string, stripping trailing control chars (DEL, NUL)
@@ -2769,6 +2997,83 @@ pub fn draw_rptend(
             }
         } else {
             d2r_sum(staff_ctx.staff_top, staff_ctx.staff_height)
+        };
+
+        let ls_render = if staff_ctx.staff_lines > 1 {
+            ddist_to_render(staff_ctx.staff_height / (staff_ctx.staff_lines as i16 - 1))
+        } else {
+            ddist_to_render(staff_ctx.staff_height)
+        };
+
+        renderer.bar_line(top_y, bottom_y, x, bar_type, ls_render);
+    }
+}
+
+/// Draw a PSMEAS (pseudo-measure) object — barline-like symbols with no rhythmic semantics.
+///
+/// Pseudo-measures are dotted barlines, double bars, or final double bars that appear
+/// at positions other than actual measure boundaries. They're G-domain only (graphical),
+/// not L-domain (logical). Drawing reuses the existing barline renderer.
+///
+/// Reference: DrawObject.cp DrawPSMEAS() lines 2964-3048
+pub fn draw_psmeas(
+    score: &InterpretedScore,
+    obj: &InterpretedObject,
+    ctx: &ContextState,
+    renderer: &mut dyn MusicRenderer,
+) {
+    use crate::ngl::interpret::ObjData;
+
+    let _psmeas = match &obj.data {
+        ObjData::PsMeas(p) => p,
+        _ => return,
+    };
+
+    let psmeas_subs = match score.psmeas_subs.get(&obj.header.first_sub_obj) {
+        Some(subs) => subs,
+        None => return,
+    };
+
+    for apsm in psmeas_subs {
+        if !apsm.header.visible {
+            continue;
+        }
+
+        let staffn = apsm.header.staffn;
+        let staff_ctx = match ctx.get(staffn) {
+            Some(c) => c,
+            None => continue,
+        };
+        if !staff_ctx.visible {
+            continue;
+        }
+
+        // X position: measureLeft + object.xd
+        // Reference: DrawObject.cp line 2992
+        let x = d2r_sum(staff_ctx.measure_left, obj.header.xd);
+
+        // Top of this staff
+        let top_y = ddist_to_render(staff_ctx.staff_top);
+
+        // Bottom: either this staff (no connection) or connected staff
+        let bottom_y = if apsm.conn_staff > 0 && !apsm.conn_above {
+            // Connected to another staff below
+            if let Some(target_ctx) = ctx.get(apsm.conn_staff) {
+                d2r_sum(target_ctx.staff_top, target_ctx.staff_height)
+            } else {
+                d2r_sum(staff_ctx.staff_top, staff_ctx.staff_height)
+            }
+        } else {
+            d2r_sum(staff_ctx.staff_top, staff_ctx.staff_height)
+        };
+
+        // Map PSM barline subType to BarLineType
+        // PSM_DOTTED=8 → Dotted, PSM_DOUBLE=9 → Double, PSM_FINALDBL=10 → FinalDouble
+        let bar_type = match apsm.header.sub_type {
+            8 => BarLineType::Dotted,
+            9 => BarLineType::Double,
+            10 => BarLineType::FinalDouble,
+            _ => BarLineType::Single,
         };
 
         let ls_render = if staff_ctx.staff_lines > 1 {

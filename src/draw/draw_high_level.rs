@@ -13,7 +13,7 @@ use super::draw_beam::draw_beamset;
 use super::draw_nrgr::{collect_slur_endpoints, collect_tie_endpoints, draw_grsync, draw_sync};
 use super::draw_object::{
     draw_clef, draw_connect, draw_dynamic, draw_ending, draw_graphic, draw_keysig, draw_measure,
-    draw_ottava, draw_page_number, draw_part_names, draw_rptend, draw_slur,
+    draw_ottava, draw_page_number, draw_part_names, draw_psmeas, draw_rptend, draw_slur,
     draw_slurs_from_endpoints, draw_staff, draw_tempo, draw_ties, draw_timesig,
 };
 use super::draw_tuplet::draw_tuplet;
@@ -157,6 +157,7 @@ pub fn render_score(score: &InterpretedScore, renderer: &mut dyn MusicRenderer) 
             ObjData::RptEnd(_) if obj.header.visible => draw_rptend(score, obj, &ctx, renderer),
             ObjData::Ottava(_) if obj.header.visible => draw_ottava(score, obj, &ctx, renderer),
             ObjData::GrSync(_) if obj.header.visible => draw_grsync(score, obj, &ctx, renderer),
+            ObjData::PsMeas(_) if obj.header.visible => draw_psmeas(score, obj, &ctx, renderer),
             _ => {}
         }
     }

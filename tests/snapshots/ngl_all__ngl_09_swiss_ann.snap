@@ -9,6 +9,7 @@ BeginPage: 35
 ConnectorLine: 35
 EndPage: 35
 LedgerLine: 607
+Line: 8
 LineHorizontalThick: 120
 MusicChar: 6077
 NoteStem: 2784
@@ -17,7 +18,7 @@ SetWidths: 1
 Slur: 495
 Staff: 280
 TextString: 1148
-TOTAL: 14087
+TOTAL: 14095
 
 === STAVES ===
 y=78.7 x=[93.0..763.0] lines=5 spacing=4.50

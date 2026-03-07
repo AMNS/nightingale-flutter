@@ -372,7 +372,49 @@ pub fn unpack_arptend_n105(data: &[u8]) -> Result<ARptEnd, String> {
     })
 }
 
-pub fn unpack_apsmeas_n105(_data: &[u8]) -> Result<APsMeas, String> {
-    // TODO: Implement full APSMEAS_5 unpacking (6 bytes, bitfields in byte 4)
-    Err("APSMEAS unpacking not yet implemented".to_string())
+/// Unpack an APSMEAS_5 subobject (8 bytes, same layout as ARPTEND_5).
+/// Source: NObjTypesN105.h APSMEAS_5 struct
+///   0-1: next (LINK)
+///   2:   staffn (SignedByte)
+///   3:   subType (SignedByte) — barline type: PSM_DOTTED=8, PSM_DOUBLE=9, PSM_FINALDBL=10
+///   4:   bitfield (selected:1 | visible:1 | soft:1 | spare:5)
+///   5:   connAbove (Boolean)
+///   6:   filler (char)
+///   7:   connStaff (SignedByte)
+pub fn unpack_apsmeas_n105(data: &[u8]) -> Result<APsMeas, String> {
+    if data.len() < 8 {
+        return Err(format!(
+            "APSMEAS_5 data too short: {} bytes (need >=8)",
+            data.len()
+        ));
+    }
+
+    let next = u16::from_be_bytes([data[0], data[1]]);
+    let staffn = data[2] as i8;
+    let sub_type = data[3] as i8;
+
+    // Byte 4: SUBOBJHEADER bitfields (selected:1 | visible:1 | soft:1 | spare:5)
+    let byte4 = data[4];
+    let selected = (byte4 & 0x80) != 0;
+    let visible = (byte4 & 0x40) != 0;
+    let soft = (byte4 & 0x20) != 0;
+
+    // Bytes 5-7: APSMEAS-specific fields
+    let conn_above = data[5] != 0;
+    let filler1 = data[6];
+    let conn_staff = data[7] as i8;
+
+    Ok(APsMeas {
+        header: crate::obj_types::SubObjHeader {
+            next,
+            staffn,
+            sub_type,
+            selected,
+            visible,
+            soft,
+        },
+        conn_above,
+        filler1,
+        conn_staff,
+    })
 }
