@@ -14,10 +14,10 @@ MusicChar: 1099
 NoteStem: 842
 SetMusicSize: 33
 SetWidths: 1
-Slur: 60
+Slur: 62
 Staff: 33
 TextString: 2
-TOTAL: 2764
+TOTAL: 2766
 
 === STAVES ===
 y=63.0 x=[100.0..558.0] lines=5 spacing=4.00
@@ -60,7 +60,7 @@ y=443.0 x=[54.0..558.0] lines=5 spacing=4.00
 
 === STEMS: 842 total ===
 
-=== SLURS: 60 total ===
+=== SLURS: 62 total ===
 
 === GLYPHS ===
 Smufl(57424): 15

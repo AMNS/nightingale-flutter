@@ -1,6 +1,5 @@
 ---
 source: tests/ngl_all.rs
-assertion_line: 463
 expression: summary
 ---
 === COMMAND COUNTS ===
@@ -18,10 +17,10 @@ MusicChar: 2952
 NoteStem: 1379
 SetMusicSize: 252
 SetWidths: 1
-Slur: 90
+Slur: 94
 Staff: 194
 TextString: 17
-TOTAL: 6567
+TOTAL: 6571
 
 === STAVES ===
 y=58.0 x=[116.0..575.0] lines=5 spacing=4.00
@@ -225,7 +224,7 @@ y=377.0 x=[45.0..576.0] lines=5 spacing=4.00
 
 === STEMS: 1379 total ===
 
-=== SLURS: 90 total ===
+=== SLURS: 94 total ===
 
 === GLYPHS ===
 Smufl(57424): 127

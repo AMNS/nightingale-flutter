@@ -120,14 +120,14 @@
 ### Next: Engraving & Layout (priority order — USER PRIORITIZED)
 
 #### Tier 1 — High Priority (core multi-page & cross-staff engraving)
-- [ ] **Cross-system slurs**: Slurs currently break at system boundaries. Need to continue slur paths across page breaks. Port continuation logic from Slurs.cp (GetSlurContext, continuation points, cross-staff slur handling). Affects all fixtures with slurs that span multiple systems.
+- [x] **Cross-system slurs**: Fixed early-return bug in draw_slur() that silently dropped ALL cross-system slurs (982 across 24 fixtures). The existing endpoint computation code already handled cross-system positions correctly — the only bug was a validation at line 990 that required both note endpoints, but cross-system slur pieces always have one boundary endpoint (SYSTEM or MEASURE). Split into per-piece validation: 1st piece needs first_note, 2nd piece needs last_note. Port of GetSlurContext logic (Slurs.cp:865-980).
 - [ ] **Pagination with page breaks**: Break systems across pages from NGL page data + layout with headers/footers. Currently page numbers work on pages 2+, but systems don't wrap across pages. Port full PageFixSysRects logic from SFormat.cp. Affects all multi-page scores (54 pages in 07_new_york_debutante, etc.).
 - [ ] **Cross-staff notation**: Notes/beams drawn on a different staff than their anchor (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp). Advanced feature but needed for real piano scores.
 
 #### Tier 1B — Already Complete
 - [x] **Clef changes**: mid-score clef objects for Notelist pipeline — detects real type changes (filters system-boundary restatements), Gourlay spacing with OG formula (0.85*STD_LINEHT*4*0.75 STDIST), 75% small clefs (SMALLSIZE macro), NGL pipeline small flag. 4 Notelist + 7 NGL files affected. New clef_change.nl fixture (all 7 clef types).
 - [x] **Tuplets**: render tuplet brackets/numbers (DrawTUPLET port from Tuplet.cp)
-- [x] **Slurs** (single-system): NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. **Cross-system slurs still TODO** (moved to Tier 1 above).
+- [x] **Slurs** (single-system + cross-system): NGL filled tapered Beziers from ASlur data; Notelist endpoint collection + IICreateAllSlurs matching + SetSlurCtlPoints. Cross-system slurs fixed (see Tier 1 above).
 - [x] **System layout / spacing improvements**: full OG Gourlay pipeline (SymWidthRight/Left, FIdealSpace, ConsiderITWidths, Respace1Bar) — duration-proportional spacing with collision avoidance
 - [x] **Ottava (8va/8vb)**: OTTAVA_5 parsing (40 bytes, bitfields, ANOTEOTTAVA subobjects), draw_ottava() with Sonata italic digit glyphs (MCH_idigits), dashed bracket (hdashed_line), vertical cutoff, alta/bassa distinction. Port of DrawOTTAVA/DrawOctBracket/GetOctTypeNum from Ottava.cp. No test fixtures contain ottavas, but code compiles and is wired into render loop.
 
@@ -197,11 +197,10 @@ modules used by both the NGL binary pipeline and Notelist text pipeline:
 - [x] Port Beam.cp GetBeamEndYStems/FixSyncInBeamset -> beam.rs (shared)
 - [x] Port Objects.cp NormalStemUpDown -> objects.rs (shared)
 - [x] Port SpaceTime.cp + SpaceHighLevel.cp -> space_time.rs: IdealSpace, SymWidthRight/Left, ConsiderITWidths, Respace1Bar (complete Gourlay pipeline)
-- [ ] Port Slurs.cp -> slur module (including cross-system/page slurs)
+- [x] Port Slurs.cp -> slur module (including cross-system/page slurs)
 - [x] Port Tuplet.cp -> tuplet rendering (DrawTUPLET/DrawPSTupletBracket)
 - [ ] Port SFormat.cp / SFormatHighLevel.cp -> format module (pagination, system layout)
 - [x] Port DrawObject.cp OTTAVA/DYNAMIC/GRAPHIC/TEMPO/ENDING sections
-- [ ] Port Slurs.cp cross-system continuation logic
 
 ## Rendering & Testing Architecture (DECIDED)
 

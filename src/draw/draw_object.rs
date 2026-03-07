@@ -985,10 +985,19 @@ pub fn draw_slur(
             None
         };
 
-        // Cross-system slurs must have both endpoints defined
-        // (Slurs.cp:881-889 shows paired pieces with matching cross_system IDs)
-        if slur.cross_system != 0 && (first_note.is_none() || last_note.is_none()) {
-            return; // Incomplete cross-system slur, skip
+        // For cross-system slurs, validate that the required note endpoint exists.
+        // 1st piece (last_is_system): needs first_note (the real note at slur start)
+        // 2nd piece (first_is_measure): needs last_note (the real note at slur end)
+        // Reference: GetSlurContext (Slurs.cp:940-967)
+        if last_is_system && first_note.is_none() {
+            return; // 1st piece but no start note — skip
+        }
+        if first_is_measure && last_note.is_none() {
+            return; // 2nd piece but no end note — skip
+        }
+        // Normal (non-cross-system) slurs need both endpoints
+        if !first_is_measure && !last_is_system && (first_note.is_none() || last_note.is_none()) {
+            return;
         }
 
         // Compute start position in DDIST (GetSlurContext, Slurs.cp:940-949)
