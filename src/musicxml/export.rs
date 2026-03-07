@@ -617,6 +617,11 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     let mut initial_time: Option<(i8, i8)> = None;
     let mut initial_clefs: Vec<(i8, u8)> = Vec::new();
 
+    // Deduplication: NGL MEASURE objects repeat at system boundaries (each
+    // system restates its barlines). Use AMeasure::measure_num to detect
+    // duplicates and skip them, avoiding bogus empty measures in the export.
+    let mut seen_logical: std::collections::HashSet<i16> = std::collections::HashSet::new();
+
     // Pre-pass: collect beam info from all BeamSet objects.
     // Maps sync_link -> (voice, staff, Vec<BeamValue>) for beam assignment.
     // We use a HashMap keyed by (sync_link, staff, voice) -> beam_levels.
@@ -689,7 +694,34 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     }
                 }
             }
-            ObjData::Measure(_) => {
+            ObjData::Measure(_meas) => {
+                // Read logical measure number from AMeasure subobjects.
+                // Each MEASURE has one AMeasure per staff; they all share the
+                // same measure_num (0-indexed logical measure number).
+                let logical = score
+                    .measures
+                    .get(&obj.header.first_sub_obj)
+                    .and_then(|subs| subs.first())
+                    .map(|am| am.measure_num)
+                    .unwrap_or(-1);
+
+                // Skip duplicate MEASURE objects at system boundaries.
+                // NGL restates barlines at the start of each system, producing
+                // multiple MEASURE objects with the same logical measure number.
+                // NOTE: Measure.fake_meas is unreliable (wrong byte offset in
+                // many files), so we rely solely on AMeasure::measure_num dedup.
+                if seen_logical.contains(&logical) {
+                    // Discard any pending attribute changes accumulated from
+                    // STAFF/CLEF/KEYSIG/TIMESIG objects at the system boundary —
+                    // these are context restatements, not real changes.
+                    pending_time_sig = None;
+                    pending_key_fifths = None;
+                    pending_clefs.clear();
+                    continue;
+                }
+
+                seen_logical.insert(logical);
+
                 // Save previous measure if we have one
                 if !is_first_measure || !current_notes.is_empty() {
                     // For the first real measure, restore initial attributes
@@ -801,8 +833,8 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
         }
     }
 
-    // Flush last measure
-    if !current_notes.is_empty() || measure_num > 0 {
+    // Flush last measure (only if it has notes — avoid trailing empty measure)
+    if !current_notes.is_empty() {
         let key = if is_first_measure {
             initial_key.or(pending_key_fifths)
         } else {
@@ -1370,5 +1402,58 @@ mod tests {
         std::fs::write(&out_path, &xml).unwrap();
         eprintln!("Wrote {}", out_path.display());
         assert!(xml.contains("<score-partwise"));
+    }
+
+    #[test]
+    fn export_no_bogus_empty_measures() {
+        // Verify that system-boundary MEASURE deduplication works:
+        // me_and_lucy has 80 unique barline objects (logical 0..79) but 102
+        // MEASURE objects (22 duplicated at system boundaries). After dedup,
+        // collect_measure_data should produce 79 measures of content (the
+        // region between consecutive barlines; the 80th barline is the
+        // terminal barline with no notes after it).
+        let data = std::fs::read("tests/fixtures/01_me_and_lucy.ngl").unwrap();
+        let ngl = NglFile::read_from_bytes(&data).unwrap();
+        let score = interpret_heap(&ngl).unwrap();
+
+        let measures = collect_measure_data(&score);
+
+        // 80 barlines → 79 measures of content
+        assert_eq!(
+            measures.len(),
+            79,
+            "Expected 79 measures after dedup, got {}",
+            measures.len()
+        );
+
+        // No measure should be empty (no notes)
+        let empty: Vec<_> = measures
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.notes.is_empty())
+            .collect();
+        assert!(
+            empty.is_empty(),
+            "Found {} empty measures: {:?}",
+            empty.len(),
+            empty
+                .iter()
+                .map(|(i, m)| (*i, m.measure_num))
+                .collect::<Vec<_>>()
+        );
+
+        // The XML should have exactly 79 <measure> elements per part
+        let xml = export_musicxml(&score);
+        let measure_count = xml.matches("<measure number=").count();
+        let part_count = xml.matches("<part id=").count();
+        assert!(part_count > 0, "Should have at least one part");
+        assert_eq!(
+            measure_count,
+            79 * part_count,
+            "Expected 79 measures × {} parts = {}, got {}",
+            part_count,
+            79 * part_count,
+            measure_count
+        );
     }
 }
