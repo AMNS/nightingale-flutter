@@ -121,7 +121,7 @@
 
 #### Tier 1 — High Priority (core multi-page & cross-staff engraving)
 - [x] **Cross-system slurs**: Fixed early-return bug in draw_slur() that silently dropped ALL cross-system slurs (982 across 24 fixtures). The existing endpoint computation code already handled cross-system positions correctly — the only bug was a validation at line 990 that required both note endpoints, but cross-system slur pieces always have one boundary endpoint (SYSTEM or MEASURE). Split into per-piece validation: 1st piece needs first_note, 2nd piece needs last_note. Port of GetSlurContext logic (Slurs.cp:865-980).
-- [ ] **Pagination with page breaks**: Break systems across pages from NGL page data + layout with headers/footers. Currently page numbers work on pages 2+, but systems don't wrap across pages. Port full PageFixSysRects logic from SFormat.cp. Affects all multi-page scores (54 pages in 07_new_york_debutante, etc.).
+- [x] **Pagination with page breaks**: NGL PAGE objects trigger begin_page/end_page in render_score(), with page-relative system_rect coordinates. Multi-page rendering fully functional: 622 golden bitmaps across 26 fixtures (up to 54 pages for 07_new_york_debutante). Page numbers rendered on pages 2+. No PageFixSysRects port needed — NGL files already store correct page-relative coordinates.
 - [ ] **Cross-staff notation**: Notes/beams drawn on a different staff than their anchor (OG uses staffn vs voice assignment to handle piano cross-staff beaming, arpeggios across staves, etc. — port relevant logic from DrawNRGR.cp and Beam.cp). Advanced feature but needed for real piano scores.
 
 #### Tier 1B — Already Complete
@@ -141,7 +141,7 @@
 - [x] **Rehearsal marks**: boxed/circled text above system — port of DrawEnclosure (DrawObject.cp:1490-1535), ENCL_BOX type with 2pt margin and 1pt frame. Only 17_capital_regiment_march affected (rehearsal marks A-F on 4 pages).
 - [x] **Common/cut time**: C and ₵ time signatures (DrawObject.cp C_TIME/CUT_TIME special cases → SMuFL U+E08A timeSigCommon / U+E08B timeSigCutCommon). Checks ATimeSig.header.sub_type and draws single centered glyph at half-line 4. Affects 5 fixtures: 05_abigail, 13_miss_b, 17_capital_regiment_march, tc_old_komm_heiliger_geist, tc_old_komm_heiliger_geist_qt.
 - [ ] **RPTEND** (DrawObject.cp DrawRPTEND): segno (%), coda, D.C., D.S. al fine — repeat-to-end symbols on barlines. Not rendered at all.
-- [ ] **Alias clefs** (TRTENOR_CLEF=7, BASS8B_CLEF=11): Guitar/vocal tenor clef (treble with "8" below) and bass+8 clef. Mapped to glyph but "8" sub/superscript rendering not implemented.
+- [x] **Alias clefs** (TREBLE8_CLEF=1, TRTENOR_CLEF=7, BASS8B_CLEF=11): Fixed 3 incorrect SMuFL glyph mappings in clef_glyph(). TREBLE8_CLEF→U+E053 (gClef8va, 8 above), TRTENOR_CLEF→U+E052 (gClef8vb, guitar/vocal 8 below), BASS8B_CLEF→U+E064 (fClef8vb, 8 below). SMuFL glyphs include the "8" indicator natively — no separate sub/superscript rendering needed. Affects 16 NGL fixtures that use TRTENOR_CLEF as default treble clef.
 - [ ] **Header/footer text** (DrawHeaderFooter, DrawObject.cp): score title, composer, copyright on page 1 header; running headers/footers on subsequent pages. Not started.
 
 #### Tier 3 — Engraving Polish

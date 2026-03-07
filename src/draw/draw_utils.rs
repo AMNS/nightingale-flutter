@@ -196,11 +196,15 @@ pub fn accidental_glyph(accident_code: u8) -> Option<u32> {
 ///   5=MZSOPRANO_CLEF, 6=ALTO_CLEF, 7=TRTENOR_CLEF, 8=TENOR_CLEF,
 ///   9=BARITONE_CLEF, 10=BASS_CLEF, 11=BASS8B_CLEF, 12=PERC_CLEF
 pub fn clef_glyph(clef_type: i8) -> u32 {
+    // SMuFL G-clef variants: U+E050=gClef, U+E052=gClef8vb, U+E053=gClef8va
+    // SMuFL F-clef variants: U+E062=fClef, U+E064=fClef8vb
     match clef_type {
-        1 => 0xE052,                 // TREBLE8_CLEF  -> gClef8vb
-        3 | 7 => 0xE050,             // TREBLE_CLEF / TRTENOR_CLEF -> gClef
+        1 => 0xE053,                 // TREBLE8_CLEF  -> gClef8va (8 above)
+        3 => 0xE050,                 // TREBLE_CLEF   -> gClef
+        7 => 0xE052,                 // TRTENOR_CLEF  -> gClef8vb (8 below, guitar/vocal)
         4 | 5 | 6 | 8 | 9 => 0xE05C, // SOPRANO..BARITONE -> cClef
-        10 | 11 => 0xE062,           // BASS_CLEF / BASS8B_CLEF -> fClef
+        10 => 0xE062,                // BASS_CLEF     -> fClef
+        11 => 0xE064,                // BASS8B_CLEF   -> fClef8vb (8 below)
         12 => 0xE069,                // PERC_CLEF -> unpitchedPercussionClef1
         _ => 0xE050,                 // Default to treble
     }

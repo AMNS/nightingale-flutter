@@ -590,7 +590,7 @@ fn test_all_notelists_command_stream_hashes() {
         ("tied_notes", 5170243110835216819),
         ("time_sig_changes", 12307992197342096187),
         ("tuplet_quintuplet", 6719131022706571495),
-        ("tuplet_triplet", 6516028886314834505),
+        ("tuplet_triplet", 6335273855618946962),
         ("two_voices", 13132951348610945034),
         ("Webern_Op5N3_22", 7927140725214539465),
         ("whole_notes", 203519566342081697),
