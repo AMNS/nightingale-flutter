@@ -2631,7 +2631,9 @@ fn build_score(
                     in_chord: ne.chord,
                     rest: ne.rest,
                     unpitched: false,
-                    beamed: !ne.beam_levels.is_empty(),
+                    // Only mark the first note in a chord as beamed (the "far" note with visible stem).
+                    // Other chord members should not be marked beamed even if they have beam data.
+                    beamed: !ne.beam_levels.is_empty() && !ne.chord,
                     other_stem_side: false,
                     yqpit,
                     xd: 0,
