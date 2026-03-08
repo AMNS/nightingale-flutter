@@ -26,9 +26,10 @@ use crate::defs::{
 use crate::layout::{layout_score, LayoutConfig};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
-    AClef, AConnect, AKeySig, AMeasure, ANote, ANoteBeam, ANoteTuple, AStaff, ATimeSig, BeamSet,
-    Clef, Connect, Dynamic, ExtObjHeader, GrSync, Header, KeySig, Measure, ObjectHeader, Page,
-    PartInfo, Staff, SubObjHeader, System, Tail, TimeSig, Tuplet, SHOW_ALL_LINES,
+    AClef, AConnect, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteTuple, AStaff, ATimeSig,
+    BeamSet, Clef, Connect, Dynamic, Ending, ExtObjHeader, GrSync, Header, KeySig, Measure,
+    ObjectHeader, Ottava, Page, PartInfo, RptEnd, Staff, SubObjHeader, System, Tail, Tempo,
+    TimeSig, Tuplet, SHOW_ALL_LINES,
 };
 use crate::objects::{normal_stem_up_down_single, setup_ks_info, VoiceRole};
 use crate::pitch_utils::{clef_middle_c_half_ln, half_ln_to_yd};
@@ -113,6 +114,8 @@ struct XmlNote {
     tuplet_start: bool,
     /// True if this note has <tuplet type="stop">.
     tuplet_stop: bool,
+    /// Articulation/ornament modifier codes (NGL ModCode values).
+    mod_codes: Vec<u8>,
 }
 
 /// Parsed attributes from a MusicXML `<attributes>` element.
@@ -143,6 +146,52 @@ struct XmlDynamic {
     staff: i32,
 }
 
+/// A tempo marking parsed from MusicXML `<direction><metronome>/<words>/<sound>`.
+#[derive(Debug, Clone)]
+struct XmlTempo {
+    /// Beat unit as l_dur code (4=quarter, 3=half, etc.).
+    sub_type: i8,
+    /// True if beat unit has a dot.
+    dotted: bool,
+    /// BPM (from per-minute or sound tempo attribute).
+    tempo_mm: i16,
+    /// Verbal text (e.g. "Allegro") from `<words>`.
+    words: String,
+    /// Staff number.
+    staff: i32,
+}
+
+/// A volta ending mark from MusicXML `<barline><ending>`.
+#[derive(Debug, Clone)]
+struct XmlEnding {
+    /// Ending number (1, 2, etc.).
+    number: u8,
+    /// "start", "stop", or "discontinue".
+    ending_type: String,
+    /// Measure number where this ending mark occurs (reserved for future use).
+    #[allow(dead_code)]
+    measure_num: i32,
+}
+
+/// A repeat barline from MusicXML `<barline><repeat>`.
+#[derive(Debug, Clone)]
+struct XmlRepeat {
+    /// "forward" or "backward".
+    direction: String,
+    /// Measure number (reserved for future use).
+    #[allow(dead_code)]
+    measure_num: i32,
+}
+
+/// An ottava (octave shift) from MusicXML `<direction><octave-shift>`.
+#[derive(Debug, Clone)]
+struct XmlOttava {
+    /// OttavaType code: 1=8va, 2=15ma, 4=8vb, 5=15mb, 0=stop.
+    oct_type: u8,
+    /// Staff number.
+    staff: i32,
+}
+
 /// An element within a MusicXML measure.
 #[derive(Debug, Clone)]
 enum XmlMeasureElement {
@@ -150,6 +199,10 @@ enum XmlMeasureElement {
     Note(XmlNote),
     Direction(XmlDirection),
     DynamicMarking(XmlDynamic),
+    TempoMark(XmlTempo),
+    EndingMark(XmlEnding),
+    RepeatBarline(XmlRepeat),
+    OttavaMark(XmlOttava),
 }
 
 /// A parsed MusicXML measure.
@@ -386,6 +439,19 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
     let mut current_direction_staff: i32 = 1;
     // State for parsing <beam number="N"> elements inside <note>
     let mut current_beam_number: i32 = 0;
+    // State for parsing <direction> tempo marks
+    let mut current_tempo_words: String = String::new();
+    let mut current_tempo_beat_unit: String = String::new();
+    let mut current_tempo_beat_dots: bool = false;
+    let mut current_tempo_per_minute: i32 = 0;
+    let mut current_tempo_sound: i32 = 0;
+    // State for parsing <direction><octave-shift>
+    let mut current_ottava_type: Option<u8> = None;
+    // State for parsing <barline> elements
+    let mut in_barline: bool = false;
+    let mut current_barline_ending_num: Option<u8> = None;
+    let mut current_barline_ending_type: String = String::new();
+    let mut current_barline_repeat_dir: Option<String> = None;
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -444,12 +510,25 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             tuplet_normal: 0,
                             tuplet_start: false,
                             tuplet_stop: false,
+                            mod_codes: Vec::new(),
                         });
                     }
                     "direction" => {
                         // Reset direction state for a new <direction> element.
                         current_dynamic_type = None;
                         current_direction_staff = 1;
+                        current_tempo_words.clear();
+                        current_tempo_beat_unit.clear();
+                        current_tempo_beat_dots = false;
+                        current_tempo_per_minute = 0;
+                        current_tempo_sound = 0;
+                        current_ottava_type = None;
+                    }
+                    "barline" => {
+                        in_barline = true;
+                        current_barline_ending_num = None;
+                        current_barline_ending_type.clear();
+                        current_barline_repeat_dir = None;
                     }
                     "clef" => {
                         current_clef_num = attr_str(e, "number").parse::<i32>().unwrap_or(1);
@@ -487,6 +566,11 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                     "beam" => {
                         current_beam_number = attr_str(e, "number").parse::<i32>().unwrap_or(1);
                     }
+                    // <ending> inside <barline> may have content: <ending number="1" type="start">1.</ending>
+                    "ending" if in_barline => {
+                        current_barline_ending_num = attr_str(e, "number").parse().ok();
+                        current_barline_ending_type = attr_str(e, "type");
+                    }
                     _ => {}
                 }
                 path.push(tag);
@@ -518,6 +602,51 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             "stop" => note.tuplet_stop = true,
                             _ => {}
                         },
+                        // Articulations inside <notations><articulations>
+                        "staccato" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(14); // ModStaccato
+                        }
+                        "accent" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(12); // ModAccent
+                        }
+                        "strong-accent" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(13); // ModHeavyAccent
+                        }
+                        "staccatissimo" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(15); // ModWedge (staccatissimo)
+                        }
+                        "tenuto" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(16); // ModTenuto
+                        }
+                        "fermata" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(10); // ModFermata
+                        }
+                        // Ornaments inside <notations><ornaments>
+                        "trill-mark" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(11); // ModTrill
+                        }
+                        "mordent" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(17); // ModMordent
+                        }
+                        "inverted-mordent" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(18); // ModInvMordent
+                        }
+                        "turn" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(19); // ModTurn
+                        }
+                        // Technical marks
+                        "up-bow" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(22); // ModUpbow
+                        }
+                        "down-bow" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(23); // ModDownbow
+                        }
+                        "harmonic" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(21); // ModCircle
+                        }
+                        "snap-pizzicato" | "pluck" if path.iter().any(|p| p == "notations") => {
+                            note.mod_codes.push(20); // ModPlus
+                        }
                         _ => {}
                     }
                 }
@@ -547,6 +676,38 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                     if let Some(d) = dtype {
                         current_dynamic_type = Some(d);
                     }
+                }
+                // <repeat direction="forward|backward"/> inside <barline>
+                if tag == "repeat" && in_barline {
+                    current_barline_repeat_dir = Some(attr_str(e, "direction"));
+                }
+                // <ending number="N" type="start|stop"/> inside <barline> (self-closing form)
+                if tag == "ending" && in_barline && current_barline_ending_num.is_none() {
+                    current_barline_ending_num = attr_str(e, "number").parse().ok();
+                    current_barline_ending_type = attr_str(e, "type");
+                }
+                // <octave-shift type="up|down|stop" size="8|15"/> inside <direction>
+                if tag == "octave-shift" && path.iter().any(|p| p == "direction") {
+                    let shift_type = attr_str(e, "type");
+                    let size = attr_str(e, "size").parse::<i32>().unwrap_or(8);
+                    current_ottava_type = Some(match (shift_type.as_str(), size) {
+                        ("down", 8) => 1,  // Ottava8va (sounds higher)
+                        ("down", 15) => 2, // Ottava15ma
+                        ("up", 8) => 4,    // Ottava8vaBassa (sounds lower)
+                        ("up", 15) => 5,   // Ottava15maBassa
+                        ("stop", _) => 0,  // stop marker
+                        _ => 0,
+                    });
+                }
+                // <sound tempo="N"/> inside <direction>
+                if tag == "sound" && path.iter().any(|p| p == "direction") {
+                    if let Ok(t) = attr_str(e, "tempo").parse::<i32>() {
+                        current_tempo_sound = t;
+                    }
+                }
+                // <beat-unit-dot/> inside <metronome>
+                if tag == "beat-unit-dot" && path.iter().any(|p| p == "metronome") {
+                    current_tempo_beat_dots = true;
                 }
             }
 
@@ -682,6 +843,24 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             n.beam_levels[idx] = text;
                         }
                     }
+                    // Tempo text inside <direction><direction-type><words>
+                    "words" if path.iter().any(|p| p == "direction") => {
+                        if current_tempo_words.is_empty() {
+                            current_tempo_words = text;
+                        } else {
+                            // Concatenate multiple <words> in the same <direction>
+                            current_tempo_words.push(' ');
+                            current_tempo_words.push_str(&text);
+                        }
+                    }
+                    // Metronome beat unit inside <metronome><beat-unit>
+                    "beat-unit" if path.iter().any(|p| p == "metronome") => {
+                        current_tempo_beat_unit = text;
+                    }
+                    // Metronome BPM inside <metronome><per-minute>
+                    "per-minute" if path.iter().any(|p| p == "metronome") => {
+                        current_tempo_per_minute = text.parse().unwrap_or(0);
+                    }
                     _ => {}
                 }
             }
@@ -743,6 +922,61 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                                     }));
                             }
                         }
+                        // Flush tempo mark if we collected metronome or sound tempo or words.
+                        let has_tempo = current_tempo_per_minute > 0
+                            || current_tempo_sound > 0
+                            || !current_tempo_words.is_empty();
+                        if has_tempo {
+                            let bpm = if current_tempo_per_minute > 0 {
+                                current_tempo_per_minute
+                            } else {
+                                current_tempo_sound
+                            };
+                            let sub_type = type_to_l_dur(if current_tempo_beat_unit.is_empty() {
+                                "quarter"
+                            } else {
+                                &current_tempo_beat_unit
+                            });
+                            if let Some(ref mut meas) = current_measure {
+                                meas.elements.push(XmlMeasureElement::TempoMark(XmlTempo {
+                                    sub_type,
+                                    dotted: current_tempo_beat_dots,
+                                    tempo_mm: bpm as i16,
+                                    words: current_tempo_words.clone(),
+                                    staff: current_direction_staff,
+                                }));
+                            }
+                        }
+                        // Flush ottava mark.
+                        if let Some(oct_type) = current_ottava_type.take() {
+                            if let Some(ref mut meas) = current_measure {
+                                meas.elements.push(XmlMeasureElement::OttavaMark(XmlOttava {
+                                    oct_type,
+                                    staff: current_direction_staff,
+                                }));
+                            }
+                        }
+                    }
+                    "barline" => {
+                        if let Some(ref mut meas) = current_measure {
+                            // Flush ending mark.
+                            if let Some(num) = current_barline_ending_num {
+                                meas.elements.push(XmlMeasureElement::EndingMark(XmlEnding {
+                                    number: num,
+                                    ending_type: current_barline_ending_type.clone(),
+                                    measure_num: meas.number,
+                                }));
+                            }
+                            // Flush repeat barline.
+                            if let Some(ref dir) = current_barline_repeat_dir {
+                                meas.elements
+                                    .push(XmlMeasureElement::RepeatBarline(XmlRepeat {
+                                        direction: dir.clone(),
+                                        measure_num: meas.number,
+                                    }));
+                            }
+                        }
+                        in_barline = false;
                     }
                     _ => {}
                 }
@@ -931,11 +1165,17 @@ fn build_score(
         tuplet_stop: bool,
         /// True if this note is a grace note.
         is_grace: bool,
+        /// Articulation/ornament modifier codes (NGL ModCode values).
+        mod_codes: Vec<u8>,
     }
 
     let mut all_notes: Vec<NoteEntry> = Vec::new();
     // Collected dynamics: (measure_num, global_staff, dynamic_type).
     let mut collected_dynamics: Vec<(i32, i8, u8)> = Vec::new();
+    let mut collected_tempos: Vec<(i32, i8, XmlTempo)> = Vec::new();
+    let mut collected_endings: Vec<XmlEnding> = Vec::new();
+    let mut collected_repeats: Vec<XmlRepeat> = Vec::new();
+    let mut collected_ottavas: Vec<(i32, i8, XmlOttava)> = Vec::new();
     let num_measures = parts.iter().map(|p| p.measures.len()).max().unwrap_or(0);
 
     // Track mid-score attribute changes per measure (key, time, clefs).
@@ -1057,6 +1297,7 @@ fn build_score(
                             tuplet_start: note.tuplet_start,
                             tuplet_stop: note.tuplet_stop,
                             is_grace: note.grace,
+                            mod_codes: note.mod_codes.clone(),
                         });
 
                         if !note.chord && !note.grace {
@@ -1077,6 +1318,20 @@ fn build_score(
                     XmlMeasureElement::DynamicMarking(dyn_mark) => {
                         let global_staff = psi.first_staff + dyn_mark.staff as i8 - 1;
                         collected_dynamics.push((meas.number, global_staff, dyn_mark.dynamic_type));
+                    }
+                    XmlMeasureElement::TempoMark(tempo) => {
+                        let global_staff = psi.first_staff + tempo.staff as i8 - 1;
+                        collected_tempos.push((meas.number, global_staff, tempo.clone()));
+                    }
+                    XmlMeasureElement::EndingMark(ending) => {
+                        collected_endings.push(ending.clone());
+                    }
+                    XmlMeasureElement::RepeatBarline(repeat) => {
+                        collected_repeats.push(repeat.clone());
+                    }
+                    XmlMeasureElement::OttavaMark(ottava) => {
+                        let global_staff = psi.first_staff + ottava.staff as i8 - 1;
+                        collected_ottavas.push((meas.number, global_staff, ottava.clone()));
                     }
                 }
             }
@@ -1933,6 +2188,37 @@ fn build_score(
             }
             next_sub_link += notes_at_time.len() as Link;
 
+            // Allocate AModNr sub-objects for notes with articulations/ornaments
+            for (ni, ne) in notes_at_time.iter().enumerate() {
+                if ne.mod_codes.is_empty() {
+                    continue;
+                }
+                let mod_sub_link = alloc_sub(&mut next_sub_link);
+                let mut mod_subs: Vec<AModNr> = Vec::new();
+                for (mi, &mc) in ne.mod_codes.iter().enumerate() {
+                    mod_subs.push(AModNr {
+                        next: if mi + 1 < ne.mod_codes.len() {
+                            mod_sub_link + (mi + 1) as Link
+                        } else {
+                            NILINK
+                        },
+                        selected: false,
+                        visible: true,
+                        soft: false,
+                        xstd: 0,
+                        mod_code: mc,
+                        data: 0,
+                        ystdpit: 0,
+                    });
+                }
+                // alloc_sub already consumed 1 link; consume the rest for multi-mod notes
+                if ne.mod_codes.len() > 1 {
+                    next_sub_link += (ne.mod_codes.len() - 1) as Link;
+                }
+                note_subs[ni].first_mod = mod_sub_link;
+                score.modnrs.insert(mod_sub_link, mod_subs);
+            }
+
             let sync_link = push_obj(
                 &mut objects,
                 InterpretedObject {
@@ -2456,6 +2742,166 @@ fn build_score(
         score.dynamics.insert(dsub_link, vec![adyn]);
         objects[prev_link as usize].header.right = dlink;
         prev_link = dlink;
+    }
+
+    // ---- 9f. TEMPO OBJECTS ----
+    // Create Tempo objects from collected tempo marks.
+    // Tempo data lives directly in ObjData::Tempo; verbal/metronome strings in tempo_strings.
+    for (_measure_num, global_staff, tempo) in &collected_tempos {
+        let tempo_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 20, // TEMPO_TYPE
+                    left: prev_link,
+                    n_entries: 0,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::Tempo(Tempo {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader {
+                        staffn: *global_staff,
+                    },
+                    sub_type: tempo.sub_type,
+                    expanded: false,
+                    no_mm: tempo.tempo_mm == 0,
+                    filler: 0,
+                    dotted: tempo.dotted,
+                    hide_mm: tempo.tempo_mm == 0,
+                    tempo_mm: tempo.tempo_mm,
+                    str_offset: 0, // placeholder — verbal text stored in tempo_strings
+                    first_obj_l: NILINK,
+                    metro_str_offset: 0, // placeholder — metro text in tempo_strings
+                }),
+            },
+        );
+        // Store verbal and metronome strings in the score's tempo_strings map.
+        let metro_str = if tempo.tempo_mm > 0 {
+            tempo.tempo_mm.to_string()
+        } else {
+            String::new()
+        };
+        score
+            .tempo_strings
+            .insert(tempo_link, (tempo.words.clone(), metro_str));
+        objects[prev_link as usize].header.right = tempo_link;
+        prev_link = tempo_link;
+    }
+
+    // ---- 9g. ENDING (VOLTA) OBJECTS ----
+    // Create Ending objects from collected volta endings.
+    for ending in &collected_endings {
+        let ending_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 22, // ENDING_TYPE
+                    left: prev_link,
+                    n_entries: 0,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::Ending(Ending {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn: 1 },
+                    first_obj_l: NILINK,
+                    last_obj_l: NILINK,
+                    no_l_cutoff: if ending.ending_type == "start" { 0 } else { 1 },
+                    no_r_cutoff: if ending.ending_type == "stop"
+                        || ending.ending_type == "discontinue"
+                    {
+                        0
+                    } else {
+                        1
+                    },
+                    end_num: ending.number,
+                    endxd: 0,
+                }),
+            },
+        );
+        objects[prev_link as usize].header.right = ending_link;
+        prev_link = ending_link;
+    }
+
+    // ---- 9h. RPTEND (REPEAT BARLINE) OBJECTS ----
+    // Create RptEnd objects from collected repeat barlines.
+    for repeat in &collected_repeats {
+        let rpt_sub_type: i8 = match repeat.direction.as_str() {
+            "forward" => 5,  // RptL
+            "backward" => 6, // RptR
+            _ => 6,          // default to backward
+        };
+        let rpt_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 3, // RPTEND_TYPE
+                    left: prev_link,
+                    n_entries: 0,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::RptEnd(RptEnd {
+                    header: ObjectHeader::default(),
+                    first_obj: NILINK,
+                    start_rpt: NILINK,
+                    end_rpt: NILINK,
+                    sub_type: rpt_sub_type,
+                    count: 2, // default repeat count
+                }),
+            },
+        );
+        objects[prev_link as usize].header.right = rpt_link;
+        prev_link = rpt_link;
+    }
+
+    // ---- 9i. OTTAVA OBJECTS ----
+    // Create Ottava objects from collected octave shift markings.
+    for (_measure_num, global_staff, ottava) in &collected_ottavas {
+        let ottava_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 16, // OTTAVA_TYPE
+                    left: prev_link,
+                    n_entries: 0,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::Ottava(Ottava {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader {
+                        staffn: *global_staff,
+                    },
+                    no_cutoff: 0,
+                    cross_staff: 0,
+                    cross_system: 0,
+                    oct_sign_type: ottava.oct_type,
+                    filler: 0,
+                    number_vis: true,
+                    unused1: false,
+                    brack_vis: true,
+                    unused2: false,
+                    nxd: 0,
+                    nyd: 0,
+                    xd_first: 0,
+                    yd_first: 0,
+                    xd_last: 0,
+                    yd_last: 0,
+                }),
+            },
+        );
+        objects[prev_link as usize].header.right = ottava_link;
+        prev_link = ottava_link;
     }
 
     // ---- 10. TAIL ----
