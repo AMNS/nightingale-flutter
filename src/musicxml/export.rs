@@ -2,7 +2,9 @@
 //
 // Walks the NGL object list and produces a valid MusicXML file.
 // Handles: parts, measures, notes/rests, clefs, key signatures,
-// time signatures, ties, dots, chords, dynamics, tempo markings.
+// time signatures, ties, dots, chords, dynamics, tempo markings,
+// tuplets, grace notes, hairpins, tempo marks, volta endings,
+// repeat barlines, ottava (8va/8vb).
 //
 // Ported from: icebox/src/musicxml/export.rs (new functionality, no C++ equivalent).
 
@@ -13,7 +15,7 @@ use std::io::Cursor;
 use crate::basic_types::{KsItem, Link};
 use crate::defs::*;
 use crate::ngl::interpret::*;
-use crate::obj_types::PartInfo;
+use crate::obj_types::{OttavaType, PartInfo, RptEndType};
 
 /// PDUR ticks per quarter note (used as MusicXML divisions).
 const DIVISIONS: i32 = 480;
@@ -288,6 +290,20 @@ impl BeamValue {
 }
 
 // ============================================================
+// Tuplet position within a tuplet group
+// ============================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TupletPos {
+    /// First note of tuplet — gets <tuplet type="start">
+    Start,
+    /// Middle note(s) of tuplet — no <tuplet> element
+    Middle,
+    /// Last note of tuplet — gets <tuplet type="stop">
+    Stop,
+}
+
+// ============================================================
 // Note event for intermediate representation
 // ============================================================
 
@@ -312,6 +328,16 @@ struct NoteEvent {
     /// Duration in PDUR ticks (computed).
     #[allow(dead_code)]
     duration: i32,
+    /// True if this note is part of a tuplet group.
+    in_tuplet: bool,
+    /// Tuplet actual notes (e.g. 3 for triplet = "3 in the time of 2").
+    tuplet_actual: u8,
+    /// Tuplet normal notes (e.g. 2 for triplet).
+    tuplet_normal: u8,
+    /// Position within the tuplet (start/middle/stop).
+    tuplet_pos: Option<TupletPos>,
+    /// True if this is a grace note.
+    is_grace: bool,
 }
 
 // ============================================================
@@ -483,6 +509,77 @@ struct DynamicEvent {
     time_stamp: u16,
 }
 
+/// A hairpin (wedge) event collected during score walk.
+#[derive(Debug, Clone)]
+struct HairpinEvent {
+    /// "crescendo" or "diminuendo"
+    wedge_type: &'static str,
+    /// Staff number this hairpin applies to.
+    staff: i8,
+    /// Approximate timestamp (from nearest preceding sync).
+    #[allow(dead_code)]
+    time_stamp: u16,
+}
+
+/// A tempo marking collected during score walk.
+#[derive(Debug, Clone)]
+struct TempoEvent {
+    /// Staff number this tempo applies to.
+    staff: i8,
+    /// Verbal tempo text (e.g., "Allegro").
+    text: String,
+    /// Metronome BPM (0 if hidden).
+    bpm: i16,
+    /// Beat unit duration code (same as l_dur).
+    beat_unit: i8,
+    /// Whether beat unit is dotted.
+    dotted: bool,
+    /// Whether the metronome mark should be shown.
+    show_mm: bool,
+}
+
+/// A volta ending event collected during score walk.
+#[derive(Debug, Clone)]
+struct EndingEvent {
+    /// Ending number (1, 2, etc.).
+    number: u8,
+    /// "start" or "stop".
+    end_type: &'static str,
+    /// Staff number.
+    #[allow(dead_code)]
+    staff: i8,
+}
+
+/// An ottava event collected during score walk.
+#[derive(Debug, Clone)]
+struct OttavaEvent {
+    /// Staff number.
+    staff: i8,
+    /// Octave shift size (8 or 15).
+    size: u8,
+    /// "up" or "down" for start, "stop" for stop.
+    shift_type: String,
+    /// Approximate timestamp.
+    #[allow(dead_code)]
+    time_stamp: u16,
+}
+
+/// Barline info for a measure (repeat barlines).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BarlineInfo {
+    /// Standard barline (no special barline element needed).
+    Normal,
+    /// Repeat backward (:|)
+    RepeatBackward,
+    /// Repeat forward (|:)
+    RepeatForward,
+    /// Repeat both (:|:) — emit as end-repeat then start-repeat.
+    RepeatBoth,
+    /// Final barline (light-heavy).
+    #[allow(dead_code)]
+    Final,
+}
+
 /// Data for one measure in the score.
 struct MeasureData {
     measure_num: i32,
@@ -497,6 +594,16 @@ struct MeasureData {
     /// Is this the first measure?
     #[allow(dead_code)]
     is_first: bool,
+    /// Hairpin (wedge) events in this measure.
+    hairpins: Vec<HairpinEvent>,
+    /// Tempo markings in this measure.
+    tempos: Vec<TempoEvent>,
+    /// Volta endings starting or stopping in this measure.
+    endings: Vec<EndingEvent>,
+    /// Ottava events in this measure.
+    ottavas: Vec<OttavaEvent>,
+    /// Barline type at end of this measure.
+    barline: BarlineInfo,
 }
 
 /// Compute MusicXML beam levels for each note in a beam group.
@@ -605,6 +712,11 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     let mut measures: Vec<MeasureData> = Vec::new();
     let mut current_notes: Vec<NoteEvent> = Vec::new();
     let mut current_dynamics: Vec<DynamicEvent> = Vec::new();
+    let mut current_hairpins: Vec<HairpinEvent> = Vec::new();
+    let mut current_tempos: Vec<TempoEvent> = Vec::new();
+    let mut current_endings: Vec<EndingEvent> = Vec::new();
+    let mut current_ottavas: Vec<OttavaEvent> = Vec::new();
+    let mut current_barline = BarlineInfo::Normal;
     let mut pending_time_sig: Option<(i8, i8)> = None;
     let mut pending_key_fifths: Option<i32> = None;
     let mut pending_clefs: Vec<(i8, u8)> = Vec::new();
@@ -627,29 +739,56 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
     // We use a HashMap keyed by (sync_link, staff, voice) -> beam_levels.
     let mut beam_map: std::collections::HashMap<(Link, i8, i8), Vec<BeamValue>> =
         std::collections::HashMap::new();
+    // Grace note beam map (separate because grace notes go through GrSync).
+    let mut grace_beam_map: std::collections::HashMap<(Link, i8, i8), Vec<BeamValue>> =
+        std::collections::HashMap::new();
+
+    // Pre-pass: collect tuplet info from all Tuplet objects.
+    // Maps sync_link -> (acc_num, acc_denom, TupletPos) for tuplet annotation.
+    let mut tuplet_map: std::collections::HashMap<Link, (u8, u8, TupletPos)> =
+        std::collections::HashMap::new();
 
     for obj in score.walk() {
-        if let ObjData::BeamSet(beamset) = &obj.data {
-            if beamset.grace != 0 {
-                continue; // Skip grace note beams for now
-            }
-            if let Some(notebeams) = score.notebeams.get(&obj.header.first_sub_obj) {
-                // Collect ordered list of (startend, fracs, frac_go_left) per note in beam
-                let beam_note_infos: Vec<(i8, u8, u8)> = notebeams
-                    .iter()
-                    .map(|nb| (nb.startend, nb.fracs, nb.frac_go_left))
-                    .collect();
+        match &obj.data {
+            ObjData::BeamSet(beamset) => {
+                let target_map = if beamset.grace != 0 {
+                    &mut grace_beam_map
+                } else {
+                    &mut beam_map
+                };
+                if let Some(notebeams) = score.notebeams.get(&obj.header.first_sub_obj) {
+                    let beam_note_infos: Vec<(i8, u8, u8)> = notebeams
+                        .iter()
+                        .map(|nb| (nb.startend, nb.fracs, nb.frac_go_left))
+                        .collect();
 
-                let beam_levels = compute_beam_levels(&beam_note_infos);
+                    let beam_levels = compute_beam_levels(&beam_note_infos);
 
-                // Assign beam levels to each sync in the beam group
-                for (i, nb) in notebeams.iter().enumerate() {
-                    if i < beam_levels.len() && !beam_levels[i].is_empty() {
-                        let key = (nb.bp_sync, beamset.ext_header.staffn, beamset.voice);
-                        beam_map.insert(key, beam_levels[i].clone());
+                    for (i, nb) in notebeams.iter().enumerate() {
+                        if i < beam_levels.len() && !beam_levels[i].is_empty() {
+                            let key = (nb.bp_sync, beamset.ext_header.staffn, beamset.voice);
+                            target_map.insert(key, beam_levels[i].clone());
+                        }
                     }
                 }
             }
+            ObjData::Tuplet(tuplet) => {
+                // Map each sync in the tuplet to its tuplet info.
+                if let Some(tup_subs) = score.tuplets.get(&obj.header.first_sub_obj) {
+                    let n = tup_subs.len();
+                    for (i, sub) in tup_subs.iter().enumerate() {
+                        let pos = if i == 0 {
+                            TupletPos::Start
+                        } else if i == n - 1 {
+                            TupletPos::Stop
+                        } else {
+                            TupletPos::Middle
+                        };
+                        tuplet_map.insert(sub.tp_sync, (tuplet.acc_num, tuplet.acc_denom, pos));
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -751,6 +890,11 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         key_fifths: key,
                         clefs,
                         is_first: is_first_measure,
+                        hairpins: std::mem::take(&mut current_hairpins),
+                        tempos: std::mem::take(&mut current_tempos),
+                        endings: std::mem::take(&mut current_endings),
+                        ottavas: std::mem::take(&mut current_ottavas),
+                        barline: std::mem::replace(&mut current_barline, BarlineInfo::Normal),
                     });
                     is_first_measure = false;
                 } else if is_first_measure {
@@ -764,20 +908,31 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                 measure_num += 1;
             }
             ObjData::Dynamic(dyn_obj) => {
-                // Collect text dynamics (not hairpins) as direction events.
+                // Collect text dynamics and hairpins.
                 let dtype = dyn_obj.dynamic_type as u8;
                 if (1..=23).contains(&dtype) {
                     if let Some(subs) = score.dynamics.get(&obj.header.first_sub_obj) {
                         for adyn in subs {
-                            // Use timestamp 0 — dynamic objects don't carry their own
-                            // timestamp; they're positioned relative to their firstSyncL.
-                            // We'll use the last seen sync timestamp as approximation.
                             let ts = current_notes.last().map(|n| n.time_stamp).unwrap_or(0);
-                            current_dynamics.push(DynamicEvent {
-                                dynamic_type: dtype,
-                                staff: adyn.header.staffn,
-                                time_stamp: ts,
-                            });
+                            // Hairpins (wedges) go to a separate list
+                            if dtype == DIM_DYNAM || dtype == CRESC_DYNAM {
+                                let wedge_type = if dtype == CRESC_DYNAM {
+                                    "crescendo"
+                                } else {
+                                    "diminuendo"
+                                };
+                                current_hairpins.push(HairpinEvent {
+                                    wedge_type,
+                                    staff: adyn.header.staffn,
+                                    time_stamp: ts,
+                                });
+                            } else {
+                                current_dynamics.push(DynamicEvent {
+                                    dynamic_type: dtype,
+                                    staff: adyn.header.staffn,
+                                    time_stamp: ts,
+                                });
+                            }
                         }
                     }
                 }
@@ -786,6 +941,10 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                 // Access note subobjects from the HashMap
                 let notes = score.get_notes(obj.header.first_sub_obj);
                 let sync_link = obj.index as Link;
+
+                // Look up tuplet info for this sync from the pre-pass.
+                let tup_info = tuplet_map.get(&sync_link).copied();
+
                 for note in &notes {
                     // In the current API:
                     // - l_dur is stored in note.header.sub_type (i8)
@@ -826,8 +985,109 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         slurred_r: note.slurred_r,
                         beam_levels,
                         duration,
+                        in_tuplet: tup_info.is_some(),
+                        tuplet_actual: tup_info.map(|(a, _, _)| a).unwrap_or(0),
+                        tuplet_normal: tup_info.map(|(_, n, _)| n).unwrap_or(0),
+                        tuplet_pos: tup_info.map(|(_, _, p)| p),
+                        is_grace: false,
                     });
                 }
+            }
+            ObjData::GrSync(_) => {
+                // Grace notes — produce NoteEvents with is_grace=true and zero duration.
+                let notes = score
+                    .grnotes
+                    .get(&obj.header.first_sub_obj)
+                    .cloned()
+                    .unwrap_or_default();
+                let sync_link = obj.index as Link;
+                let ts = current_notes.last().map(|n| n.time_stamp).unwrap_or(0);
+                for note in &notes {
+                    let beam_key = (sync_link, note.header.staffn, note.voice);
+                    let beam_levels = grace_beam_map.get(&beam_key).cloned().unwrap_or_default();
+
+                    current_notes.push(NoteEvent {
+                        time_stamp: ts,
+                        staff: note.header.staffn,
+                        voice: note.voice,
+                        note_num: note.note_num,
+                        l_dur: note.header.sub_type,
+                        ndots: note.ndots,
+                        rest: false,
+                        accident: note.accident,
+                        in_chord: note.in_chord,
+                        tied_l: note.tied_l,
+                        tied_r: note.tied_r,
+                        slurred_l: note.slurred_l,
+                        slurred_r: note.slurred_r,
+                        beam_levels,
+                        duration: 0, // Grace notes have zero duration
+                        in_tuplet: false,
+                        tuplet_actual: 0,
+                        tuplet_normal: 0,
+                        tuplet_pos: None,
+                        is_grace: true,
+                    });
+                }
+            }
+            ObjData::Tempo(tempo) => {
+                // Collect tempo markings.
+                let (verbal, _metro) = score
+                    .tempo_strings
+                    .get(&(obj.index as Link))
+                    .cloned()
+                    .unwrap_or_default();
+                let ts = current_notes.last().map(|n| n.time_stamp).unwrap_or(0);
+                current_tempos.push(TempoEvent {
+                    staff: tempo.ext_header.staffn,
+                    text: verbal,
+                    bpm: tempo.tempo_mm,
+                    beat_unit: tempo.sub_type,
+                    dotted: tempo.dotted,
+                    show_mm: !tempo.hide_mm,
+                });
+                let _ = ts; // timestamp captured implicitly by measure position
+            }
+            ObjData::Ending(ending) => {
+                // Collect volta endings.
+                if ending.end_num > 0 {
+                    current_endings.push(EndingEvent {
+                        number: ending.end_num,
+                        end_type: "start",
+                        staff: ending.ext_header.staffn,
+                    });
+                }
+            }
+            ObjData::RptEnd(rptend) => {
+                // Map repeat barline types to BarlineInfo.
+                match rptend.sub_type {
+                    x if x == RptEndType::RptL as i8 => {
+                        current_barline = BarlineInfo::RepeatForward;
+                    }
+                    x if x == RptEndType::RptR as i8 => {
+                        current_barline = BarlineInfo::RepeatBackward;
+                    }
+                    x if x == RptEndType::RptLr as i8 => {
+                        current_barline = BarlineInfo::RepeatBoth;
+                    }
+                    _ => {} // DC/DS/Segno subtypes — not barlines
+                }
+            }
+            ObjData::Ottava(ottava) => {
+                let ts = current_notes.last().map(|n| n.time_stamp).unwrap_or(0);
+                let (size, shift_type) = match ottava.oct_sign_type {
+                    x if x == OttavaType::Ottava8va as u8 => (8u8, "up"),
+                    x if x == OttavaType::Ottava15ma as u8 => (15u8, "up"),
+                    x if x == OttavaType::Ottava8vaBassa as u8 => (8u8, "down"),
+                    x if x == OttavaType::Ottava15maBassa as u8 => (15u8, "down"),
+                    _ => (8u8, "up"),
+                };
+                current_ottavas.push(OttavaEvent {
+                    staff: ottava.ext_header.staffn,
+                    size,
+                    shift_type: shift_type.to_string(),
+                    time_stamp: ts,
+                });
             }
             _ => {}
         }
@@ -860,6 +1120,11 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
             key_fifths: key,
             clefs,
             is_first: is_first_measure,
+            hairpins: current_hairpins,
+            tempos: current_tempos,
+            endings: current_endings,
+            ottavas: current_ottavas,
+            barline: current_barline,
         });
     }
 
@@ -965,6 +1230,60 @@ fn write_part_measures(
             ctx.attrs_dirty = false;
         }
 
+        // Write tempo markings as <direction> elements.
+        // DTD requires at least one <direction-type> inside <direction>.
+        // When text is empty and metronome is hidden, emit a metronome
+        // direction-type anyway if bpm > 0; otherwise skip the direction.
+        for tempo_ev in &mdata.tempos {
+            if tempo_ev.staff >= part.first_staff && tempo_ev.staff <= part.last_staff {
+                let has_text = !tempo_ev.text.is_empty();
+                let has_metronome = tempo_ev.bpm > 0;
+
+                // Must have at least one direction-type to be DTD-valid
+                if !has_text && !has_metronome {
+                    continue;
+                }
+
+                let mut dir = BytesStart::new("direction");
+                dir.push_attribute(("placement", "above"));
+                let _ = w.write_event(Event::Start(dir));
+
+                // Verbal tempo text (e.g., "Allegro")
+                if has_text {
+                    let _ = w.write_event(Event::Start(BytesStart::new("direction-type")));
+                    write_simple_element(w, "words", &tempo_ev.text);
+                    let _ = w.write_event(Event::End(BytesEnd::new("direction-type")));
+                }
+
+                // Metronome mark — emit when shown, or as fallback direction-type
+                // when text is empty (to satisfy DTD direction-type+ requirement)
+                if has_metronome && (tempo_ev.show_mm || !has_text) {
+                    let _ = w.write_event(Event::Start(BytesStart::new("direction-type")));
+                    let _ = w.write_event(Event::Start(BytesStart::new("metronome")));
+                    let beat_type = l_dur_to_type(tempo_ev.beat_unit);
+                    write_simple_element(w, "beat-unit", beat_type);
+                    if tempo_ev.dotted {
+                        write_empty_element(w, "beat-unit-dot");
+                    }
+                    write_simple_element(w, "per-minute", &tempo_ev.bpm.to_string());
+                    let _ = w.write_event(Event::End(BytesEnd::new("metronome")));
+                    let _ = w.write_event(Event::End(BytesEnd::new("direction-type")));
+                }
+
+                if n_part_staves > 1 {
+                    let staff_in_part = tempo_ev.staff - part.first_staff + 1;
+                    write_simple_element(w, "staff", &staff_in_part.to_string());
+                }
+                // Sound element with tempo
+                if has_metronome {
+                    let mut sound = BytesStart::new("sound");
+                    sound.push_attribute(("tempo", tempo_ev.bpm.to_string().as_str()));
+                    let _ = w.write_event(Event::Empty(sound));
+                }
+                let _ = w.write_event(Event::End(BytesEnd::new("direction")));
+            }
+        }
+
         // Write dynamics as <direction> elements for this part's staves
         for dyn_ev in &mdata.dynamics {
             if dyn_ev.staff >= part.first_staff && dyn_ev.staff <= part.last_staff {
@@ -981,6 +1300,41 @@ fn write_part_measures(
                     }
                     let _ = w.write_event(Event::End(BytesEnd::new("direction")));
                 }
+            }
+        }
+
+        // Write hairpins (wedges) as <direction> elements
+        for hp in &mdata.hairpins {
+            if hp.staff >= part.first_staff && hp.staff <= part.last_staff {
+                let _ = w.write_event(Event::Start(BytesStart::new("direction")));
+                let _ = w.write_event(Event::Start(BytesStart::new("direction-type")));
+                let mut wedge = BytesStart::new("wedge");
+                wedge.push_attribute(("type", hp.wedge_type));
+                let _ = w.write_event(Event::Empty(wedge));
+                let _ = w.write_event(Event::End(BytesEnd::new("direction-type")));
+                if n_part_staves > 1 {
+                    let staff_in_part = hp.staff - part.first_staff + 1;
+                    write_simple_element(w, "staff", &staff_in_part.to_string());
+                }
+                let _ = w.write_event(Event::End(BytesEnd::new("direction")));
+            }
+        }
+
+        // Write ottava (octave shift) as <direction> elements
+        for ott in &mdata.ottavas {
+            if ott.staff >= part.first_staff && ott.staff <= part.last_staff {
+                let _ = w.write_event(Event::Start(BytesStart::new("direction")));
+                let _ = w.write_event(Event::Start(BytesStart::new("direction-type")));
+                let mut oct_shift = BytesStart::new("octave-shift");
+                oct_shift.push_attribute(("type", ott.shift_type.as_str()));
+                oct_shift.push_attribute(("size", ott.size.to_string().as_str()));
+                let _ = w.write_event(Event::Empty(oct_shift));
+                let _ = w.write_event(Event::End(BytesEnd::new("direction-type")));
+                if n_part_staves > 1 {
+                    let staff_in_part = ott.staff - part.first_staff + 1;
+                    write_simple_element(w, "staff", &staff_in_part.to_string());
+                }
+                let _ = w.write_event(Event::End(BytesEnd::new("direction")));
             }
         }
 
@@ -1006,6 +1360,70 @@ fn write_part_measures(
 
         // Group by (staff-within-part, voice) and sort by timestamp
         write_measure_notes(w, &part_notes, part, n_part_staves, &ctx);
+
+        // Write volta endings as <barline><ending> elements
+        for ending_ev in &mdata.endings {
+            let _ = w.write_event(Event::Start(BytesStart::new("barline")));
+            let mut ending_elem = BytesStart::new("ending");
+            ending_elem.push_attribute(("number", ending_ev.number.to_string().as_str()));
+            ending_elem.push_attribute(("type", ending_ev.end_type));
+            let _ = w.write_event(Event::Empty(ending_elem));
+            let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+        }
+
+        // Write repeat barlines
+        if mdata.barline != BarlineInfo::Normal {
+            match mdata.barline {
+                BarlineInfo::RepeatBackward => {
+                    let mut bl = BytesStart::new("barline");
+                    bl.push_attribute(("location", "right"));
+                    let _ = w.write_event(Event::Start(bl));
+                    write_simple_element(w, "bar-style", "light-heavy");
+                    let mut repeat = BytesStart::new("repeat");
+                    repeat.push_attribute(("direction", "backward"));
+                    let _ = w.write_event(Event::Empty(repeat));
+                    let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+                }
+                BarlineInfo::RepeatForward => {
+                    let mut bl = BytesStart::new("barline");
+                    bl.push_attribute(("location", "left"));
+                    let _ = w.write_event(Event::Start(bl));
+                    write_simple_element(w, "bar-style", "heavy-light");
+                    let mut repeat = BytesStart::new("repeat");
+                    repeat.push_attribute(("direction", "forward"));
+                    let _ = w.write_event(Event::Empty(repeat));
+                    let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+                }
+                BarlineInfo::RepeatBoth => {
+                    // End-repeat on right
+                    let mut bl = BytesStart::new("barline");
+                    bl.push_attribute(("location", "right"));
+                    let _ = w.write_event(Event::Start(bl));
+                    write_simple_element(w, "bar-style", "light-heavy");
+                    let mut repeat = BytesStart::new("repeat");
+                    repeat.push_attribute(("direction", "backward"));
+                    let _ = w.write_event(Event::Empty(repeat));
+                    let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+                    // Start-repeat on left
+                    let mut bl2 = BytesStart::new("barline");
+                    bl2.push_attribute(("location", "left"));
+                    let _ = w.write_event(Event::Start(bl2));
+                    write_simple_element(w, "bar-style", "heavy-light");
+                    let mut repeat2 = BytesStart::new("repeat");
+                    repeat2.push_attribute(("direction", "forward"));
+                    let _ = w.write_event(Event::Empty(repeat2));
+                    let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+                }
+                BarlineInfo::Final => {
+                    let mut bl = BytesStart::new("barline");
+                    bl.push_attribute(("location", "right"));
+                    let _ = w.write_event(Event::Start(bl));
+                    write_simple_element(w, "bar-style", "light-heavy");
+                    let _ = w.write_event(Event::End(BytesEnd::new("barline")));
+                }
+                BarlineInfo::Normal => {}
+            }
+        }
 
         let _ = w.write_event(Event::End(BytesEnd::new("measure")));
     }
@@ -1084,11 +1502,16 @@ fn write_measure_notes(
             // Write note
             let _ = w.write_event(Event::Start(BytesStart::new("note")));
 
+            // Grace note: emit <grace/> before pitch (MusicXML DTD order)
+            if note.is_grace {
+                write_empty_element(w, "grace");
+            }
+
             // Chord: emit <chord/> for any note sharing a timestamp with the previous note.
             // In MusicXML, <chord/> means "same onset time" -- this is broader than NGL's
             // in_chord flag which indicates stem-sharing. Two notes at the same timestamp
             // in the same voice are always a chord in MusicXML, regardless of NGL flags.
-            let is_xml_chord = prev_timestamp == Some(note.time_stamp);
+            let is_xml_chord = prev_timestamp == Some(note.time_stamp) && !note.is_grace;
             if is_xml_chord {
                 write_empty_element(w, "chord");
             }
@@ -1106,10 +1529,12 @@ fn write_measure_notes(
                 let _ = w.write_event(Event::End(BytesEnd::new("pitch")));
             }
 
-            // Duration: use the notated duration from l_dur + ndots.
+            // Duration: grace notes have no <duration> element.
+            // For regular notes, use the notated duration from l_dur + ndots.
             // For WHOLEMR rests, use the full measure duration.
-            // This ensures time accounting matches the visual notation.
-            let effective_dur = if note.l_dur == WHOLEMR_L_DUR {
+            let effective_dur = if note.is_grace {
+                0
+            } else if note.l_dur == WHOLEMR_L_DUR {
                 measure_dur
             } else {
                 let visual_dur = dur_to_ticks(note.l_dur, note.ndots);
@@ -1117,7 +1542,9 @@ fn write_measure_notes(
                 let remaining = measure_dur - note_time;
                 visual_dur.min(remaining.max(1))
             };
-            write_simple_element(w, "duration", &effective_dur.to_string());
+            if !note.is_grace {
+                write_simple_element(w, "duration", &effective_dur.to_string());
+            }
 
             // Ties
             if note.tied_l {
@@ -1146,7 +1573,7 @@ fn write_measure_notes(
                 write_empty_element(w, "dot");
             }
 
-            // Accidental — DTD order: type, dot*, accidental?, ..., staff?, beam*
+            // Accidental — DTD order: type, dot*, accidental?, time-modification?, ...
             if !note.rest && note.accident != 0 {
                 let acc_text = match note.accident {
                     AC_DBLFLAT => "flat-flat",
@@ -1159,6 +1586,16 @@ fn write_measure_notes(
                 if !acc_text.is_empty() {
                     write_simple_element(w, "accidental", acc_text);
                 }
+            }
+
+            // Time modification for tuplets
+            // MusicXML: <time-modification><actual-notes>3</actual-notes>
+            //           <normal-notes>2</normal-notes></time-modification>
+            if note.in_tuplet && note.tuplet_actual > 0 {
+                let _ = w.write_event(Event::Start(BytesStart::new("time-modification")));
+                write_simple_element(w, "actual-notes", &note.tuplet_actual.to_string());
+                write_simple_element(w, "normal-notes", &note.tuplet_normal.to_string());
+                let _ = w.write_event(Event::End(BytesEnd::new("time-modification")));
             }
 
             // Staff (for multi-staff parts) — must come before <beam>
@@ -1178,8 +1615,14 @@ fn write_measure_notes(
                 }
             }
 
-            // Notations (ties, slurs)
-            let has_notations = note.tied_l || note.tied_r || note.slurred_l || note.slurred_r;
+            // Notations (ties, slurs, tuplets)
+            let has_tuplet_notation = note.tuplet_pos == Some(TupletPos::Start)
+                || note.tuplet_pos == Some(TupletPos::Stop);
+            let has_notations = note.tied_l
+                || note.tied_r
+                || note.slurred_l
+                || note.slurred_r
+                || has_tuplet_notation;
             if has_notations {
                 let _ = w.write_event(Event::Start(BytesStart::new("notations")));
                 if note.tied_l {
@@ -1204,6 +1647,22 @@ fn write_measure_notes(
                     slur.push_attribute(("type", "start"));
                     let _ = w.write_event(Event::Empty(slur));
                 }
+                // Tuplet notation (start/stop bracket)
+                if let Some(tpos) = note.tuplet_pos {
+                    match tpos {
+                        TupletPos::Start => {
+                            let mut tup = BytesStart::new("tuplet");
+                            tup.push_attribute(("type", "start"));
+                            let _ = w.write_event(Event::Empty(tup));
+                        }
+                        TupletPos::Stop => {
+                            let mut tup = BytesStart::new("tuplet");
+                            tup.push_attribute(("type", "stop"));
+                            let _ = w.write_event(Event::Empty(tup));
+                        }
+                        TupletPos::Middle => {} // No notation for middle notes
+                    }
+                }
                 let _ = w.write_event(Event::End(BytesEnd::new("notations")));
             }
 
@@ -1211,11 +1670,14 @@ fn write_measure_notes(
 
             // Advance time: only the first note at a timestamp advances the cursor.
             // Chord notes (same timestamp as previous) don't advance.
-            if prev_timestamp != Some(note.time_stamp) {
+            // Grace notes don't advance time.
+            if !note.is_grace && prev_timestamp != Some(note.time_stamp) {
                 current_time = note_time + effective_dur;
             }
 
-            prev_timestamp = Some(note.time_stamp);
+            if !note.is_grace {
+                prev_timestamp = Some(note.time_stamp);
+            }
         }
 
         // Pad voice to fill the full measure duration.
