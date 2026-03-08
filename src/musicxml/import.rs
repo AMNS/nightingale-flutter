@@ -1559,6 +1559,76 @@ fn build_score(
         link
     }
 
+    /// Create a GRAPHIC (text) object and insert it into the object list.
+    ///
+    /// Handles sub-object allocation, AGraphic creation, insertion into
+    /// `score.graphics` / `score.graphic_strings`, and wiring the left link.
+    /// Returns the Link of the newly created object.
+    #[allow(clippy::too_many_arguments)]
+    fn create_graphic_text(
+        objects: &mut Vec<InterpretedObject>,
+        score: &mut InterpretedScore,
+        next_sub_link: &mut Link,
+        left_link: Link,
+        anchor_link: Link, // first_obj: PAGE for page-relative, SYNC for note-relative
+        xd: i16,
+        yd: i16,
+        staffn: i8,
+        graphic_type: i8,
+        justify: u8,
+        font_size: u8,
+        font_style: i16,
+        text: String,
+    ) -> Link {
+        let gsub_link = alloc_sub(next_sub_link);
+        let agraphic = AGraphic {
+            next: NILINK,
+            str_offset: 0,
+        };
+        let link = push_obj(
+            objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 15, // GRAPHIC_TYPE
+                    left: left_link,
+                    first_sub_obj: gsub_link,
+                    n_entries: 1,
+                    visible: true,
+                    valid: true,
+                    xd,
+                    yd,
+                    ..Default::default()
+                },
+                data: ObjData::Graphic(Graphic {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn },
+                    graphic_type,
+                    voice: 0,
+                    enclosure: 0,
+                    justify,
+                    v_constrain: false,
+                    h_constrain: false,
+                    multi_line: 0,
+                    info: 0,
+                    gu_handle: 0,
+                    gu_thickness: 0,
+                    font_ind: 0,
+                    rel_f_size: 0,
+                    font_size,
+                    font_style,
+                    info2: 0,
+                    first_obj: anchor_link,
+                    last_obj: NILINK,
+                }),
+            },
+        );
+        score.graphics.insert(gsub_link, vec![agraphic]);
+        score.graphic_strings.insert(gsub_link, text);
+        objects[left_link as usize].header.right = link;
+        link
+    }
+
     /// Create a BeamSet object from a completed beam group and insert into the object list.
     /// The group contains (sync_link, beam_levels) pairs for each note in the beam.
     fn flush_beam_group(
@@ -1774,114 +1844,43 @@ fn build_score(
     let mut prev_credit_link = page_link;
 
     if !credits.title.is_empty() {
-        let gsub_link = alloc_sub(&mut next_sub_link);
-        let agraphic = AGraphic {
-            next: NILINK,
-            str_offset: 0,
-        };
         // Title: centered, 18pt bold, ~36pt from top of page
-        // Page-relative: xd/yd are absolute DDIST coords.
-        // Page center = 612pt / 2 = 306pt = 4896 DDIST
         let page_center_xd: i16 = (score.page_width_pt * 16.0 / 2.0) as i16;
-        let title_link = push_obj(
+        prev_credit_link = create_graphic_text(
             &mut objects,
-            InterpretedObject {
-                index: 0,
-                header: ObjectHeader {
-                    obj_type: 15, // GRAPHIC_TYPE
-                    left: prev_credit_link,
-                    first_sub_obj: gsub_link,
-                    n_entries: 1,
-                    visible: true,
-                    valid: true,
-                    xd: page_center_xd, // page center for centering
-                    yd: 576,            // 36pt from top
-                    ..Default::default()
-                },
-                data: ObjData::Graphic(Graphic {
-                    header: ObjectHeader::default(),
-                    ext_header: ExtObjHeader { staffn: 0 },
-                    graphic_type: GraphicType::GrString as i8,
-                    voice: 0,
-                    enclosure: 0,
-                    justify: 4, // GR_JUST_CENTER
-                    v_constrain: false,
-                    h_constrain: false,
-                    multi_line: 0,
-                    info: 0,
-                    gu_handle: 0,
-                    gu_thickness: 0,
-                    font_ind: 0,
-                    rel_f_size: 0,
-                    font_size: 18,
-                    font_style: 1, // bold
-                    info2: 0,
-                    first_obj: page_link,
-                    last_obj: NILINK,
-                }),
-            },
+            &mut score,
+            &mut next_sub_link,
+            prev_credit_link,
+            page_link,
+            page_center_xd,
+            576, // 36pt from top
+            0,   // no staff
+            GraphicType::GrString as i8,
+            4, // GR_JUST_CENTER
+            18,
+            1, // bold
+            credits.title.clone(),
         );
-        score.graphics.insert(gsub_link, vec![agraphic]);
-        score
-            .graphic_strings
-            .insert(gsub_link, credits.title.clone());
-        objects[prev_credit_link as usize].header.right = title_link;
-        prev_credit_link = title_link;
     }
 
     if !credits.composer.is_empty() {
-        let gsub_link = alloc_sub(&mut next_sub_link);
-        let agraphic = AGraphic {
-            next: NILINK,
-            str_offset: 0,
-        };
-        // Composer: right-aligned, 12pt italic, ~56pt from top (896 DDIST)
-        // Right margin = page_width - 36pt margin = (page_width - 36) * 16 DDIST
+        // Composer: right-aligned, 12pt italic, ~56pt from top
         let right_margin_xd: i16 = ((score.page_width_pt - 36.0) * 16.0) as i16;
-        let composer_link = push_obj(
+        prev_credit_link = create_graphic_text(
             &mut objects,
-            InterpretedObject {
-                index: 0,
-                header: ObjectHeader {
-                    obj_type: 15, // GRAPHIC_TYPE
-                    left: prev_credit_link,
-                    first_sub_obj: gsub_link,
-                    n_entries: 1,
-                    visible: true,
-                    valid: true,
-                    xd: right_margin_xd,
-                    yd: 896, // 56pt from top
-                    ..Default::default()
-                },
-                data: ObjData::Graphic(Graphic {
-                    header: ObjectHeader::default(),
-                    ext_header: ExtObjHeader { staffn: 0 },
-                    graphic_type: GraphicType::GrString as i8,
-                    voice: 0,
-                    enclosure: 0,
-                    justify: 2, // GR_JUST_RIGHT
-                    v_constrain: false,
-                    h_constrain: false,
-                    multi_line: 0,
-                    info: 0,
-                    gu_handle: 0,
-                    gu_thickness: 0,
-                    font_ind: 0,
-                    rel_f_size: 0,
-                    font_size: 12,
-                    font_style: 2, // italic
-                    info2: 0,
-                    first_obj: page_link,
-                    last_obj: NILINK,
-                }),
-            },
+            &mut score,
+            &mut next_sub_link,
+            prev_credit_link,
+            page_link,
+            right_margin_xd,
+            896, // 56pt from top
+            0,   // no staff
+            GraphicType::GrString as i8,
+            2, // GR_JUST_RIGHT
+            12,
+            2, // italic
+            credits.composer.clone(),
         );
-        score.graphics.insert(gsub_link, vec![agraphic]);
-        score
-            .graphic_strings
-            .insert(gsub_link, credits.composer.clone());
-        objects[prev_credit_link as usize].header.right = composer_link;
-        prev_credit_link = composer_link;
     }
 
     // ---- 3. SYSTEM (link 3) ----
@@ -2759,57 +2758,22 @@ fn build_score(
             // is correct for the system they belong to.
             for ne in notes_at_time {
                 if !ne.lyric_text.is_empty() && !ne.rest {
-                    let gsub_link = alloc_sub(&mut next_sub_link);
-                    let agraphic = AGraphic {
-                        next: NILINK,
-                        str_offset: 0,
-                    };
                     let lyric_yd = staff_height + 40;
-                    let graphic_link = push_obj(
+                    prev_link = create_graphic_text(
                         &mut objects,
-                        InterpretedObject {
-                            index: 0,
-                            header: ObjectHeader {
-                                obj_type: 15, // GRAPHIC_TYPE
-                                left: prev_link,
-                                first_sub_obj: gsub_link,
-                                n_entries: 1,
-                                visible: true,
-                                valid: true,
-                                yd: lyric_yd,
-                                ..Default::default()
-                            },
-                            data: ObjData::Graphic(Graphic {
-                                header: ObjectHeader::default(),
-                                ext_header: ExtObjHeader {
-                                    staffn: ne.global_staff,
-                                },
-                                graphic_type: GraphicType::GrLyric as i8,
-                                voice: 0,
-                                enclosure: 0,
-                                justify: 0,
-                                v_constrain: false,
-                                h_constrain: false,
-                                multi_line: 0,
-                                info: 0, // FONT_THISITEMONLY
-                                gu_handle: 0,
-                                gu_thickness: 0,
-                                font_ind: 0,
-                                rel_f_size: 0,
-                                font_size: 10, // 10pt Times New Roman
-                                font_style: 0,
-                                info2: 0,
-                                first_obj: sync_link,
-                                last_obj: NILINK,
-                            }),
-                        },
+                        &mut score,
+                        &mut next_sub_link,
+                        prev_link,
+                        sync_link,
+                        0, // xd: relative to sync
+                        lyric_yd,
+                        ne.global_staff,
+                        GraphicType::GrLyric as i8,
+                        0, // no justification
+                        10,
+                        0, // plain
+                        ne.lyric_text.clone(),
                     );
-                    score.graphics.insert(gsub_link, vec![agraphic]);
-                    score
-                        .graphic_strings
-                        .insert(gsub_link, ne.lyric_text.clone());
-                    objects[prev_link as usize].header.right = graphic_link;
-                    prev_link = graphic_link;
                 }
             }
         }
