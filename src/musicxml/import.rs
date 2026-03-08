@@ -240,6 +240,7 @@ enum XmlMeasureElement {
 struct XmlMeasure {
     number: i32,
     elements: Vec<XmlMeasureElement>,
+    barline_style: String, // Captures <barline><bar-style> text: "single", "double", etc.
 }
 
 /// A parsed MusicXML part (all measures).
@@ -491,6 +492,7 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
     let mut current_barline_ending_num: Option<u8> = None;
     let mut current_barline_ending_type: String = String::new();
     let mut current_barline_repeat_dir: Option<String> = None;
+    let mut current_barline_style: String = String::new();
     // State for parsing score metadata (title, composer)
     let mut credits = XmlScoreCredits::default();
     let mut current_creator_type: String = String::new();
@@ -547,6 +549,7 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                         current_measure = Some(XmlMeasure {
                             number: num,
                             elements: Vec::new(),
+                            barline_style: String::new(),
                         });
                     }
                     "attributes" => {
@@ -827,6 +830,10 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                     "group-symbol" => {
                         current_group_symbol = text;
                     }
+                    // <bar-style> inside <barline>: single|double|light-heavy|dotted|dashed etc.
+                    "bar-style" if in_barline => {
+                        current_barline_style = text;
+                    }
                     "divisions" => {
                         if let Some(ref mut a) = current_attrs {
                             a.divisions = text.parse().ok();
@@ -1104,6 +1111,10 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                     }
                     "barline" => {
                         if let Some(ref mut meas) = current_measure {
+                            // Flush bar-style (barline type: single, double, light-heavy, dotted, etc.)
+                            if !current_barline_style.is_empty() {
+                                meas.barline_style = current_barline_style.clone();
+                            }
                             // Flush ending mark.
                             if let Some(num) = current_barline_ending_num {
                                 meas.elements.push(XmlMeasureElement::EndingMark(XmlEnding {
@@ -1122,6 +1133,7 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                             }
                         }
                         in_barline = false;
+                        current_barline_style.clear(); // Reset for next barline
                     }
                     _ => {}
                 }
@@ -1151,6 +1163,21 @@ fn attr_str(e: &quick_xml::events::BytesStart<'_>, name: &str) -> String {
 // ============================================================================
 // InterpretedScore builder
 // ============================================================================
+
+/// Map MusicXML <barline><bar-style> to Nightingale BarlineType code.
+///
+/// Returns the i8 code for the barline type sub_type field (stored in AMeasure.header.sub_type).
+fn bar_style_to_barline_code(style: &str) -> i8 {
+    use crate::obj_types::BarlineType;
+
+    match style.trim().to_lowercase().as_str() {
+        "single" | "" => BarlineType::BarSingle as i8,
+        "double" => BarlineType::BarDouble as i8,
+        "light-heavy" | "heavy-light" => BarlineType::BarFinalDbl as i8, // Final/repeat barlines
+        "dotted" | "dashed" => 1i8, // For now, treat as single; could use PsMeas later
+        _ => BarlineType::BarSingle as i8, // Default to single for unknown styles
+    }
+}
 
 /// Build an InterpretedScore directly from parsed MusicXML parts.
 ///
@@ -2451,6 +2478,18 @@ fn build_score(
         // Create MEASURE object
         let meas_sub_link = alloc_sub(&mut next_sub_link);
         let mut meas_subs: Vec<AMeasure> = Vec::new();
+
+        // Find barline style for this measure number across all parts
+        let barline_style = parts
+            .iter()
+            .find_map(|p| {
+                p.measures
+                    .iter()
+                    .find(|m| m.number == meas_num)
+                    .map(|m| m.barline_style.clone())
+            })
+            .unwrap_or_default();
+
         for s in 1..=total_staves {
             meas_subs.push(AMeasure {
                 header: SubObjHeader {
@@ -2460,7 +2499,7 @@ fn build_score(
                         NILINK
                     },
                     staffn: s as i8,
-                    sub_type: 1, // normal barline
+                    sub_type: bar_style_to_barline_code(&barline_style), // Parse barline type from MusicXML
                     selected: false,
                     visible: true,
                     soft: false,
@@ -3064,6 +3103,16 @@ fn build_score(
         }
     }
 
+    // ---- 9d-link2. BUILD MEASURE NUMBER TO LINK MAPPING ----
+    // Map measure numbers to their Link indices for RptEnd linking and other lookups.
+    let mut meas_num_to_link: std::collections::HashMap<i32, Link> =
+        std::collections::HashMap::new();
+    for (i, &meas_num) in measure_numbers.iter().enumerate() {
+        if i < measure_links.len() {
+            meas_num_to_link.insert(meas_num, measure_links[i]);
+        }
+    }
+
     // ---- 9e. DYNAMIC OBJECTS ----
     // Create Dynamic + ADynamic objects for collected dynamics.
     // These are inserted into the object list after all Syncs but before the Tail.
@@ -3211,6 +3260,19 @@ fn build_score(
             "backward" => 6, // RptR
             _ => 6,          // default to backward
         };
+
+        // Link repeat barline to its corresponding measure
+        let (start_rpt, end_rpt) =
+            if let Some(&meas_link) = meas_num_to_link.get(&repeat.measure_num) {
+                match repeat.direction.as_str() {
+                    "forward" => (meas_link, NILINK),  // Forward repeat: mark start
+                    "backward" => (NILINK, meas_link), // Backward repeat: mark end
+                    _ => (NILINK, NILINK),
+                }
+            } else {
+                (NILINK, NILINK) // Measure not found, leave unlinked
+            };
+
         let rpt_link = push_obj(
             &mut objects,
             InterpretedObject {
@@ -3226,8 +3288,8 @@ fn build_score(
                 data: ObjData::RptEnd(RptEnd {
                     header: ObjectHeader::default(),
                     first_obj: NILINK,
-                    start_rpt: NILINK,
-                    end_rpt: NILINK,
+                    start_rpt,
+                    end_rpt,
                     sub_type: rpt_sub_type,
                     count: 2, // default repeat count
                 }),

@@ -84,21 +84,25 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Part groups (brackets/braces from Connect objects)
 - [x] All 26 NGL fixtures pass MusicXML DTD validation
 
-### Import (MusicXML → InterpretedScore) — IN PROGRESS
+### Import (MusicXML → InterpretedScore) — IN PROGRESS (parsing complete, rendering issues remain)
 - [x] Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
 - [x] Accidentals, dots, ties, slurs, dynamics
 - [x] Tuplets (time-modification → Tuplet + ANoteTuple objects)
 - [x] Grace notes (→ GrSync + AGrNote objects with full pitch positioning)
 - [x] Articulations and ornaments (AModNr sub-objects, 14 mod_code types)
 - [x] Tempo marks (Tempo objects + score.tempo_strings)
-- [x] Volta endings (Ending objects), repeat barlines (RptEnd objects)
+- [x] Volta endings (Ending objects), repeat barlines (RptEnd objects with measure linking)
 - [x] Ottava (Ottava objects with oct_sign_type mapping)
 - [x] Part groups (Connect objects from `<part-group>` elements)
 - [x] Title/composer credits (page-relative GrString GRAPHICs from `<movement-title>`/`<creator>`)
-- [x] Lyrics (GrLyric GRAPHICs from `<lyric>/<syllabic>/<text>`)
-- [ ] **Beams — need major rework** (rendering as thick black rectangles, wrong slopes/groupings)
-- [ ] **Measures/barlines — broken** (missing barlines, uneven spacing)
-- [ ] Round-trip tests: NGL→MusicXML→import→render, canonical stability
+- [~] **PRIORITY 1: System/page layout** — NGL uses FromSysNums/SFormat; import creates flat list (no pagination)
+- [~] **PRIORITY 2: Beams** — partially fixed: inline creation, grouping OK; but slopes/widths still wrong in some cases
+- [~] **PRIORITY 3: Measures/barlines** — linked: horizontal nav works; but spacing/missing barlines in edge cases
+- [~] **PRIORITY 4: Guitar clef octave transposition** (8va below)
+- [~] **PRIORITY 5: Non-ASCII characters** in lyrics/text (encoding issues)
+- [ ] **PRIORITY 6: Text/lyric vertical positioning** — GrLyric/GrString created but Y-positioning incorrect (lyrics, titles, temps marks, etc.)
+- [ ] **Round-trip fidelity** — NGL→XML→import→render should be visually stable
+- [x] Code consolidation: `create_graphic_text()` helper eliminates 36 lines of duplication
 
 ### Validation
 - [x] MusicXML golden bitmap regression (56 goldens across 18 xmlsamples)
