@@ -18,7 +18,7 @@
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
-use crate::basic_types::{DRect, KsInfo, Link, Rect, NILINK};
+use crate::basic_types::{DRect, Ddist, KsInfo, Link, Rect, NILINK};
 use crate::defs::{
     AC_FLAT, AC_NATURAL, AC_SHARP, ALTO_CLEF, BARITONE_CLEF, BASS8B_CLEF, BASS_CLEF, FRVIOLIN_CLEF,
     MZSOPRANO_CLEF, PERC_CLEF, SOPRANO_CLEF, TENOR_CLEF, TREBLE8_CLEF, TREBLE_CLEF, TRTENOR_CLEF,
@@ -26,9 +26,9 @@ use crate::defs::{
 use crate::layout::{layout_score, LayoutConfig};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
-    AClef, AConnect, AKeySig, AMeasure, ANote, ANoteBeam, AStaff, ATimeSig, BeamSet, Clef, Connect,
-    Dynamic, ExtObjHeader, Header, KeySig, Measure, ObjectHeader, Page, PartInfo, Staff,
-    SubObjHeader, System, Tail, TimeSig, SHOW_ALL_LINES,
+    AClef, AConnect, AKeySig, AMeasure, ANote, ANoteBeam, ANoteTuple, AStaff, ATimeSig, BeamSet,
+    Clef, Connect, Dynamic, ExtObjHeader, GrSync, Header, KeySig, Measure, ObjectHeader, Page,
+    PartInfo, Staff, SubObjHeader, System, Tail, TimeSig, Tuplet, SHOW_ALL_LINES,
 };
 use crate::objects::{normal_stem_up_down_single, setup_ks_info, VoiceRole};
 use crate::pitch_utils::{clef_middle_c_half_ln, half_ln_to_yd};
@@ -100,9 +100,19 @@ struct XmlNote {
     slur_stop: bool,
     /// True if this note is a grace note (<grace/> element).
     grace: bool,
+    /// True if this grace note has a slash (acciaccatura vs appoggiatura).
+    grace_slash: bool,
     /// Beam values from MusicXML: beam_levels[0] = primary beam (number=1), etc.
     /// Values: "begin", "continue", "end", "forward hook", "backward hook"
     beam_levels: Vec<String>,
+    /// Tuplet actual notes (from <time-modification>/<actual-notes>).
+    tuplet_actual: u8,
+    /// Tuplet normal notes (from <time-modification>/<normal-notes>).
+    tuplet_normal: u8,
+    /// True if this note has <tuplet type="start">.
+    tuplet_start: bool,
+    /// True if this note has <tuplet type="stop">.
+    tuplet_stop: bool,
 }
 
 /// Parsed attributes from a MusicXML `<attributes>` element.
@@ -428,7 +438,12 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             slur_start: false,
                             slur_stop: false,
                             grace: false,
+                            grace_slash: false,
                             beam_levels: Vec::new(),
+                            tuplet_actual: 0,
+                            tuplet_normal: 0,
+                            tuplet_start: false,
+                            tuplet_stop: false,
                         });
                     }
                     "direction" => {
@@ -460,6 +475,15 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             }
                         }
                     }
+                    "tuplet" => {
+                        if let Some(ref mut note) = current_note {
+                            match attr_str(e, "type").as_str() {
+                                "start" => note.tuplet_start = true,
+                                "stop" => note.tuplet_stop = true,
+                                _ => {}
+                            }
+                        }
+                    }
                     "beam" => {
                         current_beam_number = attr_str(e, "number").parse::<i32>().unwrap_or(1);
                     }
@@ -475,7 +499,10 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                         "rest" => note.rest = true,
                         "chord" => note.chord = true,
                         "dot" => note.dots += 1,
-                        "grace" => note.grace = true,
+                        "grace" => {
+                            note.grace = true;
+                            note.grace_slash = attr_str(e, "slash") == "yes";
+                        }
                         "tie" => match attr_str(e, "type").as_str() {
                             "start" => note.tie_start = true,
                             "stop" => note.tie_stop = true,
@@ -484,6 +511,11 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                         "slur" => match attr_str(e, "type").as_str() {
                             "start" => note.slur_start = true,
                             "stop" => note.slur_stop = true,
+                            _ => {}
+                        },
+                        "tuplet" => match attr_str(e, "type").as_str() {
+                            "start" => note.tuplet_start = true,
+                            "stop" => note.tuplet_stop = true,
                             _ => {}
                         },
                         _ => {}
@@ -628,6 +660,16 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                     "accidental" => {
                         if let Some(ref mut n) = current_note {
                             n.accidental = text;
+                        }
+                    }
+                    "actual-notes" => {
+                        if let Some(ref mut n) = current_note {
+                            n.tuplet_actual = text.parse().unwrap_or(0);
+                        }
+                    }
+                    "normal-notes" => {
+                        if let Some(ref mut n) = current_note {
+                            n.tuplet_normal = text.parse().unwrap_or(0);
                         }
                     }
                     "beam" => {
@@ -881,6 +923,14 @@ fn build_score(
         play_dur: i16,
         /// Beam levels from MusicXML: beam_levels[0] = primary beam, etc.
         beam_levels: Vec<String>,
+        /// Tuplet actual/normal notes (from <time-modification>).
+        tuplet_actual: u8,
+        tuplet_normal: u8,
+        /// Tuplet start/stop flags (from <tuplet> notation element).
+        tuplet_start: bool,
+        tuplet_stop: bool,
+        /// True if this note is a grace note.
+        is_grace: bool,
     }
 
     let mut all_notes: Vec<NoteEntry> = Vec::new();
@@ -943,16 +993,20 @@ fn build_score(
                         }
                     }
                     XmlMeasureElement::Note(note) => {
-                        // Skip grace notes for now — they have zero duration and
-                        // would break time accounting. TODO: handle grace notes.
-                        if note.grace {
-                            continue;
-                        }
-
                         let global_staff = psi.first_staff + note.staff as i8 - 1;
-                        let pdur = xml_dur_to_pdur(note.duration, divisions);
 
-                        let t = if note.chord {
+                        // Grace notes have zero duration — don't advance voice_time.
+                        let pdur = if note.grace {
+                            0
+                        } else {
+                            xml_dur_to_pdur(note.duration, divisions)
+                        };
+
+                        let t = if note.grace {
+                            // Grace notes get the current time position (they attach
+                            // to the next real note at this time).
+                            voice_time
+                        } else if note.chord {
                             (voice_time - pdur).max(0)
                         } else {
                             voice_time
@@ -998,9 +1052,14 @@ fn build_score(
                             slurred_r: note.slur_start,
                             play_dur: pdur as i16,
                             beam_levels: note.beam_levels.clone(),
+                            tuplet_actual: note.tuplet_actual,
+                            tuplet_normal: note.tuplet_normal,
+                            tuplet_start: note.tuplet_start,
+                            tuplet_stop: note.tuplet_stop,
+                            is_grace: note.grace,
                         });
 
-                        if !note.chord {
+                        if !note.chord && !note.grace {
                             voice_time += pdur;
                         }
                     }
@@ -1024,9 +1083,31 @@ fn build_score(
         }
     }
 
-    // Group notes by (measure_num, time) for creating Sync objects.
-    // Sort: measure_num, time, staff, voice
+    // Separate grace notes from regular notes so they can be processed differently.
+    // Grace notes become GrSync objects positioned before their parent Sync.
+    let mut grace_notes: Vec<NoteEntry> = Vec::new();
+    let mut regular_notes: Vec<NoteEntry> = Vec::new();
+    for ne in all_notes {
+        if ne.is_grace {
+            grace_notes.push(ne);
+        } else {
+            regular_notes.push(ne);
+        }
+    }
+    let mut all_notes = regular_notes;
+
+    // Sort regular notes by (measure_num, time, staff, voice) for creating Sync objects.
     all_notes.sort_by(|a, b| {
+        a.measure_num.cmp(&b.measure_num).then_with(|| {
+            a.time.cmp(&b.time).then_with(|| {
+                a.global_staff
+                    .cmp(&b.global_staff)
+                    .then_with(|| a.voice.cmp(&b.voice))
+            })
+        })
+    });
+    // Sort grace notes similarly — they'll be matched to Syncs by (measure_num, time).
+    grace_notes.sort_by(|a, b| {
         a.measure_num.cmp(&b.measure_num).then_with(|| {
             a.time.cmp(&b.time).then_with(|| {
                 a.global_staff
@@ -1392,6 +1473,8 @@ fn build_score(
     let mut current_time_denom = init_time_denom;
     // Collect beam info during Sync creation: (sync_link, staff, voice, beam_levels)
     let mut beam_notes_with_links: Vec<(Link, i8, i8, Vec<String>)> = Vec::new();
+    // Tuplet info: (sync_link, staff, voice, actual, normal, tuplet_start, tuplet_stop)
+    let mut tuplet_notes_with_links: Vec<(Link, i8, i8, u8, u8, bool, bool)> = Vec::new();
 
     // Staff height for yd/ystem computation — must match LayoutConfig::default().
     // layout_score() will later set the definitive value, but we compute yd/ystem here
@@ -1838,7 +1921,7 @@ fn build_score(
                     first_mod: NILINK,
                     slurred_l: ne.slurred_l,
                     slurred_r: ne.slurred_r,
-                    in_tuplet: false,
+                    in_tuplet: ne.tuplet_actual > 0,
                     in_ottava: false,
                     small: false,
                     temp_flag: 0,
@@ -1880,6 +1963,18 @@ fn build_score(
                         ne.global_staff,
                         ne.voice,
                         ne.beam_levels.clone(),
+                    ));
+                }
+                // Collect tuplet info for notes with tuplet_start or tuplet_stop
+                if ne.tuplet_start || ne.tuplet_stop || ne.tuplet_actual > 0 {
+                    tuplet_notes_with_links.push((
+                        sync_link,
+                        ne.global_staff,
+                        ne.voice,
+                        ne.tuplet_actual,
+                        ne.tuplet_normal,
+                        ne.tuplet_start,
+                        ne.tuplet_stop,
                     ));
                 }
             }
@@ -1966,7 +2061,8 @@ fn build_score(
                 });
             }
 
-            *next_sub_link += group.len() as Link;
+            // alloc_sub already consumed 1, add remaining (group.len() - 1) sub-links
+            *next_sub_link += (group.len() - 1) as Link;
 
             let blink = push_obj(
                 objects,
@@ -2052,7 +2148,262 @@ fn build_score(
         }
     }
 
-    // ---- 9c. DYNAMIC OBJECTS ----
+    // ---- 9c. TUPLET OBJECTS ----
+    // Create Tuplet + ANoteTuple objects from tuplet info collected during Sync creation.
+    // Group consecutive notes by (staff, voice) with tuplet_start/tuplet_stop boundaries.
+    {
+        let mut current_group: Vec<Link> = Vec::new(); // Sync links in this tuplet
+        let mut current_sv: Option<(i8, i8)> = None;
+        let mut current_actual: u8 = 3;
+        let mut current_normal: u8 = 2;
+
+        let flush_tuplet = |group: &mut Vec<Link>,
+                            sv: (i8, i8),
+                            acc_num: u8,
+                            acc_denom: u8,
+                            objects: &mut Vec<InterpretedObject>,
+                            score: &mut InterpretedScore,
+                            next_sub_link: &mut Link,
+                            prev_link: &mut Link| {
+            if group.len() < 2 {
+                group.clear();
+                return;
+            }
+
+            // Create ANoteTuple subobjects
+            let tuplet_sub_link = alloc_sub(next_sub_link);
+            let mut notetuple_subs: Vec<ANoteTuple> = Vec::new();
+            for (gi, sync_link) in group.iter().enumerate() {
+                notetuple_subs.push(ANoteTuple {
+                    next: if gi + 1 < group.len() {
+                        tuplet_sub_link + (gi + 1) as Link
+                    } else {
+                        NILINK
+                    },
+                    tp_sync: *sync_link,
+                });
+            }
+            // alloc_sub already consumed 1, add remaining (group.len() - 1) sub-links
+            *next_sub_link += (group.len() - 1) as Link;
+
+            // Bracket position: default to above staff, moderate offset
+            let bracket_yd: Ddist = -40; // ~2.5 spaces above staff top
+
+            let tlink = push_obj(
+                objects,
+                InterpretedObject {
+                    index: 0,
+                    header: ObjectHeader {
+                        obj_type: 18, // TUPLET_TYPE
+                        left: *prev_link,
+                        first_sub_obj: tuplet_sub_link,
+                        n_entries: group.len() as u8,
+                        visible: true,
+                        valid: true,
+                        ..Default::default()
+                    },
+                    data: ObjData::Tuplet(Tuplet {
+                        header: ObjectHeader::default(),
+                        ext_header: ExtObjHeader { staffn: sv.0 },
+                        acc_num,
+                        acc_denom,
+                        voice: sv.1,
+                        num_vis: 1,   // Show number
+                        denom_vis: 0, // Hide denominator
+                        brack_vis: 1, // Show bracket
+                        small: 0,
+                        filler: 0,
+                        acnxd: 0,
+                        acnyd: 0,
+                        xd_first: 0,
+                        yd_first: bracket_yd,
+                        xd_last: 0,
+                        yd_last: bracket_yd,
+                    }),
+                },
+            );
+            score.tuplets.insert(tuplet_sub_link, notetuple_subs);
+            objects[*prev_link as usize].header.right = tlink;
+            *prev_link = tlink;
+
+            group.clear();
+        };
+
+        for &(sync_link, staff, voice, actual, normal, tup_start, tup_stop) in
+            &tuplet_notes_with_links
+        {
+            let sv = (staff, voice);
+
+            if tup_start || (current_sv != Some(sv) && current_group.is_empty()) {
+                // Starting a new tuplet group
+                if !current_group.is_empty() {
+                    let old_sv = current_sv.unwrap_or(sv);
+                    flush_tuplet(
+                        &mut current_group,
+                        old_sv,
+                        current_actual,
+                        current_normal,
+                        &mut objects,
+                        &mut score,
+                        &mut next_sub_link,
+                        &mut prev_link,
+                    );
+                }
+                current_sv = Some(sv);
+                current_actual = if actual > 0 { actual } else { 3 };
+                current_normal = if normal > 0 { normal } else { 2 };
+            }
+
+            current_group.push(sync_link);
+
+            if tup_stop {
+                flush_tuplet(
+                    &mut current_group,
+                    sv,
+                    current_actual,
+                    current_normal,
+                    &mut objects,
+                    &mut score,
+                    &mut next_sub_link,
+                    &mut prev_link,
+                );
+                current_sv = None;
+            }
+        }
+        // Flush any remaining group
+        if !current_group.is_empty() {
+            if let Some(sv) = current_sv {
+                flush_tuplet(
+                    &mut current_group,
+                    sv,
+                    current_actual,
+                    current_normal,
+                    &mut objects,
+                    &mut score,
+                    &mut next_sub_link,
+                    &mut prev_link,
+                );
+            }
+        }
+    }
+
+    // ---- 9d. GRSYNC OBJECTS (grace notes) ----
+    // Create GrSync + AGrNote objects from grace_notes collected during parsing.
+    // Grace notes are grouped by (measure_num, time) and placed before the Sync at that time.
+    // For simplicity, each grace note gets its own GrSync (matching Notelist behavior).
+    if !grace_notes.is_empty() {
+        for gne in &grace_notes {
+            let grsync_sub_link = alloc_sub(&mut next_sub_link);
+            // alloc_sub already incremented next_sub_link by 1 for our single AGrNote
+
+            let yqpit = if gne.rest { 0 } else { midi_to_yqpit(gne.midi) };
+
+            // Compute yd from clef context, matching regular Sync note creation
+            let clef_type = init_clefs
+                .get(gne.global_staff as usize)
+                .copied()
+                .unwrap_or(TREBLE_CLEF);
+            let (yd, ystem) = if gne.rest {
+                let yd = half_ln_to_yd(4, staff_height);
+                (yd, yd)
+            } else {
+                let mid_c_hl = clef_middle_c_half_ln(clef_type);
+                let half_ln = mid_c_hl + yqpit as i16;
+                let yd = half_ln_to_yd(half_ln, staff_height);
+                // Grace notes: stems are shorter, always 5 half-spaces
+                let stem_down =
+                    normal_stem_up_down_single(half_ln, n_staff_lines, VoiceRole::Single);
+                let ystem = calc_ystem(
+                    yd,
+                    nflags(gne.l_dur),
+                    stem_down,
+                    staff_height,
+                    n_staff_lines,
+                    stem_len_normal, // use normal stem length; grace drawing scales down
+                    false,
+                );
+                (yd, ystem)
+            };
+
+            let grnote = ANote {
+                header: SubObjHeader {
+                    next: NILINK,
+                    staffn: gne.global_staff,
+                    sub_type: gne.l_dur,
+                    selected: false,
+                    visible: true,
+                    soft: false,
+                },
+                in_chord: false,
+                rest: gne.rest,
+                unpitched: false,
+                beamed: false,
+                other_stem_side: false,
+                xd: 0,
+                yd,
+                yqpit,
+                ystem,
+                play_time_delta: 0,
+                play_dur: 0, // grace notes have no playback duration
+                p_time: 0,
+                note_num: gne.midi,
+                on_velocity: 75,
+                off_velocity: 64,
+                tied_l: false,
+                tied_r: false,
+                x_move_dots: 0,
+                y_move_dots: 2,
+                ndots: gne.dots,
+                voice: gne.voice,
+                rsp_ignore: 0,
+                accident: gne.acc,
+                acc_soft: false,
+                courtesy_acc: 0,
+                xmove_acc: 0,
+                play_as_cue: false,
+                micropitch: 0,
+                merged: 0,
+                double_dur: 0,
+                head_shape: 1, // NormalVis
+                first_mod: NILINK,
+                slurred_l: false,
+                slurred_r: false,
+                in_tuplet: false,
+                in_ottava: false,
+                small: true, // Grace notes are small
+                temp_flag: 0,
+                art_harmonic: 0,
+                user_id: 0,
+                nh_segment: [0u8; 6],
+                reserved_n: 0,
+            };
+
+            score.grnotes.insert(grsync_sub_link, vec![grnote]);
+
+            let grlink = push_obj(
+                &mut objects,
+                InterpretedObject {
+                    index: 0,
+                    header: ObjectHeader {
+                        obj_type: 19, // GRSYNC_TYPE
+                        left: prev_link,
+                        first_sub_obj: grsync_sub_link,
+                        n_entries: 1,
+                        visible: true,
+                        valid: true,
+                        ..Default::default()
+                    },
+                    data: ObjData::GrSync(GrSync {
+                        header: ObjectHeader::default(),
+                    }),
+                },
+            );
+            objects[prev_link as usize].header.right = grlink;
+            prev_link = grlink;
+        }
+    }
+
+    // ---- 9e. DYNAMIC OBJECTS ----
     // Create Dynamic + ADynamic objects for collected dynamics.
     // These are inserted into the object list after all Syncs but before the Tail.
     // The exporter's collect_measure_data() will pick them up during the walk.
@@ -2077,7 +2428,7 @@ fn build_score(
             d_mod_code: 0,
             cross_staff: 0,
         };
-        next_sub_link += 1;
+        // alloc_sub already incremented next_sub_link by 1 for our single ADynamic
         let dlink = push_obj(
             &mut objects,
             InterpretedObject {
