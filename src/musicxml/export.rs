@@ -4,7 +4,8 @@
 // Handles: parts, measures, notes/rests, clefs, key signatures,
 // time signatures, ties, dots, chords, dynamics, tempo markings,
 // tuplets, grace notes, hairpins, tempo marks, volta endings,
-// repeat barlines, ottava (8va/8vb).
+// repeat barlines, ottava (8va/8vb), articulations, fermatas,
+// ornaments (trill, mordent, turn), technical (bowing).
 //
 // Ported from: icebox/src/musicxml/export.rs (new functionality, no C++ equivalent).
 
@@ -15,7 +16,7 @@ use std::io::Cursor;
 use crate::basic_types::{KsItem, Link};
 use crate::defs::*;
 use crate::ngl::interpret::*;
-use crate::obj_types::{OttavaType, PartInfo, RptEndType};
+use crate::obj_types::{ConnectType, OttavaType, PartInfo, RptEndType};
 
 /// PDUR ticks per quarter note (used as MusicXML divisions).
 const DIVISIONS: i32 = 480;
@@ -338,6 +339,9 @@ struct NoteEvent {
     tuplet_pos: Option<TupletPos>,
     /// True if this is a grace note.
     is_grace: bool,
+    /// Modifier codes (articulations, fermatas, ornaments, etc.) from MODNR subobjects.
+    /// Values are ModCode enum discriminants (e.g. 10=fermata, 14=staccato).
+    mod_codes: Vec<u8>,
 }
 
 // ============================================================
@@ -460,14 +464,94 @@ pub fn export_musicxml(score: &InterpretedScore) -> String {
     score_elem.push_attribute(("version", "4.0"));
     let _ = writer.write_event(Event::Start(score_elem));
 
-    // <part-list>
+    // Collect part groups from Connect objects.
+    // A PartGroup records which part indices (0-based) are bracketed/braced.
+    struct PartGroup {
+        start_part: usize,
+        stop_part: usize,
+        symbol: &'static str, // "bracket", "brace", or "line"
+    }
+    let mut part_groups: Vec<PartGroup> = Vec::new();
+
+    // Walk Connect objects from the first system to find brackets/braces.
+    // Connect subobjects with connLevel == GroupLevel (1) or PartLevel (7)
+    // define visual groupings. Map their staff_above/staff_below to part indices.
+    for obj in score.walk() {
+        if let ObjData::Connect(_) = &obj.data {
+            if let Some(conns) = score.connects.get(&obj.header.first_sub_obj) {
+                for conn in conns {
+                    // Skip system-level connectors (connLevel 0) — they span all staves
+                    if conn.conn_level == 0 {
+                        continue;
+                    }
+                    let symbol = match conn.connect_type {
+                        t if t == ConnectType::ConnectCurly as u8 => "brace",
+                        t if t == ConnectType::ConnectBracket as u8 => "bracket",
+                        t if t == ConnectType::ConnectLine as u8 => "line",
+                        _ => continue,
+                    };
+                    // Find which parts contain these staves
+                    let mut start_part = None;
+                    let mut stop_part = None;
+                    for (i, part) in parts.iter().enumerate() {
+                        if part.first_staff <= conn.staff_above
+                            && conn.staff_above <= part.last_staff
+                        {
+                            start_part = Some(i);
+                        }
+                        if part.first_staff <= conn.staff_below
+                            && conn.staff_below <= part.last_staff
+                        {
+                            stop_part = Some(i);
+                        }
+                    }
+                    if let (Some(sp), Some(ep)) = (start_part, stop_part) {
+                        // Only emit groups that span more than one part
+                        if sp < ep {
+                            part_groups.push(PartGroup {
+                                start_part: sp,
+                                stop_part: ep,
+                                symbol,
+                            });
+                        }
+                    }
+                }
+            }
+            // Only need the first Connect object (they repeat per system)
+            break;
+        }
+    }
+
+    // <part-list> — interleave <part-group> start/stop with <score-part> elements
     let _ = writer.write_event(Event::Start(BytesStart::new("part-list")));
-    for part in &parts {
+    for (i, part) in parts.iter().enumerate() {
+        // Emit part-group starts for groups beginning at this part
+        for (gnum, group) in part_groups.iter().enumerate() {
+            if group.start_part == i {
+                let mut pg = BytesStart::new("part-group");
+                pg.push_attribute(("type", "start"));
+                pg.push_attribute(("number", (gnum + 1).to_string().as_str()));
+                let _ = writer.write_event(Event::Start(pg));
+                write_simple_element(&mut writer, "group-symbol", group.symbol);
+                write_simple_element(&mut writer, "group-barline", "yes");
+                let _ = writer.write_event(Event::End(BytesEnd::new("part-group")));
+            }
+        }
+        // <score-part>
         let mut sp = BytesStart::new("score-part");
         sp.push_attribute(("id", part.id.as_str()));
         let _ = writer.write_event(Event::Start(sp));
         write_simple_element(&mut writer, "part-name", &part.name);
         let _ = writer.write_event(Event::End(BytesEnd::new("score-part")));
+        // Emit part-group stops for groups ending at this part
+        for (gnum, group) in part_groups.iter().enumerate() {
+            if group.stop_part == i {
+                let mut pg = BytesStart::new("part-group");
+                pg.push_attribute(("type", "stop"));
+                pg.push_attribute(("number", (gnum + 1).to_string().as_str()));
+                let _ = writer.write_event(Event::Empty(pg));
+            }
+        }
     }
     let _ = writer.write_event(Event::End(BytesEnd::new("part-list")));
 
@@ -604,6 +688,95 @@ struct MeasureData {
     ottavas: Vec<OttavaEvent>,
     /// Barline type at end of this measure.
     barline: BarlineInfo,
+}
+
+/// Collect modifier codes (articulations, fermatas, etc.) for a note.
+///
+/// Walks the MODNR linked list from the note's first_mod and returns a Vec of mod_code values.
+/// Reference: obj_types.rs ModCode enum, interpret.rs modnrs HashMap.
+fn collect_mod_codes(score: &InterpretedScore, first_mod: Link) -> Vec<u8> {
+    use crate::basic_types::NILINK;
+    if first_mod == NILINK || first_mod == 0 {
+        return Vec::new();
+    }
+    score
+        .modnrs
+        .get(&first_mod)
+        .map(|mods| mods.iter().map(|m| m.mod_code).collect())
+        .unwrap_or_default()
+}
+
+/// Write articulations, fermatas, ornaments, and technical markings to the notations block.
+///
+/// MusicXML groups these into separate sub-elements within <notations>:
+///   <articulations> for accent, staccato, tenuto, etc.
+///   <ornaments> for trill, mordent, turn, etc.
+///   <technical> for up-bow, down-bow, etc.
+///   <fermata> is a direct child of <notations>
+///
+/// Reference: obj_types.rs ModCode enum values
+fn write_articulations_xml(w: &mut Writer<Cursor<Vec<u8>>>, mod_codes: &[u8]) {
+    if mod_codes.is_empty() {
+        return;
+    }
+
+    let mut fermatas: Vec<&str> = Vec::new();
+    let mut articulations: Vec<&str> = Vec::new();
+    let mut ornaments: Vec<&str> = Vec::new();
+    let mut technical: Vec<&str> = Vec::new();
+
+    for &code in mod_codes {
+        match code {
+            10 => fermatas.push("fermata"),
+            11 => ornaments.push("trill-mark"),
+            12 => articulations.push("accent"),
+            13 => articulations.push("strong-accent"), // marcato
+            14 => articulations.push("staccato"),
+            15 => articulations.push("staccatissimo"), // wedge
+            16 => articulations.push("tenuto"),
+            17 => ornaments.push("mordent"),
+            18 => ornaments.push("inverted-mordent"),
+            19 => ornaments.push("turn"),
+            20 => technical.push("stopped"),  // plus sign
+            21 => technical.push("harmonic"), // circle
+            22 => technical.push("up-bow"),
+            23 => technical.push("down-bow"),
+            30 => {
+                // marcato-staccato compound
+                articulations.push("strong-accent");
+                articulations.push("staccato");
+            }
+            31 => ornaments.push("inverted-mordent"), // long inverted mordent
+            _ => {}                                   // fingerings (0-9), tremolos (24-29), etc.
+        }
+    }
+
+    // MusicXML DTD order within <notations>: tied, slur, tuplet,
+    // then articulations, ornaments, technical, fermata.
+    if !articulations.is_empty() {
+        let _ = w.write_event(Event::Start(BytesStart::new("articulations")));
+        for art in &articulations {
+            write_empty_element(w, art);
+        }
+        let _ = w.write_event(Event::End(BytesEnd::new("articulations")));
+    }
+    if !ornaments.is_empty() {
+        let _ = w.write_event(Event::Start(BytesStart::new("ornaments")));
+        for orn in &ornaments {
+            write_empty_element(w, orn);
+        }
+        let _ = w.write_event(Event::End(BytesEnd::new("ornaments")));
+    }
+    if !technical.is_empty() {
+        let _ = w.write_event(Event::Start(BytesStart::new("technical")));
+        for tech in &technical {
+            write_empty_element(w, tech);
+        }
+        let _ = w.write_event(Event::End(BytesEnd::new("technical")));
+    }
+    for f in &fermatas {
+        write_empty_element(w, f);
+    }
 }
 
 /// Compute MusicXML beam levels for each note in a beam group.
@@ -969,6 +1142,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     let beam_key = (sync_link, note.header.staffn, note.voice);
                     let beam_levels = beam_map.get(&beam_key).cloned().unwrap_or_default();
 
+                    let mod_codes = collect_mod_codes(score, note.first_mod);
                     current_notes.push(NoteEvent {
                         time_stamp: effective_ts,
                         staff: note.header.staffn,
@@ -990,6 +1164,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         tuplet_normal: tup_info.map(|(_, n, _)| n).unwrap_or(0),
                         tuplet_pos: tup_info.map(|(_, _, p)| p),
                         is_grace: false,
+                        mod_codes,
                     });
                 }
             }
@@ -1005,6 +1180,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                 for note in &notes {
                     let beam_key = (sync_link, note.header.staffn, note.voice);
                     let beam_levels = grace_beam_map.get(&beam_key).cloned().unwrap_or_default();
+                    let mod_codes = collect_mod_codes(score, note.first_mod);
 
                     current_notes.push(NoteEvent {
                         time_stamp: ts,
@@ -1027,6 +1203,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                         tuplet_normal: 0,
                         tuplet_pos: None,
                         is_grace: true,
+                        mod_codes,
                     });
                 }
             }
@@ -1618,11 +1795,13 @@ fn write_measure_notes(
             // Notations (ties, slurs, tuplets)
             let has_tuplet_notation = note.tuplet_pos == Some(TupletPos::Start)
                 || note.tuplet_pos == Some(TupletPos::Stop);
+            let has_mods = !note.mod_codes.is_empty();
             let has_notations = note.tied_l
                 || note.tied_r
                 || note.slurred_l
                 || note.slurred_r
-                || has_tuplet_notation;
+                || has_tuplet_notation
+                || has_mods;
             if has_notations {
                 let _ = w.write_event(Event::Start(BytesStart::new("notations")));
                 if note.tied_l {
@@ -1663,6 +1842,8 @@ fn write_measure_notes(
                         TupletPos::Middle => {} // No notation for middle notes
                     }
                 }
+                // Articulations, fermatas, ornaments, technical markings
+                write_articulations_xml(w, &note.mod_codes);
                 let _ = w.write_event(Event::End(BytesEnd::new("notations")));
             }
 
