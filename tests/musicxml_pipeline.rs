@@ -5,11 +5,15 @@
 //!
 //! Also tests NGL fixture → MusicXML export with file output.
 
+mod common;
+
 use nightingale_core::draw::render_score;
 use nightingale_core::musicxml::export::export_musicxml;
 use nightingale_core::musicxml::import::import_musicxml;
 use nightingale_core::ngl::{interpret::interpret_heap, NglFile};
 use nightingale_core::render::PdfRenderer;
+#[cfg(feature = "visual-regression")]
+use nightingale_core::render::{BitmapRenderer, MusicRenderer};
 use std::fs;
 use std::path::Path;
 
@@ -647,6 +651,203 @@ fn import_all_xmlsamples_and_render_pdfs() {
             *notes > 0,
             "{} imported 0 notes — likely a parsing problem",
             name
+        );
+    }
+}
+
+// ============================================================================
+// 6) MusicXML golden bitmap regression tests
+// ============================================================================
+
+#[cfg(feature = "visual-regression")]
+const ALL_XML_SAMPLES: &[&str] = &[
+    "tests/musicxml_examples/xmlsamples/ActorPreludeSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/BeetAnGeSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/Binchois.musicxml",
+    "tests/musicxml_examples/xmlsamples/BrahWiMeSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/BrookeWestSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/Chant.musicxml",
+    "tests/musicxml_examples/xmlsamples/DebuMandSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/Dichterliebe01.musicxml",
+    "tests/musicxml_examples/xmlsamples/Echigo-Jishi.musicxml",
+    "tests/musicxml_examples/xmlsamples/FaurReveSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/MahlFaGe4Sample.musicxml",
+    "tests/musicxml_examples/xmlsamples/MozaChloSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/MozartPianoSonata.musicxml",
+    "tests/musicxml_examples/xmlsamples/MozartTrio.musicxml",
+    "tests/musicxml_examples/xmlsamples/MozaVeilSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/Saltarello.musicxml",
+    "tests/musicxml_examples/xmlsamples/SchbAvMaSample.musicxml",
+    "tests/musicxml_examples/xmlsamples/Telemann.musicxml",
+];
+
+#[cfg(feature = "visual-regression")]
+const ALL_XML_EXTRAS: &[&str] = &[
+    // Add future standalone MusicXML fixtures here
+];
+
+#[cfg(feature = "visual-regression")]
+fn xml_short_name(path: &str) -> String {
+    Path::new(path)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string()
+}
+
+/// Golden bitmap regression test for MusicXML imports.
+///
+/// Renders each MusicXML sample to a BitmapRenderer at 72 DPI and compares
+/// against golden PNGs in tests/golden_bitmaps/ with `xml_` prefix.
+///
+/// Run with: cargo test --features visual-regression test_all_musicxml_bitmap_regression
+/// Regenerate: REGENERATE_REFS=1 cargo test --features visual-regression test_all_musicxml_bitmap_regression
+#[test]
+#[cfg(feature = "visual-regression")]
+fn test_all_musicxml_bitmap_regression() {
+    let regenerate = std::env::var("REGENERATE_REFS").is_ok();
+    let golden_dir = Path::new("tests/golden_bitmaps");
+    let diff_dir = Path::new("test-output/bitmap-diff");
+    fs::create_dir_all(diff_dir).unwrap();
+
+    let font_dir = Path::new("assets/fonts");
+    let font_path = font_dir.join("Bravura.otf");
+    let font_data = fs::read(&font_path).ok();
+
+    let mut mismatches = Vec::new();
+
+    // Collect all XML paths
+    let all_paths: Vec<&str> = ALL_XML_SAMPLES
+        .iter()
+        .chain(ALL_XML_EXTRAS.iter())
+        .copied()
+        .collect();
+
+    for path_str in &all_paths {
+        let path = Path::new(path_str);
+        if !path.exists() {
+            eprintln!("Skipping: {} not found", path_str);
+            continue;
+        }
+
+        let name = xml_short_name(path_str);
+
+        // Read and import
+        let xml = match fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[xml_{}] Read error: {}", name, e);
+                continue;
+            }
+        };
+        let score = match import_musicxml(&xml) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[xml_{}] Import error: {:?}", name, e);
+                continue;
+            }
+        };
+
+        // Render to bitmap
+        let page_w = if score.page_width_pt > 0.0 {
+            score.page_width_pt
+        } else {
+            612.0
+        };
+        let page_h = if score.page_height_pt > 0.0 {
+            score.page_height_pt
+        } else {
+            792.0
+        };
+        let mut bmp = BitmapRenderer::new(72.0);
+        bmp.set_page_size(page_w, page_h);
+        if let Some(ref data) = font_data {
+            bmp.load_music_font(data.clone());
+        }
+        bmp.load_text_fonts_from_dir(font_dir);
+        render_score(&score, &mut bmp);
+        if bmp.page_count() == 0 {
+            bmp.end_page();
+        }
+
+        // Compare all pages
+        let num_pages = bmp.page_count();
+        for page_idx in 0..num_pages {
+            let page_num = page_idx + 1;
+            let page_suffix = format!("_page{}", page_num);
+            let display_name = format!("xml_{}{}", name, page_suffix);
+
+            let current_png = diff_dir.join(format!("{}_current.png", display_name));
+            if let Err(e) = common::save_bitmap_page(&bmp, page_idx, &current_png) {
+                eprintln!("[{}] Save bitmap error: {}", display_name, e);
+                mismatches.push(format!("{} (error: {})", display_name, e));
+                continue;
+            }
+
+            let golden_path =
+                golden_dir.join(format!("{}{}.png", format!("xml_{}", name), page_suffix));
+
+            if regenerate {
+                fs::copy(&current_png, &golden_path).unwrap();
+                println!(
+                    "[{}] Updated golden: {}",
+                    display_name,
+                    golden_path.display()
+                );
+                continue;
+            }
+
+            if !golden_path.exists() {
+                eprintln!(
+                    "[{}] No golden bitmap at {}",
+                    display_name,
+                    golden_path.display()
+                );
+                mismatches.push(format!("{} (no golden)", display_name));
+                continue;
+            }
+
+            // Pixel-level comparison with visual diff output
+            let diff_path = diff_dir.join(format!("{}_diff.png", display_name));
+            match common::compare_images_and_diff(&golden_path, &current_png, &diff_path) {
+                Ok((_total, diff_pixels, diff_pct)) => {
+                    if diff_pixels == 0 {
+                        let _ = fs::remove_file(&current_png);
+                        let _ = fs::remove_file(&diff_path);
+                    } else {
+                        let golden_copy = diff_dir.join(format!("{}_golden.png", display_name));
+                        let _ = fs::copy(&golden_path, &golden_copy);
+
+                        eprintln!(
+                            "[{}] BITMAP MISMATCH: {}/{} pixels differ ({:.2}%)\n  \
+                             golden:  {}\n  current: {}\n  diff:    {}",
+                            display_name,
+                            diff_pixels,
+                            _total,
+                            diff_pct,
+                            golden_copy.display(),
+                            current_png.display(),
+                            diff_path.display(),
+                        );
+                        mismatches.push(format!("{} ({:.2}% diff)", display_name, diff_pct));
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[{}] Comparison error: {}", display_name, e);
+                    mismatches.push(format!("{} (error: {})", display_name, e));
+                }
+            }
+        }
+    }
+
+    if !regenerate && !mismatches.is_empty() {
+        panic!(
+            "Bitmap mismatches in {} MusicXML fixture(s): {}\n\
+             Visual diff images: open test-output/bitmap-diff/\n\
+             Regenerate goldens: REGENERATE_REFS=1 cargo test --features visual-regression test_all_musicxml_bitmap_regression",
+            mismatches.len(),
+            mismatches.join(", ")
         );
     }
 }

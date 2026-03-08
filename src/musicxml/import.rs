@@ -72,8 +72,22 @@ impl From<quick_xml::Error> for ImportError {
 // Parsed MusicXML intermediate representation
 // ============================================================================
 
-/// Result of parse_musicxml: (part definitions, parts, part groups).
-type ParsedMusicXml = (Vec<XmlPartDef>, Vec<XmlPart>, Vec<PartGroupDef>);
+/// Parsed score metadata from MusicXML `<work>`, `<movement-title>`, `<identification>`.
+#[derive(Debug, Clone, Default)]
+struct XmlScoreCredits {
+    /// From `<work>/<work-title>` or `<movement-title>` (movement-title preferred).
+    title: String,
+    /// From `<identification>/<creator type="composer">`.
+    composer: String,
+}
+
+/// Result of parse_musicxml: (part definitions, parts, part groups, credits).
+type ParsedMusicXml = (
+    Vec<XmlPartDef>,
+    Vec<XmlPart>,
+    Vec<PartGroupDef>,
+    XmlScoreCredits,
+);
 
 /// A parsed MusicXML part group from `<part-group>` in `<part-list>`.
 /// Tracks bracket/brace/line grouping of parts.
@@ -426,8 +440,8 @@ fn midi_to_yqpit(midi: u8) -> i8 {
 
 /// Parse a MusicXML string into an InterpretedScore.
 pub fn import_musicxml(xml: &str) -> Result<InterpretedScore, ImportError> {
-    let (parts_def, parts, part_groups) = parse_musicxml(xml)?;
-    build_score(&parts_def, &parts, &part_groups)
+    let (parts_def, parts, part_groups, credits) = parse_musicxml(xml)?;
+    build_score(&parts_def, &parts, &part_groups, &credits)
 }
 
 /// Parse a MusicXML string into intermediate structures.
@@ -477,6 +491,9 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
     let mut current_barline_ending_num: Option<u8> = None;
     let mut current_barline_ending_type: String = String::new();
     let mut current_barline_repeat_dir: Option<String> = None;
+    // State for parsing score metadata (title, composer)
+    let mut credits = XmlScoreCredits::default();
+    let mut current_creator_type: String = String::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
@@ -487,6 +504,10 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                 let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
 
                 match tag.as_str() {
+                    // <creator type="composer">Name</creator> in <identification>
+                    "creator" => {
+                        current_creator_type = attr_str(e, "type");
+                    }
                     "score-part" => {
                         let id = attr_str(e, "id");
                         current_part_def = Some(XmlPartDef {
@@ -780,6 +801,23 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                 let parent = path.last().map(|s| s.as_str()).unwrap_or("");
 
                 match parent {
+                    // Score metadata: <work-title>, <movement-title>, <creator>
+                    "work-title" => {
+                        // Use work-title only if we don't already have a movement-title
+                        if credits.title.is_empty() {
+                            credits.title = text.clone();
+                        }
+                    }
+                    "movement-title" => {
+                        // movement-title takes priority over work-title
+                        credits.title = text.clone();
+                    }
+                    "creator" => {
+                        if current_creator_type == "composer" {
+                            credits.composer = text.clone();
+                        }
+                        current_creator_type.clear();
+                    }
                     "part-name" => {
                         if let Some(ref mut pd) = current_part_def {
                             pd.name = text;
@@ -1098,7 +1136,7 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
         buf.clear();
     }
 
-    Ok((parts_def, parts, part_groups))
+    Ok((parts_def, parts, part_groups, credits))
 }
 
 /// Helper to extract an attribute string from an XML element.
@@ -1121,6 +1159,7 @@ fn build_score(
     parts_def: &[XmlPartDef],
     parts: &[XmlPart],
     part_groups: &[PartGroupDef],
+    credits: &XmlScoreCredits,
 ) -> Result<InterpretedScore, ImportError> {
     if parts.is_empty() {
         return Err(ImportError::Missing("no parts in score".into()));
@@ -1724,6 +1763,127 @@ fn build_score(
     );
     objects[header_link as usize].header.right = page_link;
 
+    // Store title/composer on the score for metadata round-tripping
+    score.title = credits.title.clone();
+    score.composer = credits.composer.clone();
+
+    // ---- 2b. GRAPHIC objects for title and composer (page-relative) ----
+    // These GrString GRAPHIC objects are positioned at the top of page 1, above the first
+    // system. Title is centered in a large font; composer is right-aligned, smaller.
+    // first_obj points to the PAGE so rendering uses page-relative coordinates.
+    let mut prev_credit_link = page_link;
+
+    if !credits.title.is_empty() {
+        let gsub_link = alloc_sub(&mut next_sub_link);
+        let agraphic = AGraphic {
+            next: NILINK,
+            str_offset: 0,
+        };
+        // Title: centered, 18pt bold, ~36pt from top of page
+        // Page-relative: xd/yd are absolute DDIST coords.
+        // Page center = 612pt / 2 = 306pt = 4896 DDIST
+        let page_center_xd: i16 = (score.page_width_pt * 16.0 / 2.0) as i16;
+        let title_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 15, // GRAPHIC_TYPE
+                    left: prev_credit_link,
+                    first_sub_obj: gsub_link,
+                    n_entries: 1,
+                    visible: true,
+                    valid: true,
+                    xd: page_center_xd, // page center for centering
+                    yd: 576,            // 36pt from top
+                    ..Default::default()
+                },
+                data: ObjData::Graphic(Graphic {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn: 0 },
+                    graphic_type: GraphicType::GrString as i8,
+                    voice: 0,
+                    enclosure: 0,
+                    justify: 4, // GR_JUST_CENTER
+                    v_constrain: false,
+                    h_constrain: false,
+                    multi_line: 0,
+                    info: 0,
+                    gu_handle: 0,
+                    gu_thickness: 0,
+                    font_ind: 0,
+                    rel_f_size: 0,
+                    font_size: 18,
+                    font_style: 1, // bold
+                    info2: 0,
+                    first_obj: page_link,
+                    last_obj: NILINK,
+                }),
+            },
+        );
+        score.graphics.insert(gsub_link, vec![agraphic]);
+        score
+            .graphic_strings
+            .insert(gsub_link, credits.title.clone());
+        objects[prev_credit_link as usize].header.right = title_link;
+        prev_credit_link = title_link;
+    }
+
+    if !credits.composer.is_empty() {
+        let gsub_link = alloc_sub(&mut next_sub_link);
+        let agraphic = AGraphic {
+            next: NILINK,
+            str_offset: 0,
+        };
+        // Composer: right-aligned, 12pt italic, ~56pt from top (896 DDIST)
+        // Right margin = page_width - 36pt margin = (page_width - 36) * 16 DDIST
+        let right_margin_xd: i16 = ((score.page_width_pt - 36.0) * 16.0) as i16;
+        let composer_link = push_obj(
+            &mut objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 15, // GRAPHIC_TYPE
+                    left: prev_credit_link,
+                    first_sub_obj: gsub_link,
+                    n_entries: 1,
+                    visible: true,
+                    valid: true,
+                    xd: right_margin_xd,
+                    yd: 896, // 56pt from top
+                    ..Default::default()
+                },
+                data: ObjData::Graphic(Graphic {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn: 0 },
+                    graphic_type: GraphicType::GrString as i8,
+                    voice: 0,
+                    enclosure: 0,
+                    justify: 2, // GR_JUST_RIGHT
+                    v_constrain: false,
+                    h_constrain: false,
+                    multi_line: 0,
+                    info: 0,
+                    gu_handle: 0,
+                    gu_thickness: 0,
+                    font_ind: 0,
+                    rel_f_size: 0,
+                    font_size: 12,
+                    font_style: 2, // italic
+                    info2: 0,
+                    first_obj: page_link,
+                    last_obj: NILINK,
+                }),
+            },
+        );
+        score.graphics.insert(gsub_link, vec![agraphic]);
+        score
+            .graphic_strings
+            .insert(gsub_link, credits.composer.clone());
+        objects[prev_credit_link as usize].header.right = composer_link;
+        prev_credit_link = composer_link;
+    }
+
     // ---- 3. SYSTEM (link 3) ----
     // Put everything in a single system for now.
     let system_link = push_obj(
@@ -1732,7 +1892,7 @@ fn build_score(
             index: 0,
             header: ObjectHeader {
                 obj_type: 5, // SYSTEM_TYPE
-                left: page_link,
+                left: prev_credit_link,
                 visible: true,
                 valid: true,
                 ..Default::default()
@@ -1753,7 +1913,7 @@ fn build_score(
             }),
         },
     );
-    objects[page_link as usize].header.right = system_link;
+    objects[prev_credit_link as usize].header.right = system_link;
 
     // ---- 4. STAFF ----
     let staff_sub_link = alloc_sub(&mut next_sub_link);

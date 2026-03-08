@@ -214,6 +214,15 @@ pub struct InterpretedScore {
     /// Page header/footer font style (Mac TextFace bitfield: 1=bold, 2=italic, etc.).
     /// Reference: NDocAndCnfgTypes.h doc->fontStylePG
     pub pg_font_style: i16,
+
+    // === Score metadata (title, composer, etc.) ===
+    // Populated from MusicXML <work-title>, <movement-title>, <identification>/<creator>
+    // elements, or from GrString GRAPHIC objects in NGL files.
+    /// Score title (from MusicXML movement-title or work-title, or NGL GrString).
+    pub title: String,
+
+    /// Composer name (from MusicXML <creator type="composer">, or NGL GrString).
+    pub composer: String,
 }
 
 /// Text style record parsed from the N105 score header.
@@ -341,6 +350,9 @@ impl InterpretedScore {
             pg_font_name: "Helvetica".to_string(),
             pg_font_size: 10.0,
             pg_font_style: 0,
+            // Score metadata
+            title: String::new(),
+            composer: String::new(),
         }
     }
 

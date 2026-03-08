@@ -464,6 +464,22 @@ pub fn export_musicxml(score: &InterpretedScore) -> String {
     score_elem.push_attribute(("version", "4.0"));
     let _ = writer.write_event(Event::Start(score_elem));
 
+    // ---- Score metadata: <movement-title> and <identification> ----
+    if !score.title.is_empty() {
+        let _ = writer.write_event(Event::Start(BytesStart::new("movement-title")));
+        let _ = writer.write_event(Event::Text(BytesText::new(&score.title)));
+        let _ = writer.write_event(Event::End(BytesEnd::new("movement-title")));
+    }
+    if !score.composer.is_empty() {
+        let _ = writer.write_event(Event::Start(BytesStart::new("identification")));
+        let mut creator_elem = BytesStart::new("creator");
+        creator_elem.push_attribute(("type", "composer"));
+        let _ = writer.write_event(Event::Start(creator_elem));
+        let _ = writer.write_event(Event::Text(BytesText::new(&score.composer)));
+        let _ = writer.write_event(Event::End(BytesEnd::new("creator")));
+        let _ = writer.write_event(Event::End(BytesEnd::new("identification")));
+    }
+
     // Collect part groups from Connect objects.
     // A PartGroup records which part indices (0-based) are bracketed/braced.
     struct PartGroup {
