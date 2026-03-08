@@ -50,7 +50,7 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Anacrusis measure width, line widths from lnSpace (staff/ledger/stem/barline)
 
 ### Visual Regression Testing
-- [x] 622 golden bitmaps across 67 fixtures (26 NGL + 41 Notelist), all pages
+- [x] 678 golden bitmaps across 85 fixtures (26 NGL + 41 Notelist + 18 MusicXML), all pages
 - [x] Insta snapshot regression, command-stream hash regression
 - [x] Golden diff tool (scripts/visual-review.sh)
 
@@ -74,7 +74,7 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Score view widget with multi-page rendering, zoom, file browser
 - [ ] Tool palette, basic editing
 
-## Phase 5: MusicXML — NEARLY COMPLETE
+## Phase 5: MusicXML — IN PROGRESS
 
 ### Export (NGL → MusicXML) — DONE
 - [x] Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
@@ -84,19 +84,24 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Part groups (brackets/braces from Connect objects)
 - [x] All 26 NGL fixtures pass MusicXML DTD validation
 
-### Import (MusicXML → InterpretedScore) — NEARLY COMPLETE
+### Import (MusicXML → InterpretedScore) — IN PROGRESS
 - [x] Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
-- [x] Accidentals, dots, beams, ties, slurs, dynamics
+- [x] Accidentals, dots, ties, slurs, dynamics
 - [x] Tuplets (time-modification → Tuplet + ANoteTuple objects)
 - [x] Grace notes (→ GrSync + AGrNote objects with full pitch positioning)
 - [x] Articulations and ornaments (AModNr sub-objects, 14 mod_code types)
 - [x] Tempo marks (Tempo objects + score.tempo_strings)
 - [x] Volta endings (Ending objects), repeat barlines (RptEnd objects)
 - [x] Ottava (Ottava objects with oct_sign_type mapping)
-- [x] Round-trip tests: NGL→MusicXML→import→render, canonical stability
-- [ ] Part groups (Connect objects from `<part-group>` elements)
+- [x] Part groups (Connect objects from `<part-group>` elements)
+- [x] Title/composer credits (page-relative GrString GRAPHICs from `<movement-title>`/`<creator>`)
+- [x] Lyrics (GrLyric GRAPHICs from `<lyric>/<syllabic>/<text>`)
+- [ ] **Beams — need major rework** (rendering as thick black rectangles, wrong slopes/groupings)
+- [ ] **Measures/barlines — broken** (missing barlines, uneven spacing)
+- [ ] Round-trip tests: NGL→MusicXML→import→render, canonical stability
 
 ### Validation
+- [x] MusicXML golden bitmap regression (56 goldens across 18 xmlsamples)
 - [ ] Validate against MuseScore / Dorico round-trip
 
 ## Phase 6: Sound Playback / MIDI — NOT STARTED
@@ -112,8 +117,8 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 | Rust source files | 49 (.rs files under src/) |
 | Rust source lines | ~34,700 |
 | Rust test lines | ~8,900 (under tests/) |
-| Test count | 359 (355 passed + 4 ignored) |
-| Test fixture files | 26 .ngl + 41 .nl |
+| Test count | 363 (358 passed + 5 ignored) |
+| Test fixture files | 26 .ngl + 41 .nl + 18 .musicxml |
 | Insta snapshots | 87 |
-| Bitmap goldens | 622 (26 NGL + 41 Notelist, all pages) |
+| Bitmap goldens | 678 (26 NGL + 41 Notelist + 18 MusicXML, all pages) |
 | Module subdirs | 6 (draw, musicxml, ngl, notelist, render + top-level) |
