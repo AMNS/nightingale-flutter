@@ -95,9 +95,9 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Ottava (Ottava objects with oct_sign_type mapping)
 - [x] Part groups (Connect objects from `<part-group>` elements)
 - [x] Title/composer credits (page-relative GrString GRAPHICs from `<movement-title>`/`<creator>`)
-- [~] **PRIORITY 1: System/page layout** — NGL uses FromSysNums/SFormat; import creates flat list (no pagination)
-- [~] **PRIORITY 2: Beams** — partially fixed: inline creation, grouping OK; but slopes/widths still wrong in some cases
-- [~] **PRIORITY 3: Measures/barlines** — linked: horizontal nav works; but spacing/missing barlines in edge cases
+- [x] **PRIORITY 1: System/page layout** — COMPLETE! layout_score() integrated into MusicXML import tests, pagination working, 104 golden bitmaps passing
+- [~] **PRIORITY 2: Beams** — chord beaming fixed; remaining issues with slopes/widths in edge cases (partially addressed)
+- [~] **PRIORITY 3: Staff line continuity** — empty staves for parts not playing in measure(s) not rendering continuation staves (voice ends but piano continues)
 - [~] **PRIORITY 4: Guitar clef octave transposition** (8va below)
 - [~] **PRIORITY 5: Non-ASCII characters** in lyrics/text (encoding issues)
 - [ ] **PRIORITY 6: Text/lyric vertical positioning** — GrLyric/GrString created but Y-positioning incorrect (lyrics, titles, temps marks, etc.)

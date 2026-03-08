@@ -8,6 +8,7 @@
 mod common;
 
 use nightingale_core::draw::render_score;
+use nightingale_core::layout::{layout_score, LayoutConfig};
 use nightingale_core::musicxml::export::export_musicxml;
 use nightingale_core::musicxml::import::import_musicxml;
 use nightingale_core::ngl::{interpret::interpret_heap, NglFile};
@@ -84,7 +85,10 @@ fn import_dichterliebe_and_render_pdf() {
 
     // Import
     let xml = fs::read_to_string(xml_path).unwrap();
-    let score = import_musicxml(&xml).unwrap();
+    let mut score = import_musicxml(&xml).unwrap();
+
+    // Apply pagination/layout
+    layout_score(&mut score, &LayoutConfig::default());
 
     // Verify import quality
     let total_notes: usize = score.notes.values().map(|v| v.len()).sum();
@@ -129,7 +133,10 @@ fn import_actor_prelude_and_render_pdf() {
 
     // Import
     let xml = fs::read_to_string(xml_path).unwrap();
-    let score = import_musicxml(&xml).unwrap();
+    let mut score = import_musicxml(&xml).unwrap();
+
+    // Apply pagination/layout
+    layout_score(&mut score, &LayoutConfig::default());
 
     // Verify import quality — orchestral score
     let total_notes: usize = score.notes.values().map(|v| v.len()).sum();
@@ -175,7 +182,8 @@ fn dichterliebe_import_then_reexport() {
     }
 
     let xml_orig = fs::read_to_string(xml_path).unwrap();
-    let score = import_musicxml(&xml_orig).unwrap();
+    let mut score = import_musicxml(&xml_orig).unwrap();
+    layout_score(&mut score, &LayoutConfig::default());
     let xml_reexport = export_musicxml(&score);
 
     // Write re-exported file
@@ -209,7 +217,8 @@ fn actor_prelude_import_then_reexport() {
     }
 
     let xml_orig = fs::read_to_string(xml_path).unwrap();
-    let score = import_musicxml(&xml_orig).unwrap();
+    let mut score = import_musicxml(&xml_orig).unwrap();
+    layout_score(&mut score, &LayoutConfig::default());
     let xml_reexport = export_musicxml(&score);
 
     let out_dir = Path::new("test-output/musicxml_pipeline");
@@ -247,11 +256,13 @@ fn dichterliebe_roundtrip_fidelity() {
     let xml_orig = fs::read_to_string(xml_path).unwrap();
 
     // Pass 1: import → export
-    let score1 = import_musicxml(&xml_orig).unwrap();
+    let mut score1 = import_musicxml(&xml_orig).unwrap();
+    layout_score(&mut score1, &LayoutConfig::default());
     let xml1 = export_musicxml(&score1);
 
     // Pass 2: import re-exported → export again
-    let score2 = import_musicxml(&xml1).unwrap();
+    let mut score2 = import_musicxml(&xml1).unwrap();
+    layout_score(&mut score2, &LayoutConfig::default());
     let xml2 = export_musicxml(&score2);
 
     // Compare structural element counts between pass 1 and pass 2
@@ -314,9 +325,11 @@ fn actor_prelude_roundtrip_fidelity() {
     }
 
     let xml_orig = fs::read_to_string(xml_path).unwrap();
-    let score1 = import_musicxml(&xml_orig).unwrap();
+    let mut score1 = import_musicxml(&xml_orig).unwrap();
+    layout_score(&mut score1, &LayoutConfig::default());
     let xml1 = export_musicxml(&score1);
-    let score2 = import_musicxml(&xml1).unwrap();
+    let mut score2 = import_musicxml(&xml1).unwrap();
+    layout_score(&mut score2, &LayoutConfig::default());
     let xml2 = export_musicxml(&score2);
 
     let notes1 = count_tag(&xml1, "<note>");
@@ -462,7 +475,8 @@ fn full_pipeline_dichterliebe() {
 
     // Step 1: Import
     let xml_orig = fs::read_to_string(xml_path).unwrap();
-    let score1 = import_musicxml(&xml_orig).unwrap();
+    let mut score1 = import_musicxml(&xml_orig).unwrap();
+    layout_score(&mut score1, &LayoutConfig::default());
     let notes1: usize = score1.notes.values().map(|v| v.len()).sum();
 
     // Step 2: Render imported score
@@ -474,7 +488,8 @@ fn full_pipeline_dichterliebe() {
     fs::write(out_dir.join("dichterliebe_pass1.musicxml"), &xml_reexport).unwrap();
 
     // Step 4: Import the re-export
-    let score2 = import_musicxml(&xml_reexport).unwrap();
+    let mut score2 = import_musicxml(&xml_reexport).unwrap();
+    layout_score(&mut score2, &LayoutConfig::default());
     let notes2: usize = score2.notes.values().map(|v| v.len()).sum();
 
     // Step 5: Render the re-imported score
@@ -486,7 +501,8 @@ fn full_pipeline_dichterliebe() {
     fs::write(out_dir.join("dichterliebe_pass2.musicxml"), &xml_pass2).unwrap();
 
     // Step 7: One more roundtrip to verify stability of our own format
-    let score3 = import_musicxml(&xml_pass2).unwrap();
+    let mut score3 = import_musicxml(&xml_pass2).unwrap();
+    layout_score(&mut score3, &LayoutConfig::default());
     let notes3: usize = score3.notes.values().map(|v| v.len()).sum();
     let xml_pass3 = export_musicxml(&score3);
 
@@ -582,13 +598,15 @@ fn import_all_xmlsamples_and_render_pdfs() {
             }
         };
 
-        let score = match import_musicxml(&xml) {
+        let mut score = match import_musicxml(&xml) {
             Ok(s) => s,
             Err(e) => {
                 failures.push((name, format!("import error: {}", e)));
                 continue;
             }
         };
+
+        layout_score(&mut score, &LayoutConfig::default());
 
         let total_notes: usize = score.notes.values().map(|v| v.len()).sum();
         let total_parts = score.part_infos.len();
@@ -744,13 +762,15 @@ fn test_all_musicxml_bitmap_regression() {
                 continue;
             }
         };
-        let score = match import_musicxml(&xml) {
+        let mut score = match import_musicxml(&xml) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("[xml_{}] Import error: {:?}", name, e);
                 continue;
             }
         };
+
+        layout_score(&mut score, &LayoutConfig::default());
 
         // Render to bitmap
         let page_w = if score.page_width_pt > 0.0 {
