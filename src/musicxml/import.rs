@@ -72,6 +72,18 @@ impl From<quick_xml::Error> for ImportError {
 // Parsed MusicXML intermediate representation
 // ============================================================================
 
+/// Result of parse_musicxml: (part definitions, parts, part groups).
+type ParsedMusicXml = (Vec<XmlPartDef>, Vec<XmlPart>, Vec<PartGroupDef>);
+
+/// A parsed MusicXML part group from `<part-group>` in `<part-list>`.
+/// Tracks bracket/brace/line grouping of parts.
+#[derive(Debug, Clone)]
+struct PartGroupDef {
+    start_part_idx: usize, // 0-based index into parts_def
+    stop_part_idx: usize,  // 0-based index (filled on type="stop")
+    symbol: String,        // "bracket", "brace", "line", or ""
+}
+
 /// A parsed MusicXML part definition from `<part-list>`.
 #[derive(Debug, Clone)]
 struct XmlPartDef {
@@ -410,16 +422,21 @@ fn midi_to_yqpit(midi: u8) -> i8 {
 
 /// Parse a MusicXML string into an InterpretedScore.
 pub fn import_musicxml(xml: &str) -> Result<InterpretedScore, ImportError> {
-    let (parts_def, parts) = parse_musicxml(xml)?;
-    build_score(&parts_def, &parts)
+    let (parts_def, parts, part_groups) = parse_musicxml(xml)?;
+    build_score(&parts_def, &parts, &part_groups)
 }
 
 /// Parse a MusicXML string into intermediate structures.
-fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportError> {
+fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
 
     let mut parts_def: Vec<XmlPartDef> = Vec::new();
+    let mut part_groups: Vec<PartGroupDef> = Vec::new();
+    // Open part-group starts keyed by number attr; value = index into part_groups
+    let mut open_part_groups: std::collections::HashMap<i32, usize> =
+        std::collections::HashMap::new();
+    let mut current_group_symbol: String = String::new();
     let mut parts: Vec<XmlPart> = Vec::new();
     let mut buf = Vec::new();
 
@@ -468,6 +485,26 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             _id: id,
                             name: String::new(),
                         });
+                    }
+                    // <part-group type="start" number="1"> in <part-list>
+                    "part-group" => {
+                        let pg_type = attr_str(e, "type");
+                        let pg_num = attr_str(e, "number").parse::<i32>().unwrap_or(1);
+                        if pg_type == "start" {
+                            let idx = part_groups.len();
+                            part_groups.push(PartGroupDef {
+                                start_part_idx: parts_def.len(),
+                                stop_part_idx: 0,
+                                symbol: String::new(),
+                            });
+                            open_part_groups.insert(pg_num, idx);
+                            current_group_symbol.clear();
+                        } else if pg_type == "stop" {
+                            if let Some(idx) = open_part_groups.remove(&pg_num) {
+                                // stop_part_idx = last part index (0-based)
+                                part_groups[idx].stop_part_idx = parts_def.len().saturating_sub(1);
+                            }
+                        }
                     }
                     "part" => {
                         let id = attr_str(e, "id");
@@ -709,6 +746,16 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                 if tag == "beat-unit-dot" && path.iter().any(|p| p == "metronome") {
                     current_tempo_beat_dots = true;
                 }
+                // <part-group type="stop" number="N"/> (self-closing form)
+                if tag == "part-group" {
+                    let pg_type = attr_str(e, "type");
+                    let pg_num = attr_str(e, "number").parse::<i32>().unwrap_or(1);
+                    if pg_type == "stop" {
+                        if let Some(idx) = open_part_groups.remove(&pg_num) {
+                            part_groups[idx].stop_part_idx = parts_def.len().saturating_sub(1);
+                        }
+                    }
+                }
             }
 
             Ok(Event::Text(ref e)) => {
@@ -720,6 +767,10 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                         if let Some(ref mut pd) = current_part_def {
                             pd.name = text;
                         }
+                    }
+                    // <group-symbol>bracket|brace|line</group-symbol> inside <part-group>
+                    "group-symbol" => {
+                        current_group_symbol = text;
                     }
                     "divisions" => {
                         if let Some(ref mut a) = current_attrs {
@@ -874,6 +925,22 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
                             parts_def.push(pd);
                         }
                     }
+                    // </part-group> — save group-symbol to the open group and
+                    // close it if type="stop" was on the start tag (handled
+                    // in Event::Start). If it was type="start", save the symbol
+                    // collected from <group-symbol> text.
+                    "part-group" => {
+                        if !current_group_symbol.is_empty() {
+                            // Find the most recently opened group that still
+                            // has an empty symbol and set it.
+                            for &idx in open_part_groups.values() {
+                                if part_groups[idx].symbol.is_empty() {
+                                    part_groups[idx].symbol = current_group_symbol.clone();
+                                }
+                            }
+                            current_group_symbol.clear();
+                        }
+                    }
                     "part" => {
                         if let Some(part) = current_part.take() {
                             parts.push(part);
@@ -991,7 +1058,7 @@ fn parse_musicxml(xml: &str) -> Result<(Vec<XmlPartDef>, Vec<XmlPart>), ImportEr
         buf.clear();
     }
 
-    Ok((parts_def, parts))
+    Ok((parts_def, parts, part_groups))
 }
 
 /// Helper to extract an attribute string from an XML element.
@@ -1013,6 +1080,7 @@ fn attr_str(e: &quick_xml::events::BytesStart<'_>, name: &str) -> String {
 fn build_score(
     parts_def: &[XmlPartDef],
     parts: &[XmlPart],
+    part_groups: &[PartGroupDef],
 ) -> Result<InterpretedScore, ImportError> {
     if parts.is_empty() {
         return Err(ImportError::Missing("no parts in score".into()));
@@ -1536,19 +1604,64 @@ fn build_score(
     objects[system_link as usize].header.right = staff_link;
 
     // ---- 5. CONNECT ----
+    // Build AConnect sub-objects: first the system-level curly brace,
+    // then GroupLevel sub-objects for each parsed <part-group>.
     let conn_sub_link = alloc_sub(&mut next_sub_link);
-    let connect_subs = vec![AConnect {
-        next: NILINK,
+    let mut connect_subs: Vec<AConnect> = Vec::new();
+
+    // System-level curly brace spanning all staves
+    connect_subs.push(AConnect {
+        next: NILINK, // will be patched below
         selected: false,
         filler: 0,
-        conn_level: 0,   // system level
+        conn_level: 0,   // SystemLevel
         connect_type: 3, // curly brace
         staff_above: 1,
         staff_below: total_staves as i8,
         xd: 0,
         first_part: 1,
         last_part: part_infos_list.len() as Link,
-    }];
+    });
+
+    // GroupLevel sub-objects from <part-group> elements
+    for pg in part_groups {
+        if pg.start_part_idx >= part_infos_list.len() || pg.stop_part_idx >= part_infos_list.len() {
+            continue; // skip invalid groups
+        }
+        let connect_type: u8 = match pg.symbol.as_str() {
+            "bracket" => 2, // ConnectBracket
+            "brace" => 3,   // ConnectCurly
+            "line" => 1,    // ConnectLine
+            _ => 2,         // default to bracket
+        };
+        let staff_above = part_infos_list[pg.start_part_idx].first_staff;
+        let staff_below = part_infos_list[pg.stop_part_idx].last_staff;
+        if staff_above == staff_below {
+            continue; // single-staff group — skip
+        }
+        connect_subs.push(AConnect {
+            next: NILINK,
+            selected: false,
+            filler: 0,
+            conn_level: 1, // GroupLevel
+            connect_type,
+            staff_above,
+            staff_below,
+            xd: 0,
+            first_part: (pg.start_part_idx + 1) as Link,
+            last_part: (pg.stop_part_idx + 1) as Link,
+        });
+    }
+
+    // Chain sub-objects via `next` links
+    let n_connect_subs = connect_subs.len();
+    for (i, sub) in connect_subs
+        .iter_mut()
+        .enumerate()
+        .take(n_connect_subs.saturating_sub(1))
+    {
+        sub.next = conn_sub_link + (i as Link) + 1;
+    }
 
     let connect_link = push_obj(
         &mut objects,
@@ -1558,7 +1671,7 @@ fn build_score(
                 obj_type: 12, // CONNECT_TYPE
                 left: staff_link,
                 first_sub_obj: conn_sub_link,
-                n_entries: 1,
+                n_entries: n_connect_subs as u8,
                 visible: true,
                 valid: true,
                 ..Default::default()
