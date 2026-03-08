@@ -224,6 +224,7 @@ fn convert(cmd: &RenderCommand) -> RenderCommandDto {
                 BarLineType::RepeatLeft => 3,
                 BarLineType::RepeatRight => 4,
                 BarLineType::RepeatBoth => 5,
+                BarLineType::Dotted => 6,
             },
             ..Default::default()
         },
