@@ -19,6 +19,7 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
 use crate::basic_types::{DRect, Ddist, KsInfo, Link, Rect, NILINK};
+use crate::beam::{compute_beam_slope, BeamNoteInfo};
 use crate::defs::{
     AC_FLAT, AC_NATURAL, AC_SHARP, ALTO_CLEF, BARITONE_CLEF, BASS8B_CLEF, BASS_CLEF, FRVIOLIN_CLEF,
     MZSOPRANO_CLEF, PERC_CLEF, SOPRANO_CLEF, TENOR_CLEF, TREBLE8_CLEF, TREBLE_CLEF, TRTENOR_CLEF,
@@ -40,6 +41,9 @@ use crate::obj_types::Sync as NglSync;
 
 /// PDUR ticks per quarter note (matches export.rs and Nightingale convention).
 const PDUR_QUARTER: i32 = 480;
+
+/// Default relative beam slope percentage (33% matches Nightingale convention).
+const REL_BEAM_SLOPE: i16 = 33;
 
 /// Import error type.
 #[derive(Debug)]
@@ -1176,6 +1180,87 @@ fn bar_style_to_barline_code(style: &str) -> i8 {
         "light-heavy" | "heavy-light" => BarlineType::BarFinalDbl as i8, // Final/repeat barlines
         "dotted" | "dashed" => 1i8, // For now, treat as single; could use PsMeas later
         _ => BarlineType::BarSingle as i8, // Default to single for unknown styles
+    }
+}
+
+/// Apply beam slope reduction to all beamed notes in the score.
+///
+/// Iterates through all SYNC objects with beamed notes, collects BeamNoteInfo,
+/// applies compute_beam_slope to reduce slope by REL_BEAM_SLOPE percentage,
+/// and updates note.ystem values. This matches the Notelist pipeline behavior.
+fn apply_beam_slope_reduction(score: &mut InterpretedScore) {
+    // Iterate through all objects to find BeamSets
+    for beamset_obj_idx in 0..score.objects.len() {
+        if let Some(obj) = score.objects.get(beamset_obj_idx) {
+            if obj.header.obj_type == 11 {
+                // This is a BEAMSET_TYPE object
+                if let ObjData::BeamSet(beamset) = &obj.data {
+                    let staffn = beamset.ext_header.staffn;
+                    let voice = beamset.voice;
+                    let first_sub = obj.header.first_sub_obj;
+                    let n_entries = obj.header.n_entries as usize;
+
+                    // Collect BeamNoteInfo from all notes in this beam group
+                    let mut infos: Vec<BeamNoteInfo> = Vec::new();
+                    let mut sync_links: Vec<Link> = Vec::new();
+
+                    if let Some(notebeams) = score.notebeams.get(&first_sub) {
+                        for (_i, notebeam) in notebeams.iter().enumerate().take(n_entries) {
+                            let sync_link = notebeam.bp_sync;
+                            sync_links.push(sync_link);
+
+                            // Find the sync object to get its xd
+                            if let Some(sync_obj) =
+                                score.objects.iter().find(|o| o.index == sync_link)
+                            {
+                                let sync_xd = sync_obj.header.xd;
+
+                                // Find the note in this sync
+                                if let Some(notes) = score.notes.get(&sync_obj.header.first_sub_obj)
+                                {
+                                    if let Some(note) = notes.iter().find(|n| {
+                                        n.voice == voice && n.header.staffn == staffn && n.beamed
+                                    }) {
+                                        infos.push(BeamNoteInfo {
+                                            sync_xd,
+                                            note_yd: note.yd,
+                                            note_ystem: note.ystem,
+                                            sync_id: sync_link,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Apply slope reduction and update note ystems
+                    if let Some(new_ystems) = compute_beam_slope(&infos, REL_BEAM_SLOPE) {
+                        for (i, _info) in infos.iter().enumerate() {
+                            if i < sync_links.len() {
+                                let sync_link = sync_links[i];
+                                if let Some(sync_obj) =
+                                    score.objects.iter().find(|o| o.index == sync_link)
+                                {
+                                    if let Some(notes) =
+                                        score.notes.get_mut(&sync_obj.header.first_sub_obj)
+                                    {
+                                        for note in notes.iter_mut() {
+                                            if note.voice == voice
+                                                && note.header.staffn == staffn
+                                                && note.beamed
+                                            {
+                                                note.ystem = new_ystems[i];
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -3368,6 +3453,9 @@ fn build_score(
 
     // --- Post-hoc layout: fix geometry + compute spacing ---
     layout_score(&mut score, &LayoutConfig::default());
+
+    // --- Apply beam slope reduction (Beam.cp:181-235) ---
+    apply_beam_slope_reduction(&mut score);
 
     Ok(score)
 }
