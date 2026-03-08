@@ -26,10 +26,10 @@ use crate::defs::{
 use crate::layout::{layout_score, LayoutConfig};
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
-    AClef, AConnect, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteTuple, AStaff, ATimeSig,
-    BeamSet, Clef, Connect, Dynamic, Ending, ExtObjHeader, GrSync, Header, KeySig, Measure,
-    ObjectHeader, Ottava, Page, PartInfo, RptEnd, Staff, SubObjHeader, System, Tail, Tempo,
-    TimeSig, Tuplet, SHOW_ALL_LINES,
+    AClef, AConnect, AGraphic, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteTuple, AStaff,
+    ATimeSig, BeamSet, Clef, Connect, Dynamic, Ending, ExtObjHeader, GrSync, Graphic, GraphicType,
+    Header, KeySig, Measure, ObjectHeader, Ottava, Page, PartInfo, RptEnd, Staff, SubObjHeader,
+    System, Tail, Tempo, TimeSig, Tuplet, SHOW_ALL_LINES,
 };
 use crate::objects::{normal_stem_up_down_single, setup_ks_info, VoiceRole};
 use crate::pitch_utils::{clef_middle_c_half_ln, half_ln_to_yd};
@@ -128,6 +128,10 @@ struct XmlNote {
     tuplet_stop: bool,
     /// Articulation/ornament modifier codes (NGL ModCode values).
     mod_codes: Vec<u8>,
+    /// Lyric text from <lyric><text> (first verse only for now).
+    lyric_text: String,
+    /// Lyric syllabic type: "single", "begin", "middle", "end".
+    lyric_syllabic: String,
 }
 
 /// Parsed attributes from a MusicXML `<attributes>` element.
@@ -464,6 +468,10 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
     let mut current_tempo_sound: i32 = 0;
     // State for parsing <direction><octave-shift>
     let mut current_ottava_type: Option<u8> = None;
+    // State for parsing <lyric> inside <note>
+    let mut current_lyric_text: String = String::new();
+    let mut current_lyric_syllabic: String = String::new();
+    let mut in_lyric: bool = false;
     // State for parsing <barline> elements
     let mut in_barline: bool = false;
     let mut current_barline_ending_num: Option<u8> = None;
@@ -548,7 +556,11 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                             tuplet_start: false,
                             tuplet_stop: false,
                             mod_codes: Vec::new(),
+                            lyric_text: String::new(),
+                            lyric_syllabic: String::new(),
                         });
+                        current_lyric_text.clear();
+                        current_lyric_syllabic.clear();
                     }
                     "direction" => {
                         // Reset direction state for a new <direction> element.
@@ -602,6 +614,11 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                     }
                     "beam" => {
                         current_beam_number = attr_str(e, "number").parse::<i32>().unwrap_or(1);
+                    }
+                    "lyric" => {
+                        // Only handle verse 1 (number="1") for now
+                        let num = attr_str(e, "number");
+                        in_lyric = num.is_empty() || num == "1";
                     }
                     // <ending> inside <barline> may have content: <ending number="1" type="start">1.</ending>
                     "ending" if in_barline => {
@@ -894,6 +911,13 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                             n.beam_levels[idx] = text;
                         }
                     }
+                    // <lyric><text> and <lyric><syllabic>
+                    "text" if in_lyric => {
+                        current_lyric_text = text;
+                    }
+                    "syllabic" if in_lyric => {
+                        current_lyric_syllabic = text;
+                    }
                     // Tempo text inside <direction><direction-type><words>
                     "words" if path.iter().any(|p| p == "direction") => {
                         if current_tempo_words.is_empty() {
@@ -960,6 +984,22 @@ fn parse_musicxml(xml: &str) -> Result<ParsedMusicXml, ImportError> {
                                 meas.elements.push(XmlMeasureElement::Attributes(attrs));
                             }
                         }
+                    }
+                    "lyric" => {
+                        // Flush lyric text into the current note
+                        if in_lyric && !current_lyric_text.is_empty() {
+                            if let Some(ref mut n) = current_note {
+                                // Append hyphen for begin/middle syllables
+                                let mut text = current_lyric_text.clone();
+                                match current_lyric_syllabic.as_str() {
+                                    "begin" | "middle" => text.push('-'),
+                                    _ => {}
+                                }
+                                n.lyric_text = text;
+                                n.lyric_syllabic = current_lyric_syllabic.clone();
+                            }
+                        }
+                        in_lyric = false;
                     }
                     "note" => {
                         if let Some(note) = current_note.take() {
@@ -1235,6 +1275,8 @@ fn build_score(
         is_grace: bool,
         /// Articulation/ornament modifier codes (NGL ModCode values).
         mod_codes: Vec<u8>,
+        /// Lyric text (with hyphen appended for begin/middle syllables).
+        lyric_text: String,
     }
 
     let mut all_notes: Vec<NoteEntry> = Vec::new();
@@ -1244,7 +1286,15 @@ fn build_score(
     let mut collected_endings: Vec<XmlEnding> = Vec::new();
     let mut collected_repeats: Vec<XmlRepeat> = Vec::new();
     let mut collected_ottavas: Vec<(i32, i8, XmlOttava)> = Vec::new();
-    let num_measures = parts.iter().map(|p| p.measures.len()).max().unwrap_or(0);
+    // Build sorted list of unique measure numbers across all parts.
+    // MusicXML files may start at measure 0 (anacrusis/pickup) or 1.
+    let mut measure_numbers: Vec<i32> = parts
+        .iter()
+        .flat_map(|p| p.measures.iter().map(|m| m.number))
+        .collect();
+    measure_numbers.sort();
+    measure_numbers.dedup();
+    let _num_measures = measure_numbers.len();
 
     // Track mid-score attribute changes per measure (key, time, clefs).
     // Indexed by measure number (1-based).
@@ -1274,8 +1324,9 @@ fn build_score(
                         if let Some(f) = attrs.key_fifths {
                             current_fifths = f;
                         }
-                        // Collect mid-score attribute changes (skip first measure)
-                        if meas.number > 1 {
+                        // Collect mid-score attribute changes (skip first measure
+                        // since its attributes go in the preamble, not mid-score)
+                        if meas.number > measure_numbers.first().copied().unwrap_or(1) {
                             let entry =
                                 mid_score_attrs
                                     .entry(meas.number)
@@ -1366,6 +1417,7 @@ fn build_score(
                             tuplet_stop: note.tuplet_stop,
                             is_grace: note.grace,
                             mod_codes: note.mod_codes.clone(),
+                            lyric_text: note.lyric_text.clone(),
                         });
 
                         if !note.chord && !note.grace {
@@ -1466,6 +1518,169 @@ fn build_score(
         let link = objects.len() as Link;
         objects.push(InterpretedObject { index: link, ..obj });
         link
+    }
+
+    /// Create a BeamSet object from a completed beam group and insert into the object list.
+    /// The group contains (sync_link, beam_levels) pairs for each note in the beam.
+    fn flush_beam_group(
+        group: &mut [(Link, Vec<String>)],
+        sv: (i8, i8),
+        objects: &mut Vec<InterpretedObject>,
+        score: &mut InterpretedScore,
+        next_sub_link: &mut Link,
+        prev_link: &mut Link,
+    ) {
+        if group.len() < 2 {
+            return;
+        }
+
+        let beam_sub_link = alloc_sub(next_sub_link);
+        let mut notebeam_subs: Vec<ANoteBeam> = Vec::new();
+
+        for (gi, (sync_link, beam_levels)) in group.iter().enumerate() {
+            let active_beams = beam_levels
+                .iter()
+                .filter(|bv| {
+                    let s = bv.as_str();
+                    s == "begin" || s == "continue" || s == "end"
+                })
+                .count() as i8;
+            let startend = if gi == 0 {
+                active_beams
+            } else {
+                let prev_active = group[gi - 1]
+                    .1
+                    .iter()
+                    .filter(|bv| {
+                        let s = bv.as_str();
+                        s == "begin" || s == "continue" || s == "end"
+                    })
+                    .count() as i8;
+                active_beams - prev_active
+            };
+
+            let fracs = beam_levels
+                .iter()
+                .filter(|bv| bv.as_str() == "forward hook" || bv.as_str() == "backward hook")
+                .count() as u8;
+            let frac_go_left = beam_levels.iter().any(|bv| bv.as_str() == "backward hook") as u8;
+
+            notebeam_subs.push(ANoteBeam {
+                next: if gi + 1 < group.len() {
+                    beam_sub_link + (gi + 1) as Link
+                } else {
+                    NILINK
+                },
+                bp_sync: *sync_link,
+                startend,
+                fracs,
+                frac_go_left,
+                filler: 0,
+            });
+        }
+
+        *next_sub_link += (group.len() - 1) as Link;
+
+        let blink = push_obj(
+            objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 11, // BEAMSET_TYPE
+                    left: *prev_link,
+                    first_sub_obj: beam_sub_link,
+                    n_entries: group.len() as u8,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::BeamSet(BeamSet {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn: sv.0 },
+                    voice: sv.1,
+                    thin: 0,
+                    beam_rests: 0,
+                    feather: 0,
+                    grace: 0,
+                    first_system: 0,
+                    cross_staff: 0,
+                    cross_system: 0,
+                }),
+            },
+        );
+        score.notebeams.insert(beam_sub_link, notebeam_subs);
+        objects[*prev_link as usize].header.right = blink;
+        *prev_link = blink;
+    }
+
+    /// Create a Tuplet object from a completed tuplet group and insert into the object list.
+    #[allow(clippy::too_many_arguments)]
+    fn flush_tuplet_group(
+        group: &mut [Link],
+        sv: (i8, i8),
+        acc_num: u8,
+        acc_denom: u8,
+        objects: &mut Vec<InterpretedObject>,
+        score: &mut InterpretedScore,
+        next_sub_link: &mut Link,
+        prev_link: &mut Link,
+    ) {
+        if group.len() < 2 {
+            return;
+        }
+
+        let tuplet_sub_link = alloc_sub(next_sub_link);
+        let mut notetuple_subs: Vec<ANoteTuple> = Vec::new();
+        for (gi, sync_link) in group.iter().enumerate() {
+            notetuple_subs.push(ANoteTuple {
+                next: if gi + 1 < group.len() {
+                    tuplet_sub_link + (gi + 1) as Link
+                } else {
+                    NILINK
+                },
+                tp_sync: *sync_link,
+            });
+        }
+        *next_sub_link += (group.len() - 1) as Link;
+
+        let bracket_yd: Ddist = -40; // ~2.5 spaces above staff top
+
+        let tlink = push_obj(
+            objects,
+            InterpretedObject {
+                index: 0,
+                header: ObjectHeader {
+                    obj_type: 18, // TUPLET_TYPE
+                    left: *prev_link,
+                    first_sub_obj: tuplet_sub_link,
+                    n_entries: group.len() as u8,
+                    visible: true,
+                    valid: true,
+                    ..Default::default()
+                },
+                data: ObjData::Tuplet(Tuplet {
+                    header: ObjectHeader::default(),
+                    ext_header: ExtObjHeader { staffn: sv.0 },
+                    acc_num,
+                    acc_denom,
+                    voice: sv.1,
+                    num_vis: 1,
+                    denom_vis: 0,
+                    brack_vis: 1,
+                    small: 0,
+                    filler: 0,
+                    acnxd: 0,
+                    acnyd: 0,
+                    xd_first: 0,
+                    yd_first: bracket_yd,
+                    xd_last: 0,
+                    yd_last: bracket_yd,
+                }),
+            },
+        );
+        score.tuplets.insert(tuplet_sub_link, notetuple_subs);
+        objects[*prev_link as usize].header.right = tlink;
+        *prev_link = tlink;
     }
 
     // ---- 1. HEADER (link 1) ----
@@ -1843,7 +2058,6 @@ fn build_score(
     let mut beam_notes_with_links: Vec<(Link, i8, i8, Vec<String>)> = Vec::new();
     // Tuplet info: (sync_link, staff, voice, actual, normal, tuplet_start, tuplet_stop)
     let mut tuplet_notes_with_links: Vec<(Link, i8, i8, u8, u8, bool, bool)> = Vec::new();
-
     // Staff height for yd/ystem computation — must match LayoutConfig::default().
     // layout_score() will later set the definitive value, but we compute yd/ystem here
     // using the same default so they're consistent.
@@ -1887,7 +2101,7 @@ fn build_score(
         }
     }
 
-    for meas_num in 1..=(num_measures as i32) {
+    for (meas_idx, &meas_num) in measure_numbers.iter().enumerate() {
         // ---- Insert mid-score Clef/KeySig/TimeSig objects before this measure ----
         if let Some(change) = mid_score_attrs.remove(&meas_num) {
             // Insert Clef object if there are clef changes
@@ -2095,7 +2309,7 @@ fn build_score(
                 filler1: 0,
                 filler2: 0,
                 reserved_m: 0,
-                measure_num: (meas_num - 1) as i16,
+                measure_num: meas_idx as i16,
                 meas_size_rect: DRect::default(),
                 conn_staff: 0,
                 clef_type: 0,
@@ -2379,267 +2593,187 @@ fn build_score(
             }
 
             prev_link = sync_link;
+
+            // Create GRAPHIC (GrLyric) objects for lyrics immediately after
+            // their anchor Sync so the rendering context (staff_top, measure_top)
+            // is correct for the system they belong to.
+            for ne in notes_at_time {
+                if !ne.lyric_text.is_empty() && !ne.rest {
+                    let gsub_link = alloc_sub(&mut next_sub_link);
+                    let agraphic = AGraphic {
+                        next: NILINK,
+                        str_offset: 0,
+                    };
+                    let lyric_yd = staff_height + 40;
+                    let graphic_link = push_obj(
+                        &mut objects,
+                        InterpretedObject {
+                            index: 0,
+                            header: ObjectHeader {
+                                obj_type: 15, // GRAPHIC_TYPE
+                                left: prev_link,
+                                first_sub_obj: gsub_link,
+                                n_entries: 1,
+                                visible: true,
+                                valid: true,
+                                yd: lyric_yd,
+                                ..Default::default()
+                            },
+                            data: ObjData::Graphic(Graphic {
+                                header: ObjectHeader::default(),
+                                ext_header: ExtObjHeader {
+                                    staffn: ne.global_staff,
+                                },
+                                graphic_type: GraphicType::GrLyric as i8,
+                                voice: 0,
+                                enclosure: 0,
+                                justify: 0,
+                                v_constrain: false,
+                                h_constrain: false,
+                                multi_line: 0,
+                                info: 0, // FONT_THISITEMONLY
+                                gu_handle: 0,
+                                gu_thickness: 0,
+                                font_ind: 0,
+                                rel_f_size: 0,
+                                font_size: 10, // 10pt Times New Roman
+                                font_style: 0,
+                                info2: 0,
+                                first_obj: sync_link,
+                                last_obj: NILINK,
+                            }),
+                        },
+                    );
+                    score.graphics.insert(gsub_link, vec![agraphic]);
+                    score
+                        .graphic_strings
+                        .insert(gsub_link, ne.lyric_text.clone());
+                    objects[prev_link as usize].header.right = graphic_link;
+                    prev_link = graphic_link;
+                }
+            }
         }
 
-        // Advance measure start time
-        let meas_dur =
-            (PDUR_QUARTER as i64 * 4 * init_time_num as i64 / init_time_denom as i64) as i32;
-        measure_start_time += meas_dur;
-    }
+        // ---- 9b. BEAMSET OBJECTS (inline per measure) ----
+        // Create BeamSet + ANoteBeam objects from beam info collected during this
+        // measure's Sync creation. Placed here (not at end of object list) so the
+        // rendering context (staff_top, measure_left) is correct for this system.
+        {
+            let mut current_group: Vec<(Link, Vec<String>)> = Vec::new();
+            let mut current_sv: Option<(i8, i8)> = None;
 
-    // ---- 9b. BEAMSET OBJECTS ----
-    // Create BeamSet + ANoteBeam objects from beam info collected during Sync creation.
-    // beam_notes_with_links: (sync_link, staff, voice, beam_levels) — already in order.
-    // Group consecutive beamed notes by (staff, voice) into beam groups.
-    // A beam group starts with "begin" on primary beam and ends with "end".
-    {
-        let mut current_group: Vec<(Link, Vec<String>)> = Vec::new();
-        let mut current_sv: Option<(i8, i8)> = None;
+            for (sync_link, staff, voice, beam_levels) in beam_notes_with_links.drain(..) {
+                let sv = (staff, voice);
+                let is_begin = beam_levels.first().map(|s| s.as_str()) == Some("begin");
+                let is_end = beam_levels.first().map(|s| s.as_str()) == Some("end");
 
-        let flush_group = |group: &mut Vec<(Link, Vec<String>)>,
-                           sv: (i8, i8),
-                           objects: &mut Vec<InterpretedObject>,
-                           score: &mut InterpretedScore,
-                           next_sub_link: &mut Link,
-                           prev_link: &mut Link| {
-            if group.len() < 2 {
-                group.clear();
-                return;
+                if current_sv != Some(sv) || is_begin {
+                    // Flush previous group if any
+                    if current_group.len() >= 2 {
+                        let old_sv = current_sv.unwrap_or(sv);
+                        flush_beam_group(
+                            &mut current_group,
+                            old_sv,
+                            &mut objects,
+                            &mut score,
+                            &mut next_sub_link,
+                            &mut prev_link,
+                        );
+                    }
+                    current_group.clear();
+                    current_sv = Some(sv);
+                }
+
+                current_group.push((sync_link, beam_levels));
+
+                if is_end {
+                    if current_group.len() >= 2 {
+                        flush_beam_group(
+                            &mut current_group,
+                            sv,
+                            &mut objects,
+                            &mut score,
+                            &mut next_sub_link,
+                            &mut prev_link,
+                        );
+                    }
+                    current_group.clear();
+                    current_sv = None;
+                }
             }
-
-            // Create ANoteBeam subobjects
-            let beam_sub_link = alloc_sub(next_sub_link);
-            let mut notebeam_subs: Vec<ANoteBeam> = Vec::new();
-
-            for (gi, (sync_link, beam_levels)) in group.iter().enumerate() {
-                // Compute startend from beam_levels:
-                // Count how many non-hook beams at this note.
-                let active_beams = beam_levels
-                    .iter()
-                    .filter(|bv| {
-                        let s = bv.as_str();
-                        s == "begin" || s == "continue" || s == "end"
-                    })
-                    .count() as i8;
-                // For first note: startend = +active_beams (beams starting)
-                // For last note: startend = -active_beams (beams ending)
-                // For middle notes: startend = change from previous
-                let startend = if gi == 0 {
-                    active_beams
-                } else {
-                    let prev_active = group[gi - 1]
-                        .1
-                        .iter()
-                        .filter(|bv| {
-                            let s = bv.as_str();
-                            s == "begin" || s == "continue" || s == "end"
-                        })
-                        .count() as i8;
-                    active_beams - prev_active
-                };
-
-                // Count fractional beams (forward/backward hooks)
-                let fracs = beam_levels
-                    .iter()
-                    .filter(|bv| bv.as_str() == "forward hook" || bv.as_str() == "backward hook")
-                    .count() as u8;
-                let frac_go_left =
-                    beam_levels.iter().any(|bv| bv.as_str() == "backward hook") as u8;
-
-                notebeam_subs.push(ANoteBeam {
-                    next: if gi + 1 < group.len() {
-                        beam_sub_link + (gi + 1) as Link
-                    } else {
-                        NILINK
-                    },
-                    bp_sync: *sync_link,
-                    startend,
-                    fracs,
-                    frac_go_left,
-                    filler: 0,
-                });
-            }
-
-            // alloc_sub already consumed 1, add remaining (group.len() - 1) sub-links
-            *next_sub_link += (group.len() - 1) as Link;
-
-            let blink = push_obj(
-                objects,
-                InterpretedObject {
-                    index: 0,
-                    header: ObjectHeader {
-                        obj_type: 11, // BEAMSET_TYPE
-                        left: *prev_link,
-                        first_sub_obj: beam_sub_link,
-                        n_entries: group.len() as u8,
-                        visible: true,
-                        valid: true,
-                        ..Default::default()
-                    },
-                    data: ObjData::BeamSet(BeamSet {
-                        header: ObjectHeader::default(),
-                        ext_header: ExtObjHeader { staffn: sv.0 },
-                        voice: sv.1,
-                        thin: 0,
-                        beam_rests: 0,
-                        feather: 0,
-                        grace: 0,
-                        first_system: 0,
-                        cross_staff: 0,
-                        cross_system: 0,
-                    }),
-                },
-            );
-            score.notebeams.insert(beam_sub_link, notebeam_subs);
-            objects[*prev_link as usize].header.right = blink;
-            *prev_link = blink;
-
-            group.clear();
-        };
-
-        for (sync_link, staff, voice, beam_levels) in &beam_notes_with_links {
-            let sv = (*staff, *voice);
-            let is_begin = beam_levels.first().map(|s| s.as_str()) == Some("begin");
-            let is_end = beam_levels.first().map(|s| s.as_str()) == Some("end");
-
-            if current_sv != Some(sv) || is_begin {
-                // Flush previous group if any
-                if !current_group.is_empty() {
-                    let old_sv = current_sv.unwrap_or(sv);
-                    flush_group(
+            // Flush any remaining group at measure boundary
+            if current_group.len() >= 2 {
+                if let Some(sv) = current_sv {
+                    flush_beam_group(
                         &mut current_group,
-                        old_sv,
+                        sv,
                         &mut objects,
                         &mut score,
                         &mut next_sub_link,
                         &mut prev_link,
                     );
                 }
-                current_sv = Some(sv);
-            }
-
-            current_group.push((*sync_link, beam_levels.clone()));
-
-            if is_end {
-                flush_group(
-                    &mut current_group,
-                    sv,
-                    &mut objects,
-                    &mut score,
-                    &mut next_sub_link,
-                    &mut prev_link,
-                );
-                current_sv = None;
             }
         }
-        // Flush any remaining group
-        if !current_group.is_empty() {
-            if let Some(sv) = current_sv {
-                flush_group(
-                    &mut current_group,
-                    sv,
-                    &mut objects,
-                    &mut score,
-                    &mut next_sub_link,
-                    &mut prev_link,
-                );
-            }
-        }
-    }
 
-    // ---- 9c. TUPLET OBJECTS ----
-    // Create Tuplet + ANoteTuple objects from tuplet info collected during Sync creation.
-    // Group consecutive notes by (staff, voice) with tuplet_start/tuplet_stop boundaries.
-    {
-        let mut current_group: Vec<Link> = Vec::new(); // Sync links in this tuplet
-        let mut current_sv: Option<(i8, i8)> = None;
-        let mut current_actual: u8 = 3;
-        let mut current_normal: u8 = 2;
-
-        let flush_tuplet = |group: &mut Vec<Link>,
-                            sv: (i8, i8),
-                            acc_num: u8,
-                            acc_denom: u8,
-                            objects: &mut Vec<InterpretedObject>,
-                            score: &mut InterpretedScore,
-                            next_sub_link: &mut Link,
-                            prev_link: &mut Link| {
-            if group.len() < 2 {
-                group.clear();
-                return;
-            }
-
-            // Create ANoteTuple subobjects
-            let tuplet_sub_link = alloc_sub(next_sub_link);
-            let mut notetuple_subs: Vec<ANoteTuple> = Vec::new();
-            for (gi, sync_link) in group.iter().enumerate() {
-                notetuple_subs.push(ANoteTuple {
-                    next: if gi + 1 < group.len() {
-                        tuplet_sub_link + (gi + 1) as Link
-                    } else {
-                        NILINK
-                    },
-                    tp_sync: *sync_link,
-                });
-            }
-            // alloc_sub already consumed 1, add remaining (group.len() - 1) sub-links
-            *next_sub_link += (group.len() - 1) as Link;
-
-            // Bracket position: default to above staff, moderate offset
-            let bracket_yd: Ddist = -40; // ~2.5 spaces above staff top
-
-            let tlink = push_obj(
-                objects,
-                InterpretedObject {
-                    index: 0,
-                    header: ObjectHeader {
-                        obj_type: 18, // TUPLET_TYPE
-                        left: *prev_link,
-                        first_sub_obj: tuplet_sub_link,
-                        n_entries: group.len() as u8,
-                        visible: true,
-                        valid: true,
-                        ..Default::default()
-                    },
-                    data: ObjData::Tuplet(Tuplet {
-                        header: ObjectHeader::default(),
-                        ext_header: ExtObjHeader { staffn: sv.0 },
-                        acc_num,
-                        acc_denom,
-                        voice: sv.1,
-                        num_vis: 1,   // Show number
-                        denom_vis: 0, // Hide denominator
-                        brack_vis: 1, // Show bracket
-                        small: 0,
-                        filler: 0,
-                        acnxd: 0,
-                        acnyd: 0,
-                        xd_first: 0,
-                        yd_first: bracket_yd,
-                        xd_last: 0,
-                        yd_last: bracket_yd,
-                    }),
-                },
-            );
-            score.tuplets.insert(tuplet_sub_link, notetuple_subs);
-            objects[*prev_link as usize].header.right = tlink;
-            *prev_link = tlink;
-
-            group.clear();
-        };
-
-        for &(sync_link, staff, voice, actual, normal, tup_start, tup_stop) in
-            &tuplet_notes_with_links
+        // ---- 9c. TUPLET OBJECTS (inline per measure) ----
+        // Same fix: create tuplets within the measure so rendering context is correct.
         {
-            let sv = (staff, voice);
+            let mut current_group: Vec<Link> = Vec::new();
+            let mut current_sv: Option<(i8, i8)> = None;
+            let mut current_actual: u8 = 3;
+            let mut current_normal: u8 = 2;
 
-            if tup_start || (current_sv != Some(sv) && current_group.is_empty()) {
-                // Starting a new tuplet group
-                if !current_group.is_empty() {
-                    let old_sv = current_sv.unwrap_or(sv);
-                    flush_tuplet(
+            for &(sync_link, staff, voice, actual, normal, tup_start, tup_stop) in
+                &tuplet_notes_with_links
+            {
+                let sv = (staff, voice);
+
+                if tup_start || (current_sv != Some(sv) && current_group.is_empty()) {
+                    if current_group.len() >= 2 {
+                        let old_sv = current_sv.unwrap_or(sv);
+                        flush_tuplet_group(
+                            &mut current_group,
+                            old_sv,
+                            current_actual,
+                            current_normal,
+                            &mut objects,
+                            &mut score,
+                            &mut next_sub_link,
+                            &mut prev_link,
+                        );
+                    }
+                    current_group.clear();
+                    current_sv = Some(sv);
+                    current_actual = if actual > 0 { actual } else { 3 };
+                    current_normal = if normal > 0 { normal } else { 2 };
+                }
+
+                current_group.push(sync_link);
+
+                if tup_stop {
+                    if current_group.len() >= 2 {
+                        flush_tuplet_group(
+                            &mut current_group,
+                            sv,
+                            current_actual,
+                            current_normal,
+                            &mut objects,
+                            &mut score,
+                            &mut next_sub_link,
+                            &mut prev_link,
+                        );
+                    }
+                    current_group.clear();
+                    current_sv = None;
+                }
+            }
+            // Flush any remaining group at measure boundary
+            if current_group.len() >= 2 {
+                if let Some(sv) = current_sv {
+                    flush_tuplet_group(
                         &mut current_group,
-                        old_sv,
+                        sv,
                         current_actual,
                         current_normal,
                         &mut objects,
@@ -2648,42 +2782,14 @@ fn build_score(
                         &mut prev_link,
                     );
                 }
-                current_sv = Some(sv);
-                current_actual = if actual > 0 { actual } else { 3 };
-                current_normal = if normal > 0 { normal } else { 2 };
             }
-
-            current_group.push(sync_link);
-
-            if tup_stop {
-                flush_tuplet(
-                    &mut current_group,
-                    sv,
-                    current_actual,
-                    current_normal,
-                    &mut objects,
-                    &mut score,
-                    &mut next_sub_link,
-                    &mut prev_link,
-                );
-                current_sv = None;
-            }
+            tuplet_notes_with_links.clear();
         }
-        // Flush any remaining group
-        if !current_group.is_empty() {
-            if let Some(sv) = current_sv {
-                flush_tuplet(
-                    &mut current_group,
-                    sv,
-                    current_actual,
-                    current_normal,
-                    &mut objects,
-                    &mut score,
-                    &mut next_sub_link,
-                    &mut prev_link,
-                );
-            }
-        }
+
+        // Advance measure start time
+        let meas_dur =
+            (PDUR_QUARTER as i64 * 4 * init_time_num as i64 / init_time_denom as i64) as i32;
+        measure_start_time += meas_dur;
     }
 
     // ---- 9d. GRSYNC OBJECTS (grace notes) ----
@@ -3576,6 +3682,171 @@ mod tests {
         assert!(
             xml_out.contains("<clef-octave-change>-1</clef-octave-change>"),
             "should export clef-octave-change=-1"
+        );
+    }
+
+    /// Verify that MusicXML note types map to correct NGL l_dur (sub_type) codes
+    /// and that beamed notes are properly flagged.
+    #[test]
+    fn import_durations_and_beams() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Test</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>16</duration>
+        <type>whole</type>
+        <voice>1</voice>
+      </note>
+    </measure>
+    <measure number="2">
+      <note>
+        <pitch><step>D</step><octave>4</octave></pitch>
+        <duration>8</duration>
+        <type>half</type>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>quarter</type>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>F</step><octave>4</octave></pitch>
+        <duration>2</duration>
+        <type>eighth</type>
+        <voice>1</voice>
+        <beam number="1">begin</beam>
+      </note>
+      <note>
+        <pitch><step>G</step><octave>4</octave></pitch>
+        <duration>2</duration>
+        <type>eighth</type>
+        <voice>1</voice>
+        <beam number="1">end</beam>
+      </note>
+    </measure>
+    <measure number="3">
+      <note>
+        <pitch><step>A</step><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>16th</type>
+        <voice>1</voice>
+        <beam number="1">begin</beam>
+        <beam number="2">begin</beam>
+      </note>
+      <note>
+        <pitch><step>B</step><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>16th</type>
+        <voice>1</voice>
+        <beam number="1">continue</beam>
+        <beam number="2">end</beam>
+      </note>
+      <note>
+        <pitch><step>C</step><octave>5</octave></pitch>
+        <duration>2</duration>
+        <type>eighth</type>
+        <voice>1</voice>
+        <beam number="1">end</beam>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>5</octave></pitch>
+        <duration>6</duration>
+        <type>quarter</type>
+        <dot/>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>E</step><octave>5</octave></pitch>
+        <duration>2</duration>
+        <type>eighth</type>
+        <voice>1</voice>
+      </note>
+      <note>
+        <pitch><step>F</step><octave>5</octave></pitch>
+        <duration>2</duration>
+        <type>eighth</type>
+        <voice>1</voice>
+      </note>
+    </measure>
+  </part>
+</score-partwise>"#;
+
+        let score = import_musicxml(xml).unwrap();
+
+        // Collect all notes in order: (sub_type, rest, beamed, ndots, note_num)
+        let mut all_notes: Vec<(i8, bool, bool, u8, u8)> = Vec::new();
+        for obj in score.walk() {
+            if let ObjData::Sync(_) = &obj.data {
+                if let Some(notes) = score.notes.get(&obj.header.first_sub_obj) {
+                    for n in notes {
+                        all_notes.push((n.header.sub_type, n.rest, n.beamed, n.ndots, n.note_num));
+                    }
+                }
+            }
+        }
+
+        // Expected: whole(2), half(3), quarter(4), eighth(5)x2, 16th(6)x2, eighth(5),
+        //           dotted-quarter(4,1dot), eighth(5), eighth(5)
+        assert!(
+            all_notes.len() >= 11,
+            "should have at least 11 notes, got {}",
+            all_notes.len()
+        );
+
+        // Measure 1: C4 whole note
+        assert_eq!(all_notes[0].0, 2, "whole note sub_type should be 2");
+        assert!(!all_notes[0].2, "whole note should not be beamed");
+
+        // Measure 2: D4 half
+        assert_eq!(all_notes[1].0, 3, "half note sub_type should be 3");
+
+        // Measure 2: E4 quarter
+        assert_eq!(all_notes[2].0, 4, "quarter note sub_type should be 4");
+
+        // Measure 2: F4, G4 eighths (beamed)
+        assert_eq!(all_notes[3].0, 5, "eighth note sub_type should be 5");
+        assert!(all_notes[3].2, "eighth note F4 should be beamed");
+        assert_eq!(all_notes[4].0, 5, "eighth note sub_type should be 5");
+        assert!(all_notes[4].2, "eighth note G4 should be beamed");
+
+        // Measure 3: A4, B4 sixteenths (beamed)
+        assert_eq!(all_notes[5].0, 6, "16th note sub_type should be 6");
+        assert!(all_notes[5].2, "16th note A4 should be beamed");
+        assert_eq!(all_notes[6].0, 6, "16th note sub_type should be 6");
+        assert!(all_notes[6].2, "16th note B4 should be beamed");
+
+        // Measure 3: C5 eighth (beamed - last in group)
+        assert_eq!(all_notes[7].0, 5, "eighth note sub_type should be 5");
+        assert!(all_notes[7].2, "eighth note C5 should be beamed");
+
+        // Measure 3: D5 dotted quarter
+        assert_eq!(all_notes[8].0, 4, "dotted quarter sub_type should be 4");
+        assert_eq!(all_notes[8].3, 1, "dotted quarter should have 1 dot");
+        assert!(!all_notes[8].2, "dotted quarter should not be beamed");
+
+        // Verify beamset objects were created
+        let beam_count = score
+            .objects
+            .iter()
+            .filter(|o| matches!(&o.data, ObjData::BeamSet(_)))
+            .count();
+        assert!(
+            beam_count >= 2,
+            "should have at least 2 beamsets, got {}",
+            beam_count
         );
     }
 }

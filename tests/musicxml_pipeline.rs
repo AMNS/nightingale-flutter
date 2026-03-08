@@ -512,3 +512,141 @@ fn full_pipeline_dichterliebe() {
         );
     }
 }
+
+// ============================================================================
+// 6) Import ALL xmlsamples and render PDFs for visual review
+// ============================================================================
+
+#[test]
+fn import_all_xmlsamples_and_render_pdfs() {
+    let samples_dir = Path::new("tests/musicxml_examples/xmlsamples");
+    if !samples_dir.exists() {
+        eprintln!("Skipping: xmlsamples directory not found");
+        return;
+    }
+
+    let out_dir = Path::new("test-output/musicxml_pipeline/xmlsamples");
+    fs::create_dir_all(out_dir).unwrap();
+
+    let mut entries: Vec<_> = fs::read_dir(samples_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "musicxml"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut successes = Vec::new();
+    let mut failures = Vec::new();
+
+    for entry in &entries {
+        let path = entry.path();
+        let name = path.file_stem().unwrap().to_str().unwrap().to_string();
+
+        // Try UTF-8 first, then UTF-16 BE/LE
+        let xml = match fs::read_to_string(&path) {
+            Ok(x) => x,
+            Err(_) => {
+                let bytes = match fs::read(&path) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        failures.push((name, format!("read error: {}", e)));
+                        continue;
+                    }
+                };
+                // Detect UTF-16 BOM and decode
+                if bytes.starts_with(&[0xFE, 0xFF]) {
+                    // UTF-16 BE
+                    let u16s: Vec<u16> = bytes[2..]
+                        .chunks_exact(2)
+                        .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                        .collect();
+                    String::from_utf16_lossy(&u16s)
+                } else if bytes.starts_with(&[0xFF, 0xFE]) {
+                    // UTF-16 LE
+                    let u16s: Vec<u16> = bytes[2..]
+                        .chunks_exact(2)
+                        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                        .collect();
+                    String::from_utf16_lossy(&u16s)
+                } else {
+                    failures.push((name, "not UTF-8 or UTF-16".to_string()));
+                    continue;
+                }
+            }
+        };
+
+        let score = match import_musicxml(&xml) {
+            Ok(s) => s,
+            Err(e) => {
+                failures.push((name, format!("import error: {}", e)));
+                continue;
+            }
+        };
+
+        let total_notes: usize = score.notes.values().map(|v| v.len()).sum();
+        let total_parts = score.part_infos.len();
+        let total_measures = score.measures.len();
+
+        // Render to PDF
+        let pdf_bytes = render_to_pdf(&score);
+        let pdf_path = out_dir.join(format!("{}.pdf", name));
+        fs::write(&pdf_path, &pdf_bytes).unwrap();
+
+        // Also re-export to MusicXML for inspection
+        let xml_reexport = export_musicxml(&score);
+        fs::write(
+            out_dir.join(format!("{}_reexported.musicxml", name)),
+            &xml_reexport,
+        )
+        .unwrap();
+
+        successes.push((
+            name,
+            total_notes,
+            total_parts,
+            total_measures,
+            pdf_bytes.len(),
+        ));
+    }
+
+    // Print summary table
+    eprintln!(
+        "\n=== MusicXML Import Summary ({}/{} succeeded) ===",
+        successes.len(),
+        entries.len()
+    );
+    eprintln!(
+        "{:<30} {:>6} {:>5} {:>5} {:>10}",
+        "Name", "Notes", "Parts", "Meas", "PDF size"
+    );
+    eprintln!("{}", "-".repeat(60));
+    for (name, notes, parts, measures, pdf_size) in &successes {
+        eprintln!(
+            "{:<30} {:>6} {:>5} {:>5} {:>10}",
+            name, notes, parts, measures, pdf_size
+        );
+    }
+
+    if !failures.is_empty() {
+        eprintln!("\n=== Failures ===");
+        for (name, err) in &failures {
+            eprintln!("  {}: {}", name, err);
+        }
+    }
+
+    // All files should import successfully
+    assert!(
+        failures.is_empty(),
+        "Some files failed to import: {:?}",
+        failures.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+
+    // Every successful import should produce notes
+    for (name, notes, _, _, _) in &successes {
+        assert!(
+            *notes > 0,
+            "{} imported 0 notes — likely a parsing problem",
+            name
+        );
+    }
+}
