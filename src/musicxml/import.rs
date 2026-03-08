@@ -2227,6 +2227,8 @@ fn build_score(
     let stem_len_normal: i16 = 14;
     let stem_len_outside: i16 = 12;
     let stem_len_2v: i16 = 13;
+    // Track all measure links to link them horizontally after creation
+    let mut measure_links: Vec<Link> = Vec::new();
 
     // Determine voice roles per (staff, voice) pair for stem direction.
     // If a staff has multiple voices, the lowest-numbered is Upper, others are Lower.
@@ -2512,6 +2514,7 @@ fn build_score(
         );
         score.measures.insert(meas_sub_link, meas_subs);
         objects[prev_link as usize].header.right = meas_link;
+        measure_links.push(meas_link); // Track for horizontal linking later
         prev_link = meas_link;
 
         // Collect notes for this measure and group by timestamp
@@ -3031,6 +3034,33 @@ fn build_score(
             );
             objects[prev_link as usize].header.right = grlink;
             prev_link = grlink;
+        }
+    }
+
+    // ---- 9d-link. MEASURE HORIZONTAL LINKING ----
+    // Link consecutive measures via l_measure and r_measure fields.
+    // Each measure's l_measure points to the previous measure, r_measure to the next.
+    for i in 0..measure_links.len() {
+        let curr_meas_link = measure_links[i];
+
+        if i > 0 {
+            let prev_meas_link = measure_links[i - 1];
+            // Update current measure's l_measure to point to previous
+            if let InterpretedObject {
+                data: ObjData::Measure(meas),
+                ..
+            } = &mut objects[curr_meas_link as usize]
+            {
+                meas.l_measure = prev_meas_link;
+            }
+            // Update previous measure's r_measure to point to current
+            if let InterpretedObject {
+                data: ObjData::Measure(meas),
+                ..
+            } = &mut objects[prev_meas_link as usize]
+            {
+                meas.r_measure = curr_meas_link;
+            }
         }
     }
 
