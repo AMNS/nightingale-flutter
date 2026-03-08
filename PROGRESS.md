@@ -249,8 +249,40 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 - [x] Score view widget with multi-page rendering, zoom, file browser
 - [ ] Tool palette, basic editing
 
-## Phase 5: MusicXML — NOT STARTED (de-prioritized)
-- [ ] MusicXML 4.0 export/import
+## Phase 5: MusicXML — IN PROGRESS
+
+### Export (NGL → MusicXML) — DONE
+- [x] Core export: notes, rests, chords, multi-voice, multi-part
+- [x] Clefs, key signatures, time signatures
+- [x] Beams, ties, slurs
+- [x] Dynamics (text + hairpin wedges)
+- [x] Tuplets (time-modification + tuplet start/stop notations)
+- [x] Grace notes (GrSync → `<grace/>` elements)
+- [x] Tempo marks (verbal + metronome + sound)
+- [x] Volta endings, repeat barlines
+- [x] Ottava (octave-shift direction)
+- [x] Articulations, ornaments, technical marks (fermata, staccato, accent, etc.)
+- [x] Part groups (brackets/braces from Connect objects)
+- [x] All 26 NGL fixtures pass MusicXML DTD validation
+
+### Import (MusicXML → InterpretedScore) — IN PROGRESS
+- [x] Core import: notes, rests, chords, multi-voice, multi-part
+- [x] Clefs, key signatures, time signatures
+- [x] Accidentals, dots
+- [x] Beams
+- [x] Ties (via note flags)
+- [x] Slurs (via note flags)
+- [x] Dynamics
+- [x] Tuplets (time-modification → Tuplet + ANoteTuple objects)
+- [x] Grace notes (→ GrSync + AGrNote objects with full pitch positioning)
+- [x] Round-trip tests: NGL→MusicXML→import→render
+- [ ] Articulations and ornaments
+- [ ] Tempo marks
+- [ ] Volta endings, repeat barlines
+- [ ] Ottava
+- [ ] Part groups
+
+### Validation
 - [ ] Validate against MuseScore / Dorico round-trip
 
 ## Phase 6: Sound Playback / MIDI — NOT STARTED
@@ -264,10 +296,10 @@ See `tests/notelist_examples/` for the full set (41 total fixtures).
 ## Stats
 | Metric | Value |
 |--------|-------|
-| Rust source lines | ~24,600 |
-| Rust test lines | ~5,500 |
-| Test count | 350 (346 passed + 4 ignored) |
-| Test fixture files | 17 .ngl + 41 .nl |
-| Insta snapshots | 59 |
-| Bitmap goldens | 491 (17 NGL + 41 Notelist, all pages) |
-| Modules | 18 (basic_types, beam, context, defs, doc_types, draw, duration, limits, music_font, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
+| Rust source lines | ~43,200 |
+| Rust test lines | ~17,400 |
+| Test count | 368 (363 passed + 5 ignored) |
+| Test fixture files | 26 .ngl + 41 .nl |
+| Insta snapshots | 87 |
+| Bitmap goldens | 622 (26 NGL + 41 Notelist, all pages) |
+| Modules | 20 (basic_types, beam, context, defs, doc_types, draw, duration, layout, limits, music_font, musicxml, ngl, notelist, obj_types, objects, pitch_utils, render, space_time, utility, lib) |
