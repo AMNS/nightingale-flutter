@@ -6,6 +6,7 @@
 //! Reference: Nightingale/src/CFilesBoth/Objects.cp
 
 use crate::basic_types::*;
+use crate::obj_types::ANote;
 use crate::utility::{calc_ystem, nflags, DFLT_XMOVEACC};
 
 /// Voice role constants from Multivoice.h.
@@ -140,6 +141,155 @@ pub fn get_nc_ystem(
     };
 
     (far_idx, ystem)
+}
+
+// ===========================================================================
+// process_sync_chords — shared chord/single-note post-processing
+// Consolidates duplicated logic from Notelist (to_score.rs) and MusicXML (import.rs)
+// ===========================================================================
+
+/// Post-process all notes in a Sync: compute stem directions, ystem values,
+/// chord seconds (other_stem_side), and accidental staggering (xmove_acc).
+///
+/// Port of FixSyncForChord / NormalStemUpDown / GetNCYStem / FixChordForYStem
+/// from Objects.cp (lines 1594-1744).
+///
+/// Groups notes by (staff, voice). For each group:
+/// - 2+ notes = chord: shared ystem from far note, in_chord=true, seconds, accs
+/// - 1 note = single: voice-aware stem direction and ystem
+///
+/// `voice_roles` maps (staffn, voice) to VoiceRole for stem direction.
+/// `fix_beam_flags` — if true, clears `beamed` on non-far chord notes (needed for
+/// MusicXML where all chord notes may arrive with beamed=true).
+pub fn process_sync_chords(
+    notes: &mut [ANote],
+    voice_roles: &std::collections::HashMap<(i8, i8), VoiceRole>,
+    staff_height: Ddist,
+    n_staff_lines: i16,
+    stem_len_normal: i16,
+    stem_len_2v: i16,
+    fix_beam_flags: bool,
+) {
+    // Group non-rest notes by (staff, voice)
+    let mut chord_groups: std::collections::HashMap<(i8, i8), Vec<usize>> =
+        std::collections::HashMap::new();
+    for (idx, note) in notes.iter().enumerate() {
+        if !note.rest {
+            chord_groups
+                .entry((note.header.staffn, note.voice))
+                .or_default()
+                .push(idx);
+        }
+    }
+
+    for (&(staffn, voice), indices) in &chord_groups {
+        // Find extreme notes (highest = min yd, lowest = max yd)
+        let mut min_yd = i16::MAX;
+        let mut max_yd = i16::MIN;
+        let mut hi_idx = indices[0];
+        let mut lo_idx = indices[0];
+
+        for &idx in indices {
+            let yd = notes[idx].yd;
+            if yd < min_yd {
+                min_yd = yd;
+                hi_idx = idx;
+            }
+            if yd > max_yd {
+                max_yd = yd;
+                lo_idx = idx;
+            }
+        }
+
+        let role = voice_roles
+            .get(&(staffn, voice))
+            .copied()
+            .unwrap_or(VoiceRole::Single);
+        let stem_down = normal_stem_up_down_chord(min_yd, max_yd, staff_height, role);
+
+        let chord_qtr_sp = match role {
+            VoiceRole::Single => stem_len_normal,
+            _ => stem_len_2v,
+        };
+
+        let is_chord = indices.len() >= 2;
+
+        if is_chord {
+            // Far note = stem_down ? lowest (max yd) : highest (min yd)
+            let far_idx = if stem_down { lo_idx } else { hi_idx };
+            let far_note_yd = notes[far_idx].yd;
+            let far_note_dur = notes[far_idx].header.sub_type;
+
+            let chord_ystem = if far_note_dur >= 3 {
+                calc_ystem(
+                    far_note_yd,
+                    nflags(far_note_dur),
+                    stem_down,
+                    staff_height,
+                    n_staff_lines,
+                    chord_qtr_sp,
+                    false,
+                )
+            } else {
+                far_note_yd
+            };
+
+            // Far note gets real ystem; others get ystem=yd (hiding stem)
+            for &idx in indices {
+                notes[idx].in_chord = true;
+                if idx == far_idx {
+                    notes[idx].ystem = chord_ystem;
+                } else {
+                    notes[idx].ystem = notes[idx].yd;
+                }
+            }
+
+            // ArrangeChordNotes: compute other_stem_side for seconds
+            let chord_yds: Vec<i16> = indices.iter().map(|&idx| notes[idx].yd).collect();
+            let half_ln = staff_height / 8;
+            let other_sides = arrange_chord_notes(&chord_yds, stem_down, half_ln);
+            for (i, &idx) in indices.iter().enumerate() {
+                notes[idx].other_stem_side = other_sides[i];
+            }
+
+            // ArrangeNCAccs: compute xmove_acc for accidental staggering
+            let acc_pairs: Vec<(i16, u8)> = indices
+                .iter()
+                .map(|&idx| (notes[idx].yd, notes[idx].accident))
+                .collect();
+            let xmove_accs = arrange_nc_accs(&acc_pairs, stem_down);
+            for (i, &idx) in indices.iter().enumerate() {
+                notes[idx].xmove_acc = xmove_accs[i];
+            }
+
+            // Fix beaming: only the far note should be beamed
+            if fix_beam_flags {
+                for &idx in indices {
+                    if idx != far_idx {
+                        notes[idx].beamed = false;
+                    }
+                }
+            }
+        } else {
+            // Single note: recompute ystem with voice-aware stem length
+            let idx = indices[0];
+            notes[idx].xmove_acc = DFLT_XMOVEACC as u8;
+            let note_yd = notes[idx].yd;
+            let note_dur = notes[idx].header.sub_type;
+
+            if note_dur >= 3 {
+                notes[idx].ystem = calc_ystem(
+                    note_yd,
+                    nflags(note_dur),
+                    stem_down,
+                    staff_height,
+                    n_staff_lines,
+                    chord_qtr_sp,
+                    false,
+                );
+            }
+        }
+    }
 }
 
 // ===========================================================================

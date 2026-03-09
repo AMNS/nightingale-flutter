@@ -32,7 +32,7 @@ use crate::obj_types::{
     Header, KeySig, Measure, ObjectHeader, Ottava, Page, PartInfo, RptEnd, Staff, SubObjHeader,
     System, Tail, Tempo, TimeSig, Tuplet, SHOW_ALL_LINES,
 };
-use crate::objects::{normal_stem_up_down_single, setup_ks_info, VoiceRole};
+use crate::objects::{normal_stem_up_down_single, process_sync_chords, setup_ks_info, VoiceRole};
 use crate::pitch_utils::{clef_middle_c_half_ln, half_ln_to_yd};
 use crate::utility::{calc_ystem, nflags, shorten_stem};
 
@@ -1464,6 +1464,11 @@ fn build_score(
 
         for meas in &part.measures {
             let mut voice_time: i32 = 0;
+            // Track previous (non-chord, non-grace) note duration per voice.
+            // After <backup>, voice_time rewinds but we must NOT corrupt another
+            // voice's prev_pdur. A chord note's onset = voice_time - prev_pdur[voice].
+            let mut prev_pdur_by_voice: std::collections::HashMap<i8, i32> =
+                std::collections::HashMap::new();
 
             for elem in &meas.elements {
                 match elem {
@@ -1517,7 +1522,17 @@ fn build_score(
                             // to the next real note at this time).
                             voice_time
                         } else if note.chord {
-                            (voice_time - pdur).max(0)
+                            // Use prev_pdur for THIS voice (the duration of the preceding
+                            // far note in voice N). In MusicXML, <chord/> means "same
+                            // onset as the previous note" — subtract that voice's last
+                            // non-chord duration from voice_time.
+                            // We MUST use per-voice tracking: after <backup>, voice_time
+                            // rewinds but another voice's prev_pdur must not be used.
+                            let vp = prev_pdur_by_voice
+                                .get(&(note.voice as i8))
+                                .copied()
+                                .unwrap_or(0);
+                            (voice_time - vp).max(0)
                         } else {
                             voice_time
                         };
@@ -1572,6 +1587,7 @@ fn build_score(
                         });
 
                         if !note.chord && !note.grace {
+                            prev_pdur_by_voice.insert(note.voice as i8, pdur);
                             voice_time += pdur;
                         }
                     }
@@ -2801,6 +2817,19 @@ fn build_score(
                     reserved_n: 0,
                 });
             }
+
+            // ---- CHORD POST-PROCESSING ----
+            // Shared with Notelist pipeline — see objects::process_sync_chords
+            process_sync_chords(
+                &mut note_subs,
+                &voice_roles,
+                staff_height,
+                n_staff_lines,
+                stem_len_normal,
+                stem_len_2v,
+                true, // fix_beam_flags: MusicXML marks all chord notes beamed
+            );
+
             next_sub_link += notes_at_time.len() as Link;
 
             // Allocate AModNr sub-objects for notes with articulations/ornaments
@@ -4153,6 +4182,99 @@ mod tests {
             beam_count >= 2,
             "should have at least 2 beamsets, got {}",
             beam_count
+        );
+    }
+
+    #[test]
+    /// Chord notes (marked with <chord/>) must share the same time position as
+    /// their preceding "far" note and form a single Sync object.  Without the
+    /// per-voice prev_pdur fix every chord member ends up at `voice_time`
+    /// (one note-duration too late) and creates a spurious second Sync.
+    fn import_chords_group_correctly() {
+        // One measure: C4 quarter, then E4 quarter marked <chord/> (same beat).
+        // Expected: 1 Sync with 2 notes (C4 far-note + E4 chord member).
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Test</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <!-- Far note: C4 quarter on beat 1 -->
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>quarter</type>
+        <voice>1</voice>
+      </note>
+      <!-- Chord member: E4 quarter, same beat -->
+      <note>
+        <chord/>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>quarter</type>
+        <voice>1</voice>
+      </note>
+      <!-- Second beat: G4 quarter, standalone -->
+      <note>
+        <pitch><step>G</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>quarter</type>
+        <voice>1</voice>
+      </note>
+    </measure>
+  </part>
+</score-partwise>"#;
+
+        let score = import_musicxml(xml).unwrap();
+
+        // Collect all Syncs with their note counts and in_chord flags.
+        let mut syncs: Vec<(usize, Vec<(u8, bool)>)> = Vec::new(); // (note_count, [(midi, in_chord)])
+        for obj in score.walk() {
+            if let ObjData::Sync(_) = &obj.data {
+                if let Some(notes) = score.notes.get(&obj.header.first_sub_obj) {
+                    let infos: Vec<(u8, bool)> =
+                        notes.iter().map(|n| (n.note_num, n.in_chord)).collect();
+                    syncs.push((infos.len(), infos));
+                }
+            }
+        }
+
+        // Should have exactly 2 Syncs: beat-1 chord (2 notes) + beat-2 G4 (1 note).
+        assert_eq!(
+            syncs.len(),
+            2,
+            "expected 2 Syncs (chord + standalone), got {syncs:?}"
+        );
+
+        // First Sync: 2 notes — C4 and E4, both in_chord=true (chord post-processing).
+        let (count0, ref notes0) = syncs[0];
+        assert_eq!(
+            count0, 2,
+            "beat-1 Sync should have 2 notes (chord), got {count0}"
+        );
+        // Both chord members should have in_chord=true after post-processing
+        assert!(
+            notes0.iter().any(|&(m, ic)| m == 60 && ic),
+            "C4 should have in_chord=true, got {notes0:?}"
+        );
+        assert!(
+            notes0.iter().any(|&(m, ic)| m == 64 && ic),
+            "E4 should have in_chord=true, got {notes0:?}"
+        );
+
+        // Second Sync: 1 note — G4 (standalone, in_chord=false).
+        let (count1, ref notes1) = syncs[1];
+        assert_eq!(count1, 1, "beat-2 Sync should have 1 note, got {count1}");
+        assert!(
+            notes1.iter().any(|&(m, ic)| m == 67 && !ic),
+            "G4 should have in_chord=false, got {notes1:?}"
         );
     }
 }

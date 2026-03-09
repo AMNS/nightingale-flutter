@@ -46,8 +46,8 @@ use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::notelist::parser::{Notelist, NotelistRecord};
 use crate::obj_types::*;
 use crate::objects::{
-    arrange_chord_notes, arrange_nc_accs, get_nc_ystem, normal_stem_up_down_chord,
-    normal_stem_up_down_single, setup_ks_info,
+    get_nc_ystem, normal_stem_up_down_chord, normal_stem_up_down_single, process_sync_chords,
+    setup_ks_info, VoiceRole,
 };
 use crate::pitch_utils::{half_ln_to_yd, nl_midi_to_half_ln};
 use crate::space_time::{
@@ -58,7 +58,6 @@ use crate::utility::{calc_ystem, nflags, shorten_stem, DFLT_XMOVEACC};
 use std::collections::BTreeSet;
 
 // Re-export shared types for backward compatibility with existing callers.
-pub use crate::objects::VoiceRole;
 pub use crate::pitch_utils::{
     clef_middle_c_half_ln, AC_DBLFLAT, AC_DBLSHARP, AC_FLAT, AC_NATURAL, AC_SHARP,
 };
@@ -2289,147 +2288,16 @@ pub fn notelist_to_score_with_config(
                     }
 
                     // ---- CHORD PROCESSING ----
-                    // Port of FixSyncForChord / NormalStemUpDown / GetNCYStem / FixChordForYStem
-                    // from Objects.cp (lines 1594-1744).
-                    //
-                    // Group notes by (staff, voice). If a group has 2+ notes, it's a chord.
-                    // For each chord:
-                    //   1. Determine stem direction (NormalStemUpDown: compare extreme notes to midline)
-                    //   2. Find the "far note" (furthest from middle in stem direction)
-                    //   3. Compute ystem from that note using CalcYStem
-                    //   4. Main note gets the computed ystem; others get ystem = yd (hiding stem)
-                    //   5. Mark all as in_chord = true
-
-                    // Build a map of (staff, voice) → indices into notes vec
-                    let mut chord_groups: std::collections::HashMap<(i8, i8), Vec<usize>> =
-                        std::collections::HashMap::new();
-                    for (idx, note) in notes.iter().enumerate() {
-                        if !note.rest {
-                            chord_groups
-                                .entry((note.header.staffn, note.voice))
-                                .or_default()
-                                .push(idx);
-                        }
-                    }
-
-                    for (&(staffn, voice), indices) in &chord_groups {
-                        // Find extreme notes (highest = min yd, lowest = max yd)
-                        // Y increases downward in Nightingale coordinates
-                        let mut min_yd = i16::MAX;
-                        let mut max_yd = i16::MIN;
-                        let mut hi_idx = indices[0]; // highest pitch (min yd)
-                        let mut lo_idx = indices[0]; // lowest pitch (max yd)
-
-                        for &idx in indices {
-                            let yd = notes[idx].yd;
-                            if yd < min_yd {
-                                min_yd = yd;
-                                hi_idx = idx;
-                            }
-                            if yd > max_yd {
-                                max_yd = yd;
-                                lo_idx = idx;
-                            }
-                        }
-
-                        // NormalStemUpDown — voice-role-aware (Objects.cp:1457-1497)
-                        let role = voice_roles
-                            .get(&(staffn, voice))
-                            .copied()
-                            .unwrap_or(VoiceRole::Single);
-                        let stem_down = normal_stem_up_down_chord(
-                            min_yd,
-                            max_yd,
-                            config.layout.staff_height,
-                            role,
-                        );
-
-                        // Use shorter stems for multi-voice
-                        let chord_qtr_sp = match role {
-                            VoiceRole::Single => config.stem_len_normal as i16,
-                            _ => config.stem_len_2v as i16,
-                        };
-
-                        let is_chord = indices.len() >= 2;
-
-                        if is_chord {
-                            // GetNCYStem (Objects.cp:1674-1680):
-                            // Far note = stem_down ? lowest : highest
-                            let far_idx = if stem_down { lo_idx } else { hi_idx };
-                            let far_note_yd = notes[far_idx].yd;
-                            let far_note_dur = notes[far_idx].header.sub_type;
-                            let n_staff_lines: i16 = 5;
-
-                            let chord_ystem = if far_note_dur >= 3 {
-                                calc_ystem(
-                                    far_note_yd,
-                                    nflags(far_note_dur),
-                                    stem_down,
-                                    config.layout.staff_height,
-                                    n_staff_lines,
-                                    chord_qtr_sp,
-                                    false,
-                                )
-                            } else {
-                                far_note_yd
-                            };
-
-                            // FixChordForYStem (Objects.cp:1710-1743):
-                            // Far note gets the real ystem; others get ystem = yd (hiding stem)
-                            for &idx in indices {
-                                notes[idx].in_chord = true;
-                                if idx == far_idx {
-                                    notes[idx].ystem = chord_ystem;
-                                } else {
-                                    notes[idx].ystem = notes[idx].yd; // Hide stem
-                                }
-                            }
-
-                            // ArrangeChordNotes (PitchUtils.cp:1583-1616):
-                            // Compute other_stem_side for seconds in chords
-                            let chord_yds: Vec<i16> =
-                                indices.iter().map(|&idx| notes[idx].yd).collect();
-                            let half_ln = config.layout.staff_height / 8;
-                            let other_sides = arrange_chord_notes(&chord_yds, stem_down, half_ln);
-                            for (i, &idx) in indices.iter().enumerate() {
-                                notes[idx].other_stem_side = other_sides[i];
-                            }
-
-                            // ArrangeNCAccs (PitchUtils.cp:1517-1572):
-                            // Compute xmove_acc for accidental staggering in chords.
-                            // Build (yd, accident) pairs in sorted order.
-                            let acc_pairs: Vec<(i16, u8)> = indices
-                                .iter()
-                                .map(|&idx| (notes[idx].yd, notes[idx].accident))
-                                .collect();
-                            let xmove_accs = arrange_nc_accs(&acc_pairs, stem_down);
-                            for (i, &idx) in indices.iter().enumerate() {
-                                notes[idx].xmove_acc = xmove_accs[i];
-                            }
-                        } else {
-                            // Single note: recompute ystem with voice-aware stem length
-                            // Port of CalcYStem (Objects.cp:1638-1670)
-                            let idx = indices[0];
-                            notes[idx].xmove_acc = DFLT_XMOVEACC as u8;
-                            let note_yd = notes[idx].yd;
-                            let note_dur = notes[idx].header.sub_type;
-                            let n_staff_lines: i16 = 5;
-
-                            if note_dur >= 3 {
-                                // quarter note or shorter gets a stem
-                                notes[idx].ystem = calc_ystem(
-                                    note_yd,
-                                    nflags(note_dur),
-                                    stem_down,
-                                    config.layout.staff_height,
-                                    n_staff_lines,
-                                    chord_qtr_sp,
-                                    false,
-                                );
-                            }
-                            // whole/breve (l_dur <= 2): ystem stays = yd (no stem)
-                        }
-                    }
+                    // Shared with MusicXML pipeline — see objects::process_sync_chords
+                    process_sync_chords(
+                        &mut notes,
+                        &voice_roles,
+                        config.layout.staff_height,
+                        5, // n_staff_lines
+                        config.stem_len_normal as i16,
+                        config.stem_len_2v as i16,
+                        false, // fix_beam_flags: Notelist doesn't need this
+                    );
 
                     let n_entries = notes.len() as u8;
                     score.notes.insert(note_sub_link, notes);
