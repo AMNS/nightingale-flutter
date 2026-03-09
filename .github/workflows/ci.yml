@@ -49,7 +49,10 @@ jobs:
   # ─── Visual tests: bitmap regression + rendered output as artifacts ─────────
   visual-tests:
     name: Visual tests + artifacts
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+    # Run on macOS to match the platform where goldens are generated.
+    # This eliminates cross-platform font rasterization diffs (tiny-skia
+    # + ab_glyph produce slightly different pixels on Linux vs macOS).
 
     steps:
       - uses: actions/checkout@v4

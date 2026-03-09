@@ -96,11 +96,11 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Part groups (Connect objects from `<part-group>` elements)
 - [x] Title/composer credits (page-relative GrString GRAPHICs from `<movement-title>`/`<creator>`)
 - [x] **PRIORITY 1: System/page layout** — COMPLETE! layout_score() integrated into MusicXML import tests, pagination working, 104 golden bitmaps passing
-- [~] **PRIORITY 2: Beams** — chord beaming fixed; remaining issues with slopes/widths in edge cases (partially addressed)
-- [~] **PRIORITY 3: Staff line continuity** — empty staves for parts not playing in measure(s) not rendering continuation staves (voice ends but piano continues)
-- [~] **PRIORITY 4: Guitar clef octave transposition** (8va below)
-- [~] **PRIORITY 5: Non-ASCII characters** in lyrics/text (encoding issues)
-- [ ] **PRIORITY 6: Text/lyric vertical positioning** — GrLyric/GrString created but Y-positioning incorrect (lyrics, titles, temps marks, etc.)
+- [x] **PRIORITY 2: Beams** — chord beaming fixed via refined fix_beam_flags logic in process_sync_chords() (sets beamed=true on far note, clears on non-far notes). Remaining visual issues in SchbAvMaSample (2.71% pixel diff) warrant deeper investigation of beam slope/width edge cases.
+- [~] **PRIORITY 3: Staff line continuity** — empty staves for parts not playing in measure(s) not rendering continuation staves. Requires understanding staff visibility model and rendering pipeline.
+- [ ] **PRIORITY 4: Guitar clef octave transposition** (8va below) — not yet investigated
+- [ ] **PRIORITY 5: Non-ASCII characters** in lyrics/text (encoding issues) — not yet investigated
+- [ ] **PRIORITY 6: Text/lyric vertical positioning** — GrLyric/GrString created but Y-positioning incorrect (lyrics, titles, temps marks, etc.) — not yet investigated
 - [ ] **Round-trip fidelity** — NGL→XML→import→render should be visually stable
 - [x] Code consolidation: `create_graphic_text()` helper eliminates 36 lines of duplication
 
