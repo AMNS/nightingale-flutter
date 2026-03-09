@@ -209,16 +209,62 @@ Golden bitmaps live in `tests/golden_bitmaps/`. Update them intentionally with
 
 ## Current Status
 
-Phase 2 (drawing/rendering) is well underway. See `PROGRESS.md` for the full roadmap
-and feature checklist. The high-level picture:
+See `PROGRESS.md` for the full roadmap and feature checklist.
+
+### Phase 2: Drawing/Rendering (well underway)
 
 - **Working well**: staff/barline/clef/keysig/timesig layout, notes/rests/accidentals,
-  beams, stems, slurs (single-system), tuplets, dynamics, tempo, lyrics, ties,
-  grace notes, articulations, repeats, ottava, chord symbols, key cancellation,
-  multi-voice, multi-page, page numbers
-- **In progress / known gaps**: cross-system slurs, pagination, common/cut time glyphs,
-  RPTEND symbols (segno/coda/D.C./D.S.), alias clefs, header/footer text, arpeggio signs
-- **Not started**: MusicXML import/export, editor operations, MIDI playback
+  beams (with 33% slope reduction), stems, slurs (single-system), tuplets, dynamics,
+  tempo, lyrics, ties, grace notes, articulations, repeats, ottava, chord symbols,
+  key cancellation, multi-voice, multi-page, page numbers
+- **In progress / known gaps**: cross-system slurs, RPTEND symbols (segno/coda/D.C./D.S.),
+  alias clefs, header/footer text, arpeggio signs
+- **Not started**: editor operations, MIDI playback
+
+### Phase 5: MusicXML Import/Export (actively in progress)
+
+**Import status**: Core MusicXML parsing and score construction are working with 20+ features
+successfully imported:
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Notes & Rests | ✓ Complete | All duration types, multi-voice, multi-part |
+| Pitches & Clefs | ✓ Complete | All clef types including transposing clefs |
+| Key/Time Signatures | ✓ Complete | All standard key signatures and time signatures |
+| Accidentals | ✓ Complete | Naturals, sharps, flats, double sharps/flats |
+| Ties & Slurs | ✓ Complete | Single and cross-system, proper endpoints |
+| Dynamics | ✓ Complete | Text dynamics and hairpin wedges |
+| Tuplets | ✓ Complete | Full time-modification support with brackets/numbers |
+| Grace Notes | ✓ Complete | Including beamed grace notes |
+| Articulations | ✓ Complete | All 14 standard articulation types |
+| Ornaments | ✓ Complete | Trills, mordents, turns, etc. |
+| Beams | ✓ Complete | Proper slopes with 33% reduction |
+| Barlines | ✓ Complete | Single, double, repeat, dotted |
+| Volta Endings | ✓ Complete | Repeat ending brackets and numbering |
+| Tempo Marks | ✓ Complete | Verbal tempos and metronome marks |
+| Ottava | ✓ Complete | 8va/8vb/15ma with dashed brackets |
+| Part Groups | ✓ Complete | Bracket and brace groupings |
+| Credits | ✓ Complete | Titles and composers from metadata |
+| Lyrics | ✓ Complete | Syllabic text from <lyric> elements |
+| Pagination | ✓ Complete | Full system/page layout with Gourlay spacing |
+| UTF-16 Support | ✓ Complete | Proper handling of UTF-16 encoded MusicXML files |
+
+**Known issues** (prioritized for fixing):
+
+| Priority | Issue | Affects | Status |
+|----------|-------|---------|--------|
+| 3 | Staff line continuity | Dichterliebe01, MozaChloSample, MozartTrio | Pending |
+| 4 | Guitar clef octave transposition (8va below) | SchbAvMaSample | Pending |
+| 5 | Non-ASCII character encoding | Dichterliebe01, Telemann | Pending |
+| 6 | Text/lyric vertical positioning (Y-axis) | ActorPreludeSample, Dichterliebe01, MozartTrio | Pending |
+
+**Testing infrastructure**: We maintain a canonical comparison test suite (`tests/canonical_comparison.rs`)
+that compares our renders against supplier-provided reference PDFs on 18 MusicXML sample files.
+Run `cargo test test_canonical_pdf_comparison_summary -- --ignored --nocapture` to generate
+quantitative metrics on rendering fidelity.
+
+**Export status**: Basic MusicXML export is implemented (round-trip tests passing). Full feature parity
+with the import pipeline is a future goal.
 
 ---
 
