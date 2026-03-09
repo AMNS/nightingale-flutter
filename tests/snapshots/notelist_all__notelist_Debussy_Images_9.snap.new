@@ -1,5 +1,6 @@
 ---
 source: tests/notelist_all.rs
+assertion_line: 423
 expression: summary
 ---
 === COMMAND COUNTS ===

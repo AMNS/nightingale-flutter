@@ -51,11 +51,11 @@ y=912.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=972.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=136.6 top=72.0 bottom=96.0
-x=274.4 top=72.0 bottom=96.0
-x=412.1 top=72.0 bottom=96.0
-x=558.0 top=72.0 bottom=96.0
-x=451.0 top=72.0 bottom=96.0
+x=136.6 top=72.0 bottom=996.0
+x=274.4 top=72.0 bottom=996.0
+x=412.1 top=72.0 bottom=996.0
+x=558.0 top=72.0 bottom=996.0
+x=451.0 top=72.0 bottom=996.0
 
 === BEAMS ===
 

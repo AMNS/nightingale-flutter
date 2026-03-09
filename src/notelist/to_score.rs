@@ -1816,6 +1816,13 @@ pub fn notelist_to_score_with_config(
                     let mut measure_subs: Vec<AMeasure> = Vec::new();
                     #[allow(clippy::needless_range_loop)]
                     for s in 1..=num_staves {
+                        // Barline connections: first staff draws barline and extends it to last staff
+                        // Other staves have conn_above=true so their barlines are skipped (already drawn)
+                        let conn_staff = if s == 1 && num_staves > 1 {
+                            num_staves as i8 // Extend barline from staff 1 to last staff
+                        } else {
+                            0 // Single staff or not the first staff
+                        };
                         measure_subs.push(AMeasure {
                             header: SubObjHeader {
                                 next: NILINK,
@@ -1832,7 +1839,7 @@ pub fn notelist_to_score_with_config(
                             reserved_m: 0,
                             measure_num: 0,
                             meas_size_rect: DRect::default(),
-                            conn_staff: 0,
+                            conn_staff,
                             clef_type: clef_types[s] as i8,
                             dynamic_type: 0,
                             ks_info: setup_ks_info(key_sigs[s].0, key_sigs[s].1),

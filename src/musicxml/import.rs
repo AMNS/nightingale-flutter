@@ -2592,6 +2592,16 @@ fn build_score(
             .unwrap_or_default();
 
         for s in 1..=total_staves {
+            // Barline connections: first staff draws barline extended to last staff,
+            // other staves have conn_above=true so their barlines are skipped.
+            // Reference: NotebookToScore (to_score.rs:1810-1852)
+            let conn_staff = if s == 1 && total_staves > 1 {
+                total_staves as i8 // Extend barline from staff 1 to last staff
+            } else {
+                0 // Single staff or not the first staff
+            };
+            let conn_above = s > 1; // Staff 2+ have conn_above=true
+
             meas_subs.push(AMeasure {
                 header: SubObjHeader {
                     next: if s < total_staves {
@@ -2606,13 +2616,13 @@ fn build_score(
                     soft: false,
                 },
                 measure_visible: true,
-                conn_above: false,
+                conn_above,
                 filler1: 0,
                 filler2: 0,
                 reserved_m: 0,
                 measure_num: meas_idx as i16,
                 meas_size_rect: DRect::default(),
-                conn_staff: 0,
+                conn_staff,
                 clef_type: 0,
                 dynamic_type: 0,
                 ks_info: fifths_to_ks_info(current_key_fifths),

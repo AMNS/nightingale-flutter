@@ -34,21 +34,21 @@ y=132.0 x=[72.0..558.0] lines=5 spacing=6.00
 y=192.0 x=[72.0..558.0] lines=5 spacing=6.00
 
 === BARLINES ===
-x=314.8 top=72.0 bottom=96.0
-x=384.8 top=72.0 bottom=96.0
-x=504.9 top=72.0 bottom=96.0
-x=558.0 top=72.0 bottom=96.0
-x=230.9 top=247.0 bottom=271.0
-x=339.2 top=247.0 bottom=271.0
-x=457.6 top=247.0 bottom=271.0
-x=558.0 top=247.0 bottom=271.0
-x=312.0 top=422.0 bottom=446.0
-x=380.9 top=422.0 bottom=446.0
-x=471.6 top=422.0 bottom=446.0
-x=558.0 top=422.0 bottom=446.0
-x=384.4 top=72.0 bottom=96.0
-x=465.6 top=72.0 bottom=96.0
-x=558.0 top=72.0 bottom=96.0
+x=314.8 top=72.0 bottom=216.0
+x=384.8 top=72.0 bottom=216.0
+x=504.9 top=72.0 bottom=216.0
+x=558.0 top=72.0 bottom=216.0
+x=230.9 top=247.0 bottom=391.0
+x=339.2 top=247.0 bottom=391.0
+x=457.6 top=247.0 bottom=391.0
+x=558.0 top=247.0 bottom=391.0
+x=312.0 top=422.0 bottom=566.0
+x=380.9 top=422.0 bottom=566.0
+x=471.6 top=422.0 bottom=566.0
+x=558.0 top=422.0 bottom=566.0
+x=384.4 top=72.0 bottom=216.0
+x=465.6 top=72.0 bottom=216.0
+x=558.0 top=72.0 bottom=216.0
 
 === BEAMS ===
 x=[154.2..176.4] y=[114.0..115.0] slope=0.045 thick=3.00
