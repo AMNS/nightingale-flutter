@@ -265,7 +265,11 @@ pub fn process_sync_chords(
             // Fix beaming: only the far note should be beamed
             if fix_beam_flags {
                 for &idx in indices {
-                    if idx != far_idx {
+                    if idx == far_idx {
+                        // Far note should be beamed (if any note in the chord has beam data)
+                        notes[idx].beamed = !indices.is_empty();
+                    } else {
+                        // Non-far notes should never be beamed
                         notes[idx].beamed = false;
                     }
                 }
