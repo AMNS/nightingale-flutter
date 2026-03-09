@@ -1153,16 +1153,13 @@ fn diag_graphic_objects() {
                 };
 
                 println!(
-                    "  [{}/{}] type={} font=({}) size={}{} style={} text={:?}{}",
-                    name,
-                    graphic_count,
-                    gtype_name,
-                    font_name,
-                    gfx.font_size,
+                    "  [{}/{}] type={} xd={} yd={} staffn={} firstObj={} font=({}) size={}{} style={} text={:?}{}",
+                    name, graphic_count, gtype_name,
+                    obj.header.xd, obj.header.yd,
+                    gfx.ext_header.staffn, gfx.first_obj,
+                    font_name, gfx.font_size,
                     if gfx.rel_f_size != 0 { "rel" } else { "pt" },
-                    gfx.font_style,
-                    text,
-                    hex_str,
+                    gfx.font_style, text, hex_str,
                 );
             }
         }

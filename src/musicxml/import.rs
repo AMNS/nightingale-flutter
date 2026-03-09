@@ -2916,7 +2916,11 @@ fn build_score(
             // is correct for the system they belong to.
             for ne in notes_at_time {
                 if !ne.lyric_text.is_empty() && !ne.rest {
-                    let lyric_yd = staff_height + 40;
+                    // Position lyrics below the bottom staff line.
+                    // OG Nightingale uses yd = staff_height + 64 (= 448 for rastral 5),
+                    // which is one interline space (4 * STD_LINEHT = 64 DDIST) below
+                    // the bottom staff line. Measured from tc_ich_bin_ja.ngl lyrics.
+                    let lyric_yd = staff_height + 64;
                     prev_link = create_graphic_text(
                         &mut objects,
                         &mut score,
