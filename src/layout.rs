@@ -8,13 +8,13 @@
 //! Used by both the Notelist and MusicXML import pipelines to produce
 //! renderable scores.
 
-use crate::basic_types::{DRect, Ddist, KsInfo, Link, NILINK};
-use crate::defs::RESFACTOR;
+use crate::basic_types::{DRect, Ddist, KsInfo, Link, Rect, NILINK};
+use crate::defs::{BAR_FINALDBL, BAR_SINGLE, MEASURE_TYPE, RESFACTOR};
 use crate::duration::code_to_l_dur;
 use crate::ngl::interpret::{InterpretedObject, InterpretedScore, ObjData};
 use crate::obj_types::{
-    AClef, AConnect, AKeySig, AStaff, Clef, Connect, KeySig, ObjectHeader, Page, Staff,
-    SubObjHeader, System, SHOW_ALL_LINES,
+    AClef, AConnect, AKeySig, AMeasure, AStaff, Clef, Connect, KeySig, Measure, ObjectHeader, Page,
+    Staff, SubObjHeader, System, SHOW_ALL_LINES,
 };
 use crate::space_time::{
     min_measure_width_stdist, respace_1bar, stdist_to_ddist, sync_width_left, sync_width_right,
@@ -195,7 +195,10 @@ pub fn layout_score(score: &mut InterpretedScore, config: &LayoutConfig) {
         cont_available,
     );
 
-    // --- 8. Set page dimensions ---
+    // --- 8. Insert closing barlines at end of each system ---
+    insert_closing_barlines(score, config, &measures, &system_ranges, &preamble);
+
+    // --- 9. Set page dimensions ---
     score.page_width_pt = config.page_width as f32;
     score.page_height_pt = config.page_height as f32;
 }
@@ -985,6 +988,26 @@ fn assign_xd_positions(
             score.objects[sync_link as usize].header.xd = rel;
         }
     }
+
+    // --- Mark the first measure of each system invisible ---
+    // In Nightingale, barlines are drawn at the START of each Measure object.
+    // The first measure in a system shouldn't draw a barline (it's the "opening"
+    // measure). NGL files encode this by having invisible AMeasure sub-objects.
+    // For scores coming through layout_score (MusicXML imports), we replicate
+    // this convention here.
+    // Reference: NGL files have visible=false for first measure of each system.
+    for &(sys_start, _sys_end) in system_ranges {
+        let first_meas = &measures[sys_start];
+        let first_sub = score.objects[first_meas.obj_link as usize]
+            .header
+            .first_sub_obj;
+        // Make AMeasure sub-objects invisible so no barline is drawn
+        if let Some(ameasure_list) = score.measures.get_mut(&first_sub) {
+            for am in ameasure_list.iter_mut() {
+                am.header.visible = false;
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -1112,6 +1135,130 @@ fn compute_continuation_preamble_info(preamble: &PreambleInfo, config: &LayoutCo
         0
     };
     clef_xd + (5 * dls) / 2 + ks_width
+}
+
+// ============================================================================
+// Closing barlines
+// ============================================================================
+
+/// Insert a closing-barline Measure object at the end of each system.
+///
+/// In Nightingale's model, barlines are drawn at the START of each Measure
+/// object. To get a barline at the right edge of each system, we need an
+/// extra "fake" Measure positioned at `content_width()`. NGL files and the
+/// Notelist pipeline both have these; layout_score must create them for
+/// MusicXML imports.
+///
+/// Reference: Notelist to_score.rs:1577-1586 (system-boundary barlines).
+fn insert_closing_barlines(
+    score: &mut InterpretedScore,
+    config: &LayoutConfig,
+    measures: &[MeasureInfo],
+    system_ranges: &[(usize, usize)],
+    preamble: &PreambleInfo,
+) {
+    let content_width = config.content_width();
+    let num_staves = preamble.num_staves;
+    let mut next_sub = find_max_sub_link(score) + 100;
+    let is_last_sys = |sys_idx: usize| sys_idx == system_ranges.len() - 1;
+
+    for (sys_idx, &(_sys_start, sys_end)) in system_ranges.iter().enumerate() {
+        // Find the last object in this system's chain.
+        // After insert_system_breaks, the last measure's last_link->right points
+        // to the next System, Page, or Tail.
+        let last_meas_last = measures[sys_end - 1].last_link;
+        let next_obj = score.objects[last_meas_last as usize].header.right;
+
+        // Barline type: final double for last system, single for others.
+        let bar_type = if is_last_sys(sys_idx) {
+            BAR_FINALDBL as i8
+        } else {
+            BAR_SINGLE as i8
+        };
+
+        // Allocate sub-object links.
+        let meas_sub_link = next_sub;
+        next_sub += num_staves as Link;
+
+        // Build AMeasure sub-objects (one per staff).
+        let mut meas_subs = Vec::with_capacity(num_staves);
+        for s in 1..=num_staves {
+            let conn_staff = if s == 1 && num_staves > 1 {
+                num_staves as i8
+            } else {
+                0
+            };
+            let conn_above = s > 1;
+
+            meas_subs.push(AMeasure {
+                header: SubObjHeader {
+                    next: if s < num_staves {
+                        meas_sub_link + s as Link
+                    } else {
+                        NILINK
+                    },
+                    staffn: s as i8,
+                    sub_type: bar_type,
+                    selected: false,
+                    visible: true,
+                    soft: true,
+                },
+                measure_visible: true,
+                conn_above,
+                filler1: 0,
+                filler2: 0,
+                reserved_m: 0,
+                measure_num: -1, // sentinel: closing barline, not a real measure
+                meas_size_rect: DRect::default(),
+                conn_staff,
+                clef_type: 0,
+                dynamic_type: 0,
+                ks_info: KsInfo::default(),
+                time_sig_type: 1,
+                numerator: preamble.time_num,
+                denominator: preamble.time_denom,
+                x_mn_std_offset: 0,
+                y_mn_std_offset: 0,
+            });
+        }
+        score.measures.insert(meas_sub_link, meas_subs);
+
+        // Create the Measure object at the right edge of the system.
+        let measure_link = score.objects.len() as Link;
+        score.objects.push(InterpretedObject {
+            index: measure_link,
+            header: ObjectHeader {
+                obj_type: MEASURE_TYPE as i8,
+                left: last_meas_last,
+                right: next_obj,
+                first_sub_obj: meas_sub_link,
+                n_entries: num_staves as u8,
+                xd: content_width,
+                visible: true,
+                valid: true,
+                soft: true,
+                ..Default::default()
+            },
+            data: ObjData::Measure(Measure {
+                header: ObjectHeader::default(),
+                filler_m: 0,
+                l_measure: NILINK,
+                r_measure: NILINK,
+                system_l: NILINK,
+                staff_l: NILINK,
+                fake_meas: 1,
+                space_percent: 100,
+                measure_b_box: Rect::default(),
+                l_time_stamp: 0,
+            }),
+        });
+
+        // Wire into linked list: prev → closing barline → next
+        score.objects[last_meas_last as usize].header.right = measure_link;
+        if (next_obj as usize) < score.objects.len() {
+            score.objects[next_obj as usize].header.left = measure_link;
+        }
+    }
 }
 
 // ============================================================================

@@ -1022,7 +1022,7 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     }
                 }
             }
-            ObjData::Measure(_meas) => {
+            ObjData::Measure(ref _meas) => {
                 // Read logical measure number from AMeasure subobjects.
                 // Each MEASURE has one AMeasure per staff; they all share the
                 // same measure_num (0-indexed logical measure number).
@@ -1033,11 +1033,23 @@ fn collect_measure_data(score: &InterpretedScore) -> Vec<MeasureData> {
                     .map(|am| am.measure_num)
                     .unwrap_or(-1);
 
+                // Skip closing-barline measures inserted by layout_score.
+                // These are rendering-only artefacts (positioned at staff_right),
+                // not real musical measures. layout_score sets measure_num=-1 on
+                // AMeasure sub-objects of these fake closing barlines.
+                // (We can't use Measure.fake_meas or ObjectHeader.soft because
+                // NGL files have unreliable values in those fields due to mac68k
+                // alignment issues and OG Nightingale setting soft=true on all
+                // system-boundary measures.)
+                if logical == -1 {
+                    continue;
+                }
+
                 // Skip duplicate MEASURE objects at system boundaries.
                 // NGL restates barlines at the start of each system, producing
                 // multiple MEASURE objects with the same logical measure number.
-                // NOTE: Measure.fake_meas is unreliable (wrong byte offset in
-                // many files), so we rely solely on AMeasure::measure_num dedup.
+                // Additionally, NGL restates barlines at system starts, so
+                // we rely on AMeasure::measure_num dedup to skip duplicates.
                 if seen_logical.contains(&logical) {
                     // Discard any pending attribute changes accumulated from
                     // STAFF/CLEF/KEYSIG/TIMESIG objects at the system boundary —
