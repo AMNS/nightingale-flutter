@@ -24,7 +24,7 @@ We adopt this philosophy: tests should be **small, focused, and visual**.
 
 ### Primary Review Tool: Flutter App
 
-The `nightingale/` Flutter app is the **primary visual review tool**:
+The `nightingale/` Flutter app is the **ONLY visual review tool** for engraving changes:
 
 ```bash
 cd nightingale
@@ -34,15 +34,18 @@ flutter run -d macos
 The app:
 - Loads all NGL and Notelist fixtures from `assets/scores/`
 - Renders them via Rust → RenderCommand stream → Flutter Canvas
-- Allows side-by-side comparison of before/after changes
-- Provides interactive panning/zooming for detailed inspection
+- Allows interactive panning/zooming for detailed inspection
+- **This is your source of truth for visual quality**
 
-**Workflow:**
+**Workflow (MANDATORY before committing rendering changes):**
 1. Make rendering change in Rust
 2. `flutter run` in `nightingale/`
-3. Browse affected scores visually
-4. If correct → commit
-5. If wrong → iterate
+3. Browse ALL affected scores visually
+4. Check for collisions, spacing issues, missing elements
+5. If correct → commit
+6. If wrong → iterate
+
+**Never commit rendering changes without Flutter visual review.**
 
 ### Automated Test Suite
 
