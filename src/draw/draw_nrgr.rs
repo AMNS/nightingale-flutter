@@ -249,8 +249,9 @@ fn draw_note(
             } else {
                 anote.xmove_acc as i16
             };
-            // acc_x_offset returns a DDIST offset; convert to render coords.
-            // Reference: DrawNRGR.cp line 336: AccXDOffset(xmoveAcc, pContext)
+            // Port of GetAccXOffset from OG DragAccModNR.cp:386-395
+            // For normal notes (100% size): accXOffset = AccXDOffset(xmoveAcc, pContext)
+            // Reference: utility.rs acc_x_offset() implements AccXDOffset from DrawUtils.cp:1519-1527
             let offset_ddist =
                 acc_x_offset(xmove, note_ctx.staff_height, note_ctx.staff_lines as i16);
             let acc_x = acc_anchor - ddist_to_render(offset_ddist);
@@ -639,9 +640,13 @@ pub fn draw_grsync(
                         } else {
                             grnote.xmove_acc as i16
                         };
+                        // Port of GetAccXOffset from OG DragAccModNR.cp:386-395
+                        // accXOffset = SizePercentSCALE(AccXDOffset(xmoveAcc, pContext))
                         let offset_ddist =
                             acc_x_offset(xmove, note_ctx.staff_height, note_ctx.staff_lines as i16);
-                        let acc_x = acc_anchor - ddist_to_render(offset_ddist);
+                        // Scale offset for grace note size (70%)
+                        let acc_x =
+                            acc_anchor - (ddist_to_render(offset_ddist) * grace_size_pct / 100.0);
                         renderer.music_char(
                             acc_x,
                             note_y,
