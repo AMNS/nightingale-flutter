@@ -47,6 +47,48 @@ The app:
 
 **Never commit rendering changes without Flutter visual review.**
 
+### QA Compare: Before/After PDF Rendering Deltas
+
+For detailed before/after comparisons at the PDF level, use the QA Compare workflow:
+
+```bash
+# Smart mode: Shows deltas only for changed fixtures (fast)
+./scripts/qa-compare-smart.sh
+
+# Full mode: Comprehensive comparison of all fixtures
+./scripts/qa-compare-smart.sh --all
+```
+
+**Output:**
+- `test-output/qa-compare/report.txt` — Text summary of all changes
+- `test-output/qa-compare/before/*.png` — Before screenshots (150 DPI)
+- `test-output/qa-compare/after/*.png` — After screenshots (150 DPI)
+
+**Workflow:**
+1. Make rendering change in Rust
+2. Run QA Compare to identify PDF changes:
+   ```bash
+   ./scripts/qa-compare-smart.sh
+   ```
+3. Review before/after PNGs in `test-output/qa-compare/`
+4. If changes match expectations → commit
+5. If unexpected → iterate in Rust
+
+**Example output:**
+```
+Changed fixtures: 4
+
+✓ SAME        tc_02_minuet
+✓ SAME        tc_04_scales
+⚠ MODIFIED    tc_05_chord_accidentals      (accidental positioning refined)
+⚠ MODIFIED    grace_notes_test             (grace note offset scaling)
+
+Summary:
+  Total:    26 fixtures
+  Changed:  2 fixtures
+  Unchanged: 24 fixtures
+```**
+
 ### Automated Test Suite
 
 Rust tests in `tests/` verify **structural correctness**, not pixel-perfect output:
