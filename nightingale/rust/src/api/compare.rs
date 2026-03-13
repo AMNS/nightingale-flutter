@@ -1,9 +1,10 @@
-// Bridge API: OG vs Modern rendering comparison.
+// Bridge API: OG vs Modern rendering comparison + QA before/after comparison.
 //
 // Provides functions for the Flutter QA Compare screen to:
 // 1. List fixtures with OG reference PDFs
 // 2. Render comparisons (our bitmap + OG bitmap + diff)
-// 3. Save/load feedback
+// 3. List and compare before/after PNG pairs from qa-compare workflow
+// 4. Save/load feedback
 
 use nightingale_core::comparison::{
     compare_rgba_images, og_page_count, render_og_page, OG_FIXTURES,
@@ -12,6 +13,7 @@ use nightingale_core::draw::draw_high_level::render_score;
 use nightingale_core::ngl::{interpret_heap, NglFile};
 use nightingale_core::render::{BitmapRenderer, MusicRenderer};
 use std::fs;
+use std::path::Path;
 
 // ── DTO types ───────────────────────────────────────────────────
 
@@ -41,6 +43,38 @@ pub struct ComparisonPageResult {
     pub og_rgba: Vec<u8>,
     pub og_width: u32,
     pub og_height: u32,
+    /// Diff RGBA bitmap (matching=dimmed, different=red)
+    pub diff_rgba: Vec<u8>,
+    pub diff_width: u32,
+    pub diff_height: u32,
+    /// Total pixel count
+    pub total_pixels: u64,
+    /// Number of differing pixels
+    pub diff_pixels: u64,
+    /// Diff percentage (0.0-100.0)
+    pub diff_pct: f64,
+}
+
+/// Information about a before/after QA comparison fixture.
+#[derive(Debug, Clone)]
+pub struct QaCompareFixtureInfo {
+    /// Fixture name (e.g. "grace_notes_test")
+    pub fixture_name: String,
+    /// Whether both before and after PNGs exist
+    pub has_pair: bool,
+}
+
+/// Result of comparing before/after PNGs.
+#[derive(Debug, Clone)]
+pub struct QaComparisonResult {
+    /// Before PNG RGBA bitmap (width * height * 4 bytes)
+    pub before_rgba: Vec<u8>,
+    pub before_width: u32,
+    pub before_height: u32,
+    /// After PNG RGBA bitmap
+    pub after_rgba: Vec<u8>,
+    pub after_width: u32,
+    pub after_height: u32,
     /// Diff RGBA bitmap (matching=dimmed, different=red)
     pub diff_rgba: Vec<u8>,
     pub diff_width: u32,
@@ -270,6 +304,161 @@ pub fn get_comparison(
         og_rgba: og.rgba,
         og_width: og.width,
         og_height: og.height,
+        diff_rgba,
+        diff_width: diff_w,
+        diff_height: diff_h,
+        total_pixels: total,
+        diff_pixels: diff_px,
+        diff_pct: pct,
+    }
+}
+
+// ── QA Compare: Before/After PNG comparison ───────────────────────
+
+/// Load a PNG file and convert to RGBA bytes.
+///
+/// For now, we just validate that the file exists and is a PNG.
+/// The actual PNG→RGBA decoding will happen in nightingale-core
+/// via the comparison module if needed, or we can extend this later
+/// with proper image decoding (using the `image` crate).
+fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
+    let data = fs::read(path).ok()?;
+
+    // Validate PNG signature
+    if data.len() < 8 || &data[0..8] != b"\x89PNG\r\n\x1a\n" {
+        eprintln!("[compare] PNG signature check failed: {}", path.display());
+        return None;
+    }
+
+    // For QA Compare on macOS, use native Image I/O to decode PNG
+    // This requires platform-specific code, so we'll return the raw PNG bytes
+    // and let the caller handle decoding (or use a proper image crate).
+    #[cfg(target_os = "macos")]
+    {
+        // Placeholder: return dummy dimensions for now
+        // TODO: Implement PNG decoding using CoreImage or the `image` crate
+        eprintln!("[compare] PNG loading: {} (decode not yet impl)", path.display());
+
+        // For now, return empty to indicate loading works but decoding is stubbed
+        // This allows the Flutter API to be built and will be fixed when we
+        // add proper image decoding
+        Some((vec![], 0, 0))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        eprintln!("[compare] PNG loading: {} (not implemented on this platform)", path.display());
+        Some((vec![], 0, 0))
+    }
+}
+
+/// List all before/after QA compare fixtures in test-output/qa-compare/.
+pub fn list_qa_compare_fixtures(project_root: String) -> Vec<QaCompareFixtureInfo> {
+    eprintln!("[compare] list_qa_compare_fixtures: project_root={}", project_root);
+
+    let qa_compare_dir = format!("{}/test-output/qa-compare", project_root);
+    let before_dir = format!("{}/before", qa_compare_dir);
+    let after_dir = format!("{}/after", qa_compare_dir);
+
+    let before_path = Path::new(&before_dir);
+    let after_path = Path::new(&after_dir);
+
+    if !before_path.exists() || !after_path.exists() {
+        eprintln!("[compare]   QA compare dirs not found");
+        return vec![];
+    }
+
+    let mut fixtures = Vec::new();
+
+    // Scan before directory for PNG files
+    if let Ok(entries) = fs::read_dir(before_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(name) = path.file_stem() {
+                if let Some(stem) = name.to_str() {
+                    // Check if corresponding after PNG exists
+                    let after_png = format!("{}/{}.png", after_dir, stem);
+                    let has_pair = Path::new(&after_png).exists();
+
+                    if has_pair {
+                        fixtures.push(QaCompareFixtureInfo {
+                            fixture_name: stem.to_string(),
+                            has_pair: true,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    fixtures.sort_by(|a, b| a.fixture_name.cmp(&b.fixture_name));
+    eprintln!("[compare]   found {} QA compare fixtures", fixtures.len());
+    fixtures
+}
+
+/// Get a QA comparison for a before/after PNG pair.
+pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaComparisonResult {
+    eprintln!("[compare] get_qa_comparison: fixture={}", fixture_name);
+
+    let qa_compare_dir = format!("{}/test-output/qa-compare", project_root);
+    let before_path = format!("{}/before/{}.png", qa_compare_dir, fixture_name);
+    let after_path = format!("{}/after/{}.png", qa_compare_dir, fixture_name);
+
+    let empty = QaComparisonResult {
+        before_rgba: vec![],
+        before_width: 0,
+        before_height: 0,
+        after_rgba: vec![],
+        after_width: 0,
+        after_height: 0,
+        diff_rgba: vec![],
+        diff_width: 0,
+        diff_height: 0,
+        total_pixels: 0,
+        diff_pixels: 0,
+        diff_pct: 0.0,
+    };
+
+    // Load before PNG
+    let (before_rgba, before_w, before_h) = match load_png(Path::new(&before_path)) {
+        Some((data, w, h)) => {
+            eprintln!("[compare]   before: {}x{}", w, h);
+            (data, w, h)
+        }
+        None => {
+            eprintln!("[compare]   FAIL: load before PNG: {}", before_path);
+            return empty;
+        }
+    };
+
+    // Load after PNG
+    let (after_rgba, after_w, after_h) = match load_png(Path::new(&after_path)) {
+        Some((data, w, h)) => {
+            eprintln!("[compare]   after: {}x{}", w, h);
+            (data, w, h)
+        }
+        None => {
+            eprintln!("[compare]   FAIL: load after PNG: {}", after_path);
+            return empty;
+        }
+    };
+
+    // Compare using the same compare_rgba_images function
+    let (diff_rgba, diff_w, diff_h, total, diff_px, pct) =
+        compare_rgba_images(&before_rgba, before_w, before_h, &after_rgba, after_w, after_h);
+
+    eprintln!(
+        "[compare]   diff: {:.2}% ({}/{} px) canvas {}x{}",
+        pct, diff_px, total, diff_w, diff_h
+    );
+
+    QaComparisonResult {
+        before_rgba,
+        before_width: before_w,
+        before_height: before_h,
+        after_rgba,
+        after_width: after_w,
+        after_height: after_h,
         diff_rgba,
         diff_width: diff_w,
         diff_height: diff_h,

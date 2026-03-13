@@ -5,6 +5,7 @@ import 'src/rust/api/score.dart';
 import 'src/rust/frb_generated.dart';
 import 'score_painter.dart';
 import 'compare_screen.dart';
+import 'qa_compare_screen.dart';
 
 Future<void> main() async {
   await RustLib.init();
@@ -246,14 +247,14 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                   ),
                 ),
 
-                // QA Compare button
+                // QA Compare button (OG vs Modern)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.compare, size: 16),
-                      label: const Text('QA Compare', style: TextStyle(fontSize: 12)),
+                      label: const Text('OG Compare', style: TextStyle(fontSize: 12)),
                       onPressed: () {
                         // Find project root (directory containing Cargo.toml + tests/).
                         // Try current directory first (works in dev mode: flutter run).
@@ -269,7 +270,35 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                             ),
                           );
                         } else {
-                          debugPrint('[QA Compare] Failed to find project root');
+                          debugPrint('[OG Compare] Failed to find project root');
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                // QA Compare button (Before/After)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.difference, size: 16),
+                      label: const Text('QA Diff', style: TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        // Find project root
+                        var root = findProjectRoot(startPath: Directory.current.path);
+                        if (root.isEmpty) {
+                          root = findProjectRoot(startPath: Platform.resolvedExecutable);
+                        }
+                        if (root.isNotEmpty) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => QaCompareScreen(projectRoot: root),
+                            ),
+                          );
+                        } else {
+                          debugPrint('[QA Diff] Failed to find project root');
                         }
                       },
                     ),
