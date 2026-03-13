@@ -74,12 +74,20 @@ class _QaCompareScreenState extends State<QaCompareScreen> {
   Future<void> _loadFixtures() async {
     debugPrint('[QA Compare] loadFixtures: projectRoot=${widget.projectRoot}');
     try {
+      if (widget.projectRoot.isEmpty) {
+        setState(() => _status = 'Project root not found. Run from project directory.');
+        return;
+      }
+
       final qaCompareDir = Directory('${widget.projectRoot}/test-output/qa-compare');
       final beforeDir = Directory('${qaCompareDir.path}/before');
       final afterDir = Directory('${qaCompareDir.path}/after');
 
+      debugPrint('[QA Compare] Checking for before/after dirs at: ${beforeDir.path}, ${afterDir.path}');
+      debugPrint('[QA Compare] Before exists: ${beforeDir.existsSync()}, After exists: ${afterDir.existsSync()}');
+
       if (!beforeDir.existsSync() || !afterDir.existsSync()) {
-        setState(() => _status = 'QA compare directories not found');
+        setState(() => _status = 'QA compare directories not found at ${beforeDir.path}');
         return;
       }
 

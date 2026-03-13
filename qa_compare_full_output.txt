@@ -1,0 +1,264 @@
+=== QA Compare: PDF Rendering Deltas ===
+
+Full Mode: Re-rendering all fixtures for comprehensive comparison...
+
+1. Generating PDFs for HEAD~1...
+.......
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.14s
+
+
+2. Generating PDFs for HEAD...
+.......
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s
+
+
+3. Converting to PNG (150 DPI) for pixel comparison...
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/01_me_and_lucy.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/01_me_and_lucy.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/02_cloning_frank_blacks.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/02_cloning_frank_blacks.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/03_holed_up_in_penjinskya.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/03_holed_up_in_penjinskya.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/04_eating_humble_pie.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/04_eating_humble_pie.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/05_abigail.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/05_abigail.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/06_melyssa_with_a_y.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/06_melyssa_with_a_y.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/07_new_york_debutante.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/07_new_york_debutante.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/08_darling_sunshine.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/08_darling_sunshine.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/09_swiss_ann.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/09_swiss_ann.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/10_ghost_of_fusion_bob.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/10_ghost_of_fusion_bob.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/11_philip.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/11_philip.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/12_what_do_i_know.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/12_what_do_i_know.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/13_miss_b.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/13_miss_b.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/14_chrome_molly.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/14_chrome_molly.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/15_selfsame_twin.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/15_selfsame_twin.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/16_esmerelda.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/16_esmerelda.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/17_capital_regiment_march.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/17_capital_regiment_march.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/beamed_grace_notes.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/beamed_grace_notes.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_02.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_02.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_03a.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_03a.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_03b.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_03b.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_04.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_04.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_05.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_05.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_55_1.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_55_1.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_ich_bin_ja.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_ich_bin_ja.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_alpherqt_16.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_alpherqt_16.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_babbitt_guit_8.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_babbitt_guit_8.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_babbitt_guitar_piece.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_babbitt_guitar_piece.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_proteus_tweaked.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_proteus_tweaked.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_proteus.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_proteus.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_qt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_qt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_trem.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_berlioz_valse_trem.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_debussy_images_play_converted.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_debussy_images_play_converted.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_debussy_images_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_debussy_images_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_icebreaker_6.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_icebreaker_6.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_killingme_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_killingme_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_kinderszenen_13_6.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_kinderszenen_13_6.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_km_play_scellpoporch.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_km_play_scellpoporch.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_komm_heiliger_geist_qt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_komm_heiliger_geist_qt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_komm_heiliger_geist.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_komm_heiliger_geist.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_pm_calypso.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_pm_calypso.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_ravel_scarbo_10.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_old_ravel_scarbo_10.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schildt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schildt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schumann_eusebius_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schumann_eusebius_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schumann_reconnaissance.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/tc_schumann_reconnaissance.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/01_me_and_lucy.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/01_me_and_lucy.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/02_cloning_frank_blacks.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/02_cloning_frank_blacks.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/03_holed_up_in_penjinskya.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/03_holed_up_in_penjinskya.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/04_eating_humble_pie.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/04_eating_humble_pie.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/05_abigail.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/05_abigail.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/06_melyssa_with_a_y.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/06_melyssa_with_a_y.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/07_new_york_debutante.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/07_new_york_debutante.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/08_darling_sunshine.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/08_darling_sunshine.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/09_swiss_ann.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/09_swiss_ann.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/10_ghost_of_fusion_bob.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/10_ghost_of_fusion_bob.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/11_philip.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/11_philip.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/12_what_do_i_know.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/12_what_do_i_know.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/13_miss_b.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/13_miss_b.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/14_chrome_molly.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/14_chrome_molly.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/15_selfsame_twin.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/15_selfsame_twin.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/16_esmerelda.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/16_esmerelda.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/17_capital_regiment_march.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/17_capital_regiment_march.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/beamed_grace_notes.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/beamed_grace_notes.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_02.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_02.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_03a.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_03a.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_03b.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_03b.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_04.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_04.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_05.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_05.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_55_1.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_55_1.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_ich_bin_ja.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_ich_bin_ja.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_alpherqt_16.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_alpherqt_16.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_babbitt_guit_8.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_babbitt_guit_8.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_babbitt_guitar_piece.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_babbitt_guitar_piece.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_proteus_tweaked.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_proteus_tweaked.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_proteus.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_proteus.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_qt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_qt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_trem.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_berlioz_valse_trem.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_debussy_images_play_converted.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_debussy_images_play_converted.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_debussy_images_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_debussy_images_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_icebreaker_6.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_icebreaker_6.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_killingme_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_killingme_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_kinderszenen_13_6.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_kinderszenen_13_6.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_km_play_scellpoporch.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_km_play_scellpoporch.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_komm_heiliger_geist_qt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_komm_heiliger_geist_qt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_komm_heiliger_geist.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_komm_heiliger_geist.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_pm_calypso.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_pm_calypso.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_ravel_scarbo_10.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_old_ravel_scarbo_10.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schildt.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schildt.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schumann_eusebius_play.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schumann_eusebius_play.png
+/Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schumann_reconnaissance.pdf
+  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/tc_schumann_reconnaissance.png
+
+4. Analyzing deltas...
+QA Compare: PDF Rendering Before/After Deltas
+==============================================
+
+Commits:
+  Before: a026727
+  After:  c7be0c4
+
+Results:
+--------
+✓ SAME   01_me_and_lucy
+✓ SAME   02_cloning_frank_blacks
+✓ SAME   03_holed_up_in_penjinskya
+✓ SAME   04_eating_humble_pie
+✓ SAME   05_abigail
+✓ SAME   06_melyssa_with_a_y
+✓ SAME   07_new_york_debutante
+✓ SAME   08_darling_sunshine
+✓ SAME   09_swiss_ann
+✓ SAME   10_ghost_of_fusion_bob
+✓ SAME   11_philip
+✓ SAME   12_what_do_i_know
+✓ SAME   13_miss_b
+✓ SAME   14_chrome_molly
+✓ SAME   15_selfsame_twin
+✓ SAME   16_esmerelda
+✓ SAME   17_capital_regiment_march
+✓ SAME   beamed_grace_notes
+✓ SAME   tc_02
+✓ SAME   tc_03a
+✓ SAME   tc_03b
+✓ SAME   tc_04
+✓ SAME   tc_05
+✓ SAME   tc_55_1
+✓ SAME   tc_ich_bin_ja
+✓ SAME   tc_old_alpherqt_16
+✓ SAME   tc_old_babbitt_guit_8
+✓ SAME   tc_old_babbitt_guitar_piece
+✓ SAME   tc_old_berlioz_valse_proteus_tweaked
+✓ SAME   tc_old_berlioz_valse_proteus
+✓ SAME   tc_old_berlioz_valse_qt
+✓ SAME   tc_old_berlioz_valse_trem
+✓ SAME   tc_old_debussy_images_play_converted
+✓ SAME   tc_old_debussy_images_play
+✓ SAME   tc_old_icebreaker_6
+✓ SAME   tc_old_killingme_play
+✓ SAME   tc_old_kinderszenen_13_6
+✓ SAME   tc_old_km_play_scellpoporch
+✓ SAME   tc_old_komm_heiliger_geist_qt
+✓ SAME   tc_old_komm_heiliger_geist
+✓ SAME   tc_old_pm_calypso
+✓ SAME   tc_old_ravel_scarbo_10
+✓ SAME   tc_schildt
+✓ SAME   tc_schumann_eusebius_play
+✓ SAME   tc_schumann_reconnaissance
+
+Summary:
+  Total:    45 fixtures
+  Changed:  0 fixtures
+  Unchanged: 45 fixtures
+
+✓ No visual changes detected
+
+Artifacts:
+  Report:  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/report.txt
+  Befores: /Users/chirgwin/nightingale-flutter/test-output/qa-compare/before/
+  Afters:  /Users/chirgwin/nightingale-flutter/test-output/qa-compare/after/
+

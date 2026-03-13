@@ -157,17 +157,26 @@ pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
                             r.page_count() as i32
                         }
                         Err(e) => {
-                            eprintln!("[compare]   {} — interpret_heap error: {:?}", f.fixture_name, e);
+                            eprintln!(
+                                "[compare]   {} — interpret_heap error: {:?}",
+                                f.fixture_name, e
+                            );
                             0
                         }
                     },
                     Err(e) => {
-                        eprintln!("[compare]   {} — NglFile parse error: {:?}", f.fixture_name, e);
+                        eprintln!(
+                            "[compare]   {} — NglFile parse error: {:?}",
+                            f.fixture_name, e
+                        );
                         0
                     }
                 },
                 Err(e) => {
-                    eprintln!("[compare]   {} — read NGL error: {} (path={})", f.fixture_name, e, ngl_path);
+                    eprintln!(
+                        "[compare]   {} — read NGL error: {} (path={})",
+                        f.fixture_name, e, ngl_path
+                    );
                     0
                 }
             };
@@ -219,7 +228,10 @@ pub fn get_comparison(
     let fixture = match OG_FIXTURES.iter().find(|f| f.fixture_name == fixture_name) {
         Some(f) => f,
         None => {
-            eprintln!("[compare]   FAIL: fixture '{}' not found in OG_FIXTURES", fixture_name);
+            eprintln!(
+                "[compare]   FAIL: fixture '{}' not found in OG_FIXTURES",
+                fixture_name
+            );
             return empty;
         }
     };
@@ -230,7 +242,11 @@ pub fn get_comparison(
 
     // Render our version
     let ngl_path = format!("{}/{}.ngl", fixture_dir, fixture_name);
-    eprintln!("[compare]   ngl_path={} exists={}", ngl_path, std::path::Path::new(&ngl_path).exists());
+    eprintln!(
+        "[compare]   ngl_path={} exists={}",
+        ngl_path,
+        std::path::Path::new(&ngl_path).exists()
+    );
     let data = match fs::read(&ngl_path) {
         Ok(d) => d,
         Err(e) => {
@@ -270,7 +286,10 @@ pub fn get_comparison(
     ) {
         (Some(data), Some((w, h))) => (data.to_vec(), w, h),
         _ => {
-            eprintln!("[compare]   FAIL: page_data or page_dimensions returned None for idx {}", page_idx);
+            eprintln!(
+                "[compare]   FAIL: page_data or page_dimensions returned None for idx {}",
+                page_idx
+            );
             return empty;
         }
     };
@@ -278,7 +297,11 @@ pub fn get_comparison(
 
     // Render OG page
     let og_pdf_path = format!("{}/{}", og_ref_dir, fixture.og_pdf);
-    eprintln!("[compare]   og_pdf={} exists={}", og_pdf_path, std::path::Path::new(&og_pdf_path).exists());
+    eprintln!(
+        "[compare]   og_pdf={} exists={}",
+        og_pdf_path,
+        std::path::Path::new(&og_pdf_path).exists()
+    );
     let og = match render_og_page(&og_ref_dir, fixture.og_pdf, page_num as usize, 72.0) {
         Some(r) => r,
         None => {
@@ -337,7 +360,10 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
     {
         // Placeholder: return dummy dimensions for now
         // TODO: Implement PNG decoding using CoreImage or the `image` crate
-        eprintln!("[compare] PNG loading: {} (decode not yet impl)", path.display());
+        eprintln!(
+            "[compare] PNG loading: {} (decode not yet impl)",
+            path.display()
+        );
 
         // For now, return empty to indicate loading works but decoding is stubbed
         // This allows the Flutter API to be built and will be fixed when we
@@ -347,14 +373,20 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
 
     #[cfg(not(target_os = "macos"))]
     {
-        eprintln!("[compare] PNG loading: {} (not implemented on this platform)", path.display());
+        eprintln!(
+            "[compare] PNG loading: {} (not implemented on this platform)",
+            path.display()
+        );
         Some((vec![], 0, 0))
     }
 }
 
 /// List all before/after QA compare fixtures in test-output/qa-compare/.
 pub fn list_qa_compare_fixtures(project_root: String) -> Vec<QaCompareFixtureInfo> {
-    eprintln!("[compare] list_qa_compare_fixtures: project_root={}", project_root);
+    eprintln!(
+        "[compare] list_qa_compare_fixtures: project_root={}",
+        project_root
+    );
 
     let qa_compare_dir = format!("{}/test-output/qa-compare", project_root);
     let before_dir = format!("{}/before", qa_compare_dir);
@@ -444,8 +476,14 @@ pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaCompar
     };
 
     // Compare using the same compare_rgba_images function
-    let (diff_rgba, diff_w, diff_h, total, diff_px, pct) =
-        compare_rgba_images(&before_rgba, before_w, before_h, &after_rgba, after_w, after_h);
+    let (diff_rgba, diff_w, diff_h, total, diff_px, pct) = compare_rgba_images(
+        &before_rgba,
+        before_w,
+        before_h,
+        &after_rgba,
+        after_w,
+        after_h,
+    );
 
     eprintln!(
         "[compare]   diff: {:.2}% ({}/{} px) canvas {}x{}",

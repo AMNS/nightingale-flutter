@@ -1,0 +1,5 @@
+=== QA Compare: PDF Rendering Deltas ===
+
+Smart Mode: Identifying changed fixtures via command stream hashes...
+
+✓ No rendering changes detected (all fixtures match)
