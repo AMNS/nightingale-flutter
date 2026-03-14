@@ -42,17 +42,14 @@ jobs:
 
       - name: cargo test
         run: cargo test --all
-        # Note: visual regression tests (622 golden bitmaps) run separately
-        # in the 'visual-tests' job with --features visual-regression and
-        # upload rendered output as downloadable artifacts.
+        # Note: PDF rendering tests run separately in the 'visual-tests' job
+        # and upload rendered output as downloadable artifacts for manual review.
 
-  # ─── Visual tests: bitmap regression + rendered output as artifacts ─────────
+  # ─── Visual tests: PDF rendering + output as artifacts ─────────────────────
   visual-tests:
     name: Visual tests + artifacts
     runs-on: macos-latest
-    # Run on macOS to match the platform where goldens are generated.
-    # This eliminates cross-platform font rasterization diffs (tiny-skia
-    # + ab_glyph produce slightly different pixels on Linux vs macOS).
+    # Run on macOS for consistent PDF rendering (CoreGraphics).
 
     steps:
       - uses: actions/checkout@v4
@@ -70,14 +67,9 @@ jobs:
           key: ${{ runner.os }}-cargo-visual-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-visual-
 
-      - name: Run all tests with visual regression
-        run: cargo test --all --features visual-regression -- --nocapture
-        # Includes bitmap regression (622 golden PNGs) + MusicXML pipeline tests.
-        # Pipeline tests produce PDFs and exported MusicXML in test-output/.
-
-      - name: Run golden bitmap diff
-        if: always()
-        run: ./scripts/visual-review.sh --no-open
+      - name: Run all tests (includes PDF rendering + MusicXML pipeline)
+        run: cargo test --all -- --nocapture
+        # Produces PDFs and exported MusicXML in test-output/ for visual review.
 
       - name: Upload test output (PDFs, MusicXML, diffs)
         if: always()

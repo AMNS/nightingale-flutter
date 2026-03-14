@@ -82,39 +82,49 @@ class _QaCompareScreenState extends State<QaCompareScreen> {
       final qaCompareDir = Directory('${widget.projectRoot}/test-output/qa-compare');
       final beforeDir = Directory('${qaCompareDir.path}/before');
       final afterDir = Directory('${qaCompareDir.path}/after');
+      final changedFile = File('${qaCompareDir.path}/changed.txt');
 
-      debugPrint('[QA Compare] Checking for before/after dirs at: ${beforeDir.path}, ${afterDir.path}');
-      debugPrint('[QA Compare] Before exists: ${beforeDir.existsSync()}, After exists: ${afterDir.existsSync()}');
+      debugPrint('[QA Compare] Checking for changed.txt at: ${changedFile.path}');
 
-      if (!beforeDir.existsSync() || !afterDir.existsSync()) {
-        setState(() => _status = 'QA compare directories not found at ${beforeDir.path}');
+      if (!changedFile.existsSync()) {
+        setState(() => _status = 'No changed fixtures found. Run ./scripts/qa-compare-smart.sh first.');
         return;
       }
 
-      // Scan before directory for PNG files
+      // Read changed.txt manifest to get only fixtures with deltas
+      final changedContent = await changedFile.readAsString();
+
+      if (changedContent.trim().isEmpty) {
+        setState(() => _status = 'No visual changes detected. All fixtures match.');
+        return;
+      }
+
       final fixtures = <QaFixtureInfo>[];
-      final beforeFiles = beforeDir.listSync();
+      final lines = changedContent.trim().split('\n');
 
-      for (final entity in beforeFiles) {
-        if (entity is File && entity.path.endsWith('.png')) {
-          final baseName = entity.path.split('/').last.replaceAll('.png', '');
-          final afterFile = File('${afterDir.path}/$baseName.png');
+      // Format: name|pct|diff_px/total_px
+      for (final line in lines) {
+        final parts = line.split('|');
+        if (parts.isEmpty) continue;
 
-          if (afterFile.existsSync()) {
-            fixtures.add(QaFixtureInfo(
-              fixtureName: baseName,
-              beforeFile: entity,
-              afterFile: afterFile,
-            ));
-          }
+        final name = parts[0];
+        final beforeFile = File('${beforeDir.path}/$name.png');
+        final afterFile = File('${afterDir.path}/$name.png');
+
+        if (beforeFile.existsSync() && afterFile.existsSync()) {
+          fixtures.add(QaFixtureInfo(
+            fixtureName: name,
+            beforeFile: beforeFile,
+            afterFile: afterFile,
+          ));
         }
       }
 
-      fixtures.sort((a, b) => a.fixtureName.compareTo(b.fixtureName));
+      debugPrint('[QA Compare] Loaded ${fixtures.length} changed fixtures from manifest');
 
       setState(() {
         _fixtures = fixtures;
-        _status = '${fixtures.length} QA compare fixtures found';
+        _status = '${fixtures.length} changed fixture(s)';
       });
 
       if (fixtures.isNotEmpty) {

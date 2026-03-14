@@ -1,95 +1,156 @@
 /// QA Compare: Before/After Visual Diffs for Rendering Changes
 ///
-/// Compares PDFs rendered before and after a code change using the high-quality
-/// PDF rendering path (the "QA Compare" section). Generates visual diff images
-/// showing exactly what changed.
+/// Compares PDFs rendered before and after a code change, generating visual
+/// diff images showing exactly what changed (matching pixels dimmed, changed
+/// pixels in bright red). Only fixtures with visual changes are shown.
 ///
 /// Usage:
 /// ```bash
+/// # Smart mode (default): Run via shell script (auto git checkout, render, compare)
+/// ./scripts/qa-compare-smart.sh
+///
+/// # Manual mode: If you've already generated before/after PDFs:
 /// cargo test --test qa_compare -- --nocapture
 /// ```
+///
+/// Output: test-output/qa-compare/
+///   before/          — PDFs + PNGs from HEAD~1
+///   after/           — PDFs + PNGs from HEAD
+///   diff/            — Diff images (red highlights) - ONLY for changed fixtures
+///   changed.txt      — List of changed fixture names (for Flutter to load)
 mod common;
 
-use std::path::Path;
+use common::compare_images_and_diff;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
-#[test]
-fn grace_note_accidental_offset_scaling() {
-    // Fixture: tc_old_kinderszenen_13_6.ngl (has grace notes with accidentals)
-    let before_png = Path::new("test-output/audit/before/tc_old_kinderszenen_13_6.png");
-    let after_png = Path::new("test-output/audit/after/tc_old_kinderszenen_13_6.png");
-    let diff_path = Path::new("test-output/qa-diffs/tc_old_kinderszenen_13_6_diff.png");
+/// Discover all before/after PNG pairs in the qa-compare directory.
+fn find_qa_compare_pairs() -> Result<HashMap<String, (PathBuf, PathBuf)>, String> {
+    let before_dir = Path::new("test-output/qa-compare/before");
+    let after_dir = Path::new("test-output/qa-compare/after");
 
-    std::fs::create_dir_all("test-output/qa-diffs").expect("create qa-diffs dir");
-
-    if !before_png.exists() || !after_png.exists() {
-        eprintln!("Before/after PNGs not found. Generate them with:");
-        eprintln!("  git checkout HEAD~1 && cargo test --test ngl_all kinderszenen");
-        eprintln!("  cp test-output/ngl/tc_old_kinderszenen_13_6.pdf test-output/audit/before/");
-        eprintln!("  sips -s format png -s dpiWidth 150 -s dpiHeight 150 test-output/audit/before/tc_old_kinderszenen_13_6.pdf --out test-output/audit/before/tc_old_kinderszenen_13_6.png");
-        eprintln!("  git checkout main");
-        return;
+    if !before_dir.exists() || !after_dir.exists() {
+        return Err(format!(
+            "Before/after directories not found. Run ./scripts/qa-compare-smart.sh first.\n\
+             Expected:\n  {}\n  {}",
+            before_dir.display(),
+            after_dir.display()
+        ));
     }
 
-    match common::compare_images_and_diff(before_png, after_png, diff_path) {
-        Ok((total, diff, pct)) => {
-            println!("\n=== tc_old_kinderszenen_13_6 (grace notes with accidentals) ===");
-            println!("Total pixels: {}", total);
-            println!("Differing pixels: {}", diff);
-            println!("Diff percentage: {:.2}%", pct);
-            println!("Diff image: {}\n", diff_path.display());
+    let mut pairs = HashMap::new();
 
-            if pct < 0.1 {
-                println!(
-                    "✓ PASS: Minimal change ({:.2}%), consistent with grace note offset scaling",
-                    pct
-                );
-            } else if pct < 1.0 {
-                println!(
-                    "⚠ WARNING: Moderate change ({:.2}%), review diff image",
-                    pct
-                );
-            } else {
-                println!(
-                    "✗ FAIL: Large change ({:.2}%), verify rendering is correct",
-                    pct
-                );
+    // Scan after directory for PNG files
+    for entry in fs::read_dir(after_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) == Some("png") {
+            if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                let before_png = before_dir.join(format!("{}.png", name));
+
+                if before_png.exists() {
+                    pairs.insert(name.to_string(), (before_png, path.clone()));
+                }
             }
         }
-        Err(e) => eprintln!("Error comparing images: {}", e),
     }
+
+    if pairs.is_empty() {
+        return Err(
+            "No PNG pairs found. Ensure test-output/qa-compare/{before,after}/ contain PNGs."
+                .to_string(),
+        );
+    }
+
+    Ok(pairs)
 }
 
 #[test]
-fn beamed_grace_notes() {
-    // Fixture: beamed_grace_notes.ngl (complex grace note patterns)
-    let before_png = Path::new("test-output/audit/before/beamed_grace_notes.png");
-    let after_png = Path::new("test-output/audit/after/beamed_grace_notes.png");
-    let diff_path = Path::new("test-output/qa-diffs/beamed_grace_notes_diff.png");
+fn qa_compare_before_after() {
+    println!("\n=== QA Compare: Before/After Visual Diffs ===\n");
 
-    std::fs::create_dir_all("test-output/qa-diffs").expect("create qa-diffs dir");
+    // Discover all PNG pairs
+    let pairs = match find_qa_compare_pairs() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+    };
 
-    if !before_png.exists() || !after_png.exists() {
-        eprintln!("Before/after PNGs not found.");
-        return;
-    }
+    println!("Found {} fixture(s) to compare\n", pairs.len());
 
-    match common::compare_images_and_diff(before_png, after_png, diff_path) {
-        Ok((total, diff, pct)) => {
-            println!("\n=== beamed_grace_notes.ngl (complex grace note patterns) ===");
-            println!("Total pixels: {}", total);
-            println!("Differing pixels: {}", diff);
-            println!("Diff percentage: {:.2}%", pct);
-            println!("Diff image: {}\n", diff_path.display());
+    // Create diff directory
+    let diff_dir = Path::new("test-output/qa-compare/diff");
+    fs::create_dir_all(diff_dir).expect("create diff directory");
 
-            if pct < 0.5 {
-                println!("✓ PASS: Minimal change ({:.2}%)", pct);
-            } else {
-                println!(
-                    "⚠ WARNING: Moderate change ({:.2}%), review diff image",
-                    pct
-                );
+    // Compare each pair and collect results
+    let mut changed_fixtures = Vec::new();
+    let mut unchanged_count = 0;
+
+    for (name, (before_path, after_path)) in pairs.iter() {
+        let diff_path = diff_dir.join(format!("{}_diff.png", name));
+
+        match compare_images_and_diff(before_path, after_path, &diff_path) {
+            Ok((total, diff_px, pct)) => {
+                if diff_px > 0 {
+                    // Only track fixtures with visual changes
+                    println!(
+                        "⚠ CHANGED: {} — {:.3}% ({} / {} pixels)",
+                        name, pct, diff_px, total
+                    );
+                    changed_fixtures.push((name.clone(), pct, diff_px, total));
+                } else {
+                    unchanged_count += 1;
+                    println!("✓ UNCHANGED: {}", name);
+                    // Remove diff image if it exists (no changes)
+                    let _ = fs::remove_file(&diff_path);
+                }
+            }
+            Err(e) => {
+                eprintln!("✗ ERROR comparing {}: {}", name, e);
             }
         }
-        Err(e) => eprintln!("Error comparing images: {}", e),
+    }
+
+    println!("\n=== Summary ===");
+    println!("Total fixtures:     {}", pairs.len());
+    println!("Changed:            {}", changed_fixtures.len());
+    println!("Unchanged:          {}", unchanged_count);
+
+    // Write manifest of changed fixtures for Flutter to load
+    if !changed_fixtures.is_empty() {
+        // Sort by diff percentage (highest first)
+        changed_fixtures.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let manifest_path = Path::new("test-output/qa-compare/changed.txt");
+        let manifest_content: String = changed_fixtures
+            .iter()
+            .map(|(name, pct, diff_px, total)| format!("{}|{:.3}|{}/{}", name, pct, diff_px, total))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        fs::write(manifest_path, manifest_content).expect("write changed.txt");
+
+        println!("\n📋 Changed fixtures manifest:");
+        println!("   {}", manifest_path.display());
+        println!("\n🎨 Review changes in Flutter:");
+        println!("   cd nightingale && flutter run");
+        println!("   Then navigate to: QA Compare (Before/After) screen");
+
+        // Fail the test if there are changes (so CI catches regressions)
+        panic!(
+            "\n⚠ Visual changes detected in {} fixture(s).\n\
+             Review in Flutter QA Compare screen.",
+            changed_fixtures.len()
+        );
+    } else {
+        // No changes - write empty manifest
+        let manifest_path = Path::new("test-output/qa-compare/changed.txt");
+        fs::write(manifest_path, "").expect("write empty changed.txt");
+
+        println!("\n✓ No visual changes detected. All fixtures match.");
     }
 }
