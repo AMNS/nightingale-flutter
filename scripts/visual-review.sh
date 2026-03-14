@@ -1,54 +1,24 @@
 #!/bin/sh
-# Visual review of golden bitmap changes.
+# Visual review of golden bitmap changes (DEPRECATED).
 #
-# Compares current golden bitmaps against git HEAD, generates diff images,
-# and opens an HTML report with side-by-side before/after/diff views
-# and per-file approval controls.
+# Golden bitmaps have been replaced with PDF-based visual review via Flutter.
+# This script is kept for reference but should not be used in CI.
 #
-# Usage:
-#   ./scripts/visual-review.sh            # show diff summary + open HTML report
-#   ./scripts/visual-review.sh --no-open  # summary only (CI-friendly)
+# For visual review of rendering changes, use:
+#   ./scripts/qa-compare-smart.sh           # Before/after PDF comparison
+#   cd nightingale && flutter run           # Review in Flutter QA Compare screen
 #
-# Output: test-output/golden-diff/
-#   review.html            — interactive HTML diff report
-#   {name}_old.png         — committed version
-#   {name}_new.png         — current version
-#   {name}_diff.png        — visual diff
+# To regenerate PDF output after code changes:
+#   cargo test --test ngl_all --test notelist_all
+#   # PDFs appear in test-output/ngl/ and test-output/notelist/
 
-set -e
-
-echo "=== Visual Review: Golden Bitmap Diffs ==="
+echo "⚠️  WARNING: This script is deprecated."
 echo ""
-
-# Run the golden_diff test with output
-cargo test --test golden_diff -- --nocapture 2>&1
-
-DIFF_DIR="test-output/golden-diff"
-REPORT="$DIFF_DIR/review.html"
-
-# Open HTML report if it exists and has diffs
-if [ -f "$REPORT" ]; then
-    diff_count=$(find "$DIFF_DIR" -name '*_diff.png' 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$diff_count" -gt 0 ]; then
-        echo ""
-        echo "$diff_count bitmap(s) changed."
-        if [ "$1" != "--no-open" ]; then
-            echo "Opening visual review..."
-            open "$REPORT" 2>/dev/null || xdg-open "$REPORT" 2>/dev/null || echo "(open manually: $REPORT)"
-        else
-            echo "Report: $REPORT"
-        fi
-    else
-        echo ""
-        echo "No bitmap changes detected."
-    fi
-else
-    # Fallback: no HTML report means no changes
-    echo ""
-    echo "No bitmap changes detected."
-fi
-
+echo "Golden bitmap regression tests have been removed."
+echo "Use Flutter-based visual review instead:"
 echo ""
-echo "To update goldens after intentional changes:"
-echo "  REGENERATE_REFS=1 cargo test test_all_ngl_bitmap_regression"
-echo "  REGENERATE_REFS=1 cargo test test_all_notelists_bitmap_regression"
+echo "  1. ./scripts/qa-compare-smart.sh"
+echo "  2. cd nightingale && flutter run"
+echo "  3. Navigate to: QA Compare (Before/After) screen"
+echo ""
+exit 1

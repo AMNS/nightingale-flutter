@@ -49,10 +49,11 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] Preamble layout, continuation preamble, clef changes, mid-score time sig changes
 - [x] Anacrusis measure width, line widths from lnSpace (staff/ledger/stem/barline)
 
-### Visual Regression Testing
-- [x] 678 golden bitmaps across 85 fixtures (26 NGL + 41 Notelist + 18 MusicXML), all pages
+### Testing & QA
+- [x] 363 tests (358 passed + 5 ignored), 678 PDF outputs across 85 fixtures
 - [x] Insta snapshot regression, command-stream hash regression
-- [x] Golden diff tool (scripts/visual-review.sh)
+- [x] QA Compare tool: before/after visual diff workflow (scripts/qa-compare-smart.sh + Flutter UI)
+- [x] Flutter visual review screen with side-by-side/blink/slider comparison modes
 
 ### Deferred
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
@@ -72,6 +73,8 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [x] flutter_rust_bridge setup (v2.11.1, flat DTO bridge)
 - [x] FlutterRenderer backend (command-based → CustomPaint, 32 command types)
 - [x] Score view widget with multi-page rendering, zoom, file browser
+- [x] QA Compare screen (before/after visual diffs with multiple view modes)
+- [x] OG Comparison screen (modern vs OG Nightingale reference PDFs)
 - [ ] Tool palette, basic editing
 
 ## Phase 5: MusicXML — IN PROGRESS
