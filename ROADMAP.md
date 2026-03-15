@@ -36,9 +36,11 @@
    - MusCharXOffset/MusCharYOffset (Sonata-specific) not needed for SMuFL fonts
    - Courtesy accidentals (parentheses) deferred (no fixture coverage)
 
-5. **Slash Notation** — Percussion/drum scores
-   - Investigate OG tremolo stem rendering
-   - Add slash notehead support
+5. **Slash Notation** — DEFERRED (no fixture coverage)
+   - Slash noteheads: Implemented (draw_nrgr.rs:194-226)
+   - Tremolo slashes (MOD_TREMOLO1-6): OG renders via DrawSlashes() (DrawNRGR.cp:28-99)
+   - No test fixtures use either feature
+   - Will implement when fixtures/test data available
 
 6. **Staff Visibility Model** — Empty staff continuation
    - Understand OG staff visibility logic
