@@ -9,67 +9,65 @@
 ### Tier 1: Critical
 **Goal**: Production-ready notation engine with full MusicXML interop
 
-1. **Accidental Staggering** (HIGH) — Most visible engraving flaw
-   - Port `DrawNRGR.cp::ChkNoteAccs()` logic
-   - Test with dense chord voicings (tc_55_1, 13_miss_b)
-   
+1. ✅ **Accidental Staggering** — COMPLETE
+   - Implemented: `src/objects.rs:412-513` arrange_nc_accs() (port of PitchUtils.cp:1517-1572)
+   - Used by: Notelist/MusicXML pipelines via process_sync_chords()
+   - NGL files: Use pre-computed xmove_acc values from original Nightingale
+   - Test: tests/render_score.rs::test_accidental_staggering_in_chords
+
 2. **MusicXML Round-Trip Stability** (CRITICAL) — Interop with Dorico/MuseScore
    - Investigate visual deltas on NGL→XML→import→render
    - Add round-trip regression tests
-   
-3. **Documentation** (ONGOING)
-   - Keep CLAUDE.md, PROGRESS.md, ENGRAVING_GAPS.md current
-   - Archive completed analysis docs (✅ done)
 
 ### Tier 2: High Priority
 **Goal**: Engraving quality polish
 
-4. **Stem X-Position for Seconds** — Chord voicing correctness
+3. **Stem X-Position for Seconds** — Chord voicing correctness
    - Port `DrawNRGR.cp:1094-1097` logic
    - Test with second-interval chords
 
-5. **AccXOffset Refinement** — Accidental positioning polish
+4. **AccXOffset Refinement** — Accidental positioning polish
    - Port full `DrawNRGR.cp::AccXOffset()` logic (lines 396-406)
 
-6. **Slash Notation** — Percussion/drum scores
+5. **Slash Notation** — Percussion/drum scores
    - Investigate OG tremolo stem rendering
    - Add slash notehead support
 
-7. **Staff Visibility Model** — Empty staff continuation
+6. **Staff Visibility Model** — Empty staff continuation
    - Understand OG staff visibility logic
    - Render continuation staves for resting parts
 
 ### Tier 3: Medium Priority
 **Goal**: Interactive editing & playback
 
-8. **MIDI Export** — Playback via Flutter
+7. **MIDI Export** — Playback via Flutter
    - Port NightingaleMIDI.cp duration/pitch/velocity logic
    - Flutter audio synthesis integration
 
-9. **SMuFL Metadata** — Use Bravura's engraving defaults
+8. **SMuFL Metadata** — Use Bravura's engraving defaults
    - Load SMuFL JSON metadata (anchors, defaults)
    - Apply optical spacing corrections
 
-10. **Editing Operations** — Tool palette, insert/delete
-    - Port basic editing from CFilesEditor/
-    - Flutter tool palette UI
+9. **Editing Operations** — Tool palette, insert/delete
+   - Port basic editing from CFilesEditor/
+   - Flutter tool palette UI
 
-11. **NGL Binary Writer** — Save edited scores
+10. **NGL Binary Writer** — Save edited scores
     - Port file writer logic (inverse of read_ngl.rs)
     - Support N105 format (N106 future)
 
 ### Tier 4: Future
 **Goal**: Full-featured notation app
 
-12. **Score Formatting Engine** (SFormat.cp)
+11. **Score Formatting Engine** (SFormat.cp)
     - Auto layout from scratch (vs. preserving OG layout)
     - System breaks, page breaks, spacing optimization
 
-13. **Cross-Platform Flutter** — Linux/Windows builds
+12. **Cross-Platform Flutter** — Linux/Windows builds
     - Test on Linux, Windows
     - Package for distribution
 
-14. **RPTEND Subtypes** (DC/DS/SEGNO) — Optional
+13. **RPTEND Subtypes** (DC/DS/SEGNO) — Optional
     - No fixtures use these
     - OG also logs errors for these types
 
