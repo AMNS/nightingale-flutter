@@ -25,9 +25,10 @@
 ### Tier 2: High Priority
 **Goal**: Engraving quality polish
 
-3. **Stem X-Position for Seconds** — Chord voicing correctness
-   - Port `DrawNRGR.cp:1094-1097` logic
-   - Test with second-interval chords
+3. ✅ **Stem X-Position for Seconds** — COMPLETE
+   - Implemented: src/draw/draw_nrgr.rs:305-316 (stem uses xd_norm, not shifted note_x)
+   - Port of DrawUtils.cp NoteXLoc() + PS_Stdio.cp PS_NoteStem()
+   - Test: tests/render_score.rs::test_stem_x_between_second_note_columns
 
 4. **AccXOffset Refinement** — Accidental positioning polish
    - Port full `DrawNRGR.cp::AccXOffset()` logic (lines 396-406)
