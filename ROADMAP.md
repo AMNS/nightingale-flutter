@@ -42,9 +42,13 @@
    - Test coverage: me_and_lucy.ngl (32 slash noteheads in guitar part)
    - Tremolo slashes (MOD_TREMOLO1-6) deferred (no fixtures use MOD_TREMOLO modifiers)
 
-6. **Staff Visibility Model** — Empty staff continuation
-   - Understand OG staff visibility logic
-   - Render continuation staves for resting parts
+6. ✅ **Staff Visibility Model** — COMPLETE (no changes needed)
+   - Investigation: OG Nightingale does NOT automatically hide empty staves
+   - Staff visibility controlled by `visible` flag (manual) and `showLines` field
+   - Implementation: draw_object.rs:248 matches OG DrawObject.cp:625 logic
+   - Empty staves (with rests) render normally unless manually hidden by user
+   - OG source: DrawObject.cp Draw1Staff() (lines 502-585), SFormatHighLevel.cp (lines 124-382)
+   - Result: Current implementation correct, no "continuation staff" feature needed
 
 ### Tier 3: Medium Priority
 **Goal**: Interactive editing & playback
