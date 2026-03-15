@@ -30,8 +30,11 @@
    - Port of DrawUtils.cp NoteXLoc() + PS_Stdio.cp PS_NoteStem()
    - Test: tests/render_score.rs::test_stem_x_between_second_note_columns
 
-4. **AccXOffset Refinement** — Accidental positioning polish
-   - Port full `DrawNRGR.cp::AccXOffset()` logic (lines 396-406)
+4. ✅ **AccXOffset Refinement** — COMPLETE
+   - Implemented: src/utility.rs:169-174 acc_x_offset() + src/draw/draw_nrgr.rs:232-259
+   - Core positioning logic matches OG DrawNRGR.cp:340-348
+   - MusCharXOffset/MusCharYOffset (Sonata-specific) not needed for SMuFL fonts
+   - Courtesy accidentals (parentheses) deferred (no fixture coverage)
 
 5. **Slash Notation** — Percussion/drum scores
    - Investigate OG tremolo stem rendering
