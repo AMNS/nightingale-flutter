@@ -233,13 +233,88 @@ fn test_beam_slope_variable_stem_lengths() {
 }
 
 /// Accidental staggering: chords with multiple accidentals should stagger
-/// them to avoid collisions. Port: ChkNoteAccs (DrawNRGR.cp)
+/// them to avoid collisions. Port: ArrangeNCAccs (PitchUtils.cp:1517-1572)
+///
+/// The algorithm is implemented in objects::arrange_nc_accs() and called
+/// via process_sync_chords() for Notelist and MusicXML pipelines.
+/// NGL files store pre-computed xmove_acc values from original Nightingale.
 #[test]
-#[ignore = "PUNT: accidental staggering in chords (ChkNoteAccs in DrawNRGR.cp)"]
 fn test_accidental_staggering_in_chords() {
-    // When a chord has notes with accidentals that would collide,
-    // Nightingale staggers them at different X offsets.
-    // This requires porting ChkNoteAccs from DrawNRGR.cp.
+    use nightingale_core::ngl::interpret::ObjData;
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use std::io::Cursor;
+
+    // Create a Notelist with a chord containing multiple accidentals
+    // that would collide without staggering.
+    let notelist_text = r#"%%Notelist-V2 file='Accidental Stagger Test' partstaves=1 0 startmeas=0
+C stf=1 type=3
+K stf=1 KS=0
+T stf=1 num=4 denom=4
+%% Dense chord with 4 accidentals (should trigger pyramid staggering)
+N t=0 v=1 npt=1 stf=1 dur=4 dots=0 nn=60 acc=2 eAcc=2 pDur=480 vel=75 +..... appear=1
+N t=0 v=1 npt=1 stf=1 dur=4 dots=0 nn=62 acc=4 eAcc=4 pDur=480 vel=75 -..... appear=1
+N t=0 v=1 npt=1 stf=1 dur=4 dots=0 nn=64 acc=2 eAcc=2 pDur=480 vel=75 -..... appear=1
+N t=0 v=1 npt=1 stf=1 dur=4 dots=0 nn=65 acc=4 eAcc=4 pDur=480 vel=75 -..... appear=1
+/ t=480 type=2
+"#;
+
+    let cursor = Cursor::new(notelist_text.as_bytes());
+    let notelist = parse_notelist(cursor).expect("parse notelist");
+    let score = notelist_to_score(&notelist);
+
+    // Find the first SYNC object
+    let syncs: Vec<_> = score
+        .objects
+        .iter()
+        .filter(|obj| matches!(obj.data, ObjData::Sync(_)))
+        .collect();
+
+    assert!(!syncs.is_empty(), "Should have at least one SYNC");
+
+    // Get the notes for the first sync
+    let first_sync = syncs[0];
+    let notes = score
+        .notes
+        .get(&first_sync.header.first_sub_obj)
+        .expect("Should have notes for first sync");
+
+    assert_eq!(notes.len(), 4, "Should have 4 notes in chord");
+
+    // All notes should have accidentals
+    let acc_count = notes.iter().filter(|n| n.accident > 0).count();
+    assert_eq!(acc_count, 4, "All 4 notes should have accidentals");
+
+    // ArrangeNCAccs should have computed xmove_acc values
+    // The algorithm creates a pyramid pattern with the middle accidental
+    // pushed furthest left (highest xmove_acc value).
+    let xmove_values: Vec<u8> = notes.iter().map(|n| n.xmove_acc).collect();
+
+    // At least one note should have a non-zero xmove_acc
+    let has_stagger = xmove_values.iter().any(|&x| x > 0);
+    assert!(
+        has_stagger,
+        "At least one accidental should be staggered (xmove_acc > 0), got {:?}",
+        xmove_values
+    );
+
+    // The xmove_acc values should not all be the same (that would mean no staggering)
+    let first_xmove = xmove_values[0];
+    let all_same = xmove_values.iter().all(|&x| x == first_xmove);
+    assert!(
+        !all_same,
+        "xmove_acc values should differ (pyramid stagger), got {:?}",
+        xmove_values
+    );
+
+    // The pyramid pattern means the middle accidentals should have higher xmove_acc
+    // than the outer ones. For 4 accidentals, we expect something like:
+    // [low, high, high, low] or variations depending on stem direction.
+    let max_xmove = *xmove_values.iter().max().unwrap();
+    assert!(
+        max_xmove >= 3,
+        "Maximum xmove_acc should be at least 3 for dense chords, got {}",
+        max_xmove
+    );
 }
 
 /// Anacrusis (pickup measure): first partial measure before the first barline.

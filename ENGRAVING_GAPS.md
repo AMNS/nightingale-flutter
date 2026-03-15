@@ -12,11 +12,14 @@ The Rust port successfully renders the basic score structure (staves, measures, 
 ## High-Priority Gaps (Visual Impact)
 
 ### 1. Accidental Staggering in Chords
-**Status**: PUNT (marked `#[ignore]` in tests/render_score.rs:238)
-**OG Source**: `DrawNRGR.cp` ChkNoteAccs()
-**Impact**: Chords with multiple accidentals render with collisions
-**Affected fixtures**: Any with dense chord voicings (likely 05_abigail, 13_miss_b, tc_55_1)
-**Priority**: HIGH — visually obvious collision issue
+**Status**: ✅ COMPLETE (test at tests/render_score.rs:242)
+**OG Source**: `PitchUtils.cp:1517-1572` ArrangeNCAccs()
+**Implementation**: `src/objects.rs:412-513` arrange_nc_accs() + process_sync_chords()
+**Usage**:
+- Notelist/MusicXML pipelines compute xmove_acc using arrange_nc_accs()
+- NGL files use pre-computed xmove_acc values from original Nightingale
+**Impact**: Pyramid stagger pattern prevents accidental collisions in dense chords
+**Test coverage**: tests/render_score.rs::test_accidental_staggering_in_chords
 
 ### 2. Accidental X-Offset Refinement
 **Status**: TODO (notelist/to_score.rs:2102-2103)
@@ -113,7 +116,7 @@ These exist in the data model but have no visual rendering (intentional):
 
 ### Phase 1: Fix Obvious Collisions
 1. ✅ **AccXOffset refinement** (DrawNRGR.cp:396-406) — affects all accidentals
-2. ✅ **ChkNoteAccs** (DrawNRGR.cp) — accidental staggering in chords
+2. ✅ **ArrangeNCAccs** (PitchUtils.cp:1517-1572) — accidental staggering in chords
 3. ✅ **Stem X for chord seconds** (DrawNRGR.cp:1094-1097)
 
 ### Phase 2: Visual Polish
