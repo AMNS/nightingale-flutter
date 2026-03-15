@@ -15,9 +15,12 @@
    - NGL files: Use pre-computed xmove_acc values from original Nightingale
    - Test: tests/render_score.rs::test_accidental_staggering_in_chords
 
-2. **MusicXML Round-Trip Stability** (CRITICAL) — Interop with Dorico/MuseScore
-   - Investigate visual deltas on NGL→XML→import→render
-   - Add round-trip regression tests
+2. ✅ **MusicXML Round-Trip Stability** — COMPLETE
+   - Comprehensive test on all 26 NGL fixtures (tests/musicxml_pipeline.rs:577)
+   - Results: 18/26 perfect note count stability, 8/26 +1 to +14 notes (rest synthesis)
+   - Visual diffs: 3.1% to 26.8% (expected due to layout_score() system breaks)
+   - Measure inflation resolved: Closing barlines added per system (expected behavior)
+   - Analysis documented: doc/MUSICXML_ROUNDTRIP_FINDINGS.md
 
 ### Tier 2: High Priority
 **Goal**: Engraving quality polish
