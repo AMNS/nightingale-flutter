@@ -580,17 +580,33 @@ fn ngl_musicxml_roundtrip_visual_test() {
     let out_dir = Path::new("test-output/musicxml_pipeline/ngl_roundtrip");
     fs::create_dir_all(out_dir).unwrap();
 
-    // Test with a few representative fixtures
-    let test_fixtures = ["tc_ich_bin_ja.ngl", "tc_05.ngl", "01_me_and_lucy.ngl"];
+    // Discover all .ngl fixtures
+    let fixtures_dir = Path::new("tests/fixtures");
+    let mut ngl_files: Vec<_> = fs::read_dir(fixtures_dir)
+        .unwrap()
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.extension()? == "ngl" {
+                Some(path.file_name()?.to_string_lossy().to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    ngl_files.sort();
 
-    for fixture_name in &test_fixtures {
+    eprintln!(
+        "\n=== Testing NGL→XML roundtrip on {} fixtures ===\n",
+        ngl_files.len()
+    );
+
+    let mut results = Vec::new();
+
+    for fixture_name in &ngl_files {
         let fixture_path = format!("tests/fixtures/{}", fixture_name);
-        if !Path::new(&fixture_path).exists() {
-            eprintln!("Skipping: {} not found", fixture_name);
-            continue;
-        }
 
-        eprintln!("\n=== Testing NGL→XML roundtrip: {} ===", fixture_name);
+        eprint!("Testing {}... ", fixture_name);
 
         // Step 1: Load NGL and render original
         let data = fs::read(&fixture_path).unwrap();
@@ -628,45 +644,41 @@ fn ngl_musicxml_roundtrip_visual_test() {
         let orig_measure_count = score_orig.measures.len();
         let import_measure_count = score_import.measures.len();
 
-        eprintln!("  Notes:    {} → {}", orig_note_count, import_note_count);
-        eprintln!(
-            "  Measures: {} → {}",
-            orig_measure_count, import_measure_count
-        );
-        eprintln!(
-            "  PDF size: {} → {} bytes",
-            pdf_orig.len(),
-            pdf_import.len()
-        );
-
         // Step 6: Visual diff (convert PDFs → PNGs → generate diff image)
         let orig_png = out_dir.join(format!("{}_original.png", stem));
         let roundtrip_png = out_dir.join(format!("{}_roundtrip.png", stem));
         let diff_png = out_dir.join(format!("{}_diff.png", stem));
 
-        match pdf_to_png(&orig_pdf, &orig_png) {
-            Ok(true) => {
-                if pdf_to_png(&roundtrip_pdf, &roundtrip_png).unwrap_or(false) {
-                    match compare_images_and_diff(&orig_png, &roundtrip_png, &diff_png) {
-                        Ok((_total, _diff_px, diff_pct)) => {
-                            eprintln!("  Visual diff: {:.2}% pixels changed", diff_pct);
-                        }
-                        Err(e) => eprintln!("  ⚠️  Diff generation failed: {}", e),
-                    }
+        let mut visual_diff_pct = None;
+
+        if let Ok(true) = pdf_to_png(&orig_pdf, &orig_png) {
+            if pdf_to_png(&roundtrip_pdf, &roundtrip_png).unwrap_or(false) {
+                if let Ok((_total, _diff_px, diff_pct)) =
+                    compare_images_and_diff(&orig_png, &roundtrip_png, &diff_png)
+                {
+                    visual_diff_pct = Some(diff_pct);
                 }
             }
-            Ok(false) => {
-                eprintln!("  ⚠️  PDF→PNG conversion not available (install sips/pdftoppm/magick)")
-            }
-            Err(e) => eprintln!("  ⚠️  PDF→PNG error: {}", e),
         }
 
         let note_delta = (import_note_count as i32) - (orig_note_count as i32);
-        if note_delta != 0 {
-            eprintln!(
-                "  ⚠️  Note count changed by {} (may indicate missing or added elements)",
-                note_delta
-            );
+
+        // Store results for summary
+        results.push((
+            fixture_name.clone(),
+            orig_note_count,
+            import_note_count,
+            note_delta,
+            orig_measure_count,
+            import_measure_count,
+            visual_diff_pct,
+        ));
+
+        // Print concise status
+        if let Some(diff_pct) = visual_diff_pct {
+            eprintln!("✓ ({:.1}% visual diff)", diff_pct);
+        } else {
+            eprintln!("✓");
         }
 
         // Basic sanity checks
@@ -682,11 +694,33 @@ fn ngl_musicxml_roundtrip_visual_test() {
         );
     }
 
-    eprintln!(
-        "\n✓ Visual comparison files written to test-output/musicxml_pipeline/ngl_roundtrip/"
-    );
-    eprintln!("  PDFs: {{original,roundtrip}}.pdf");
-    eprintln!("  Visual diffs: *_diff.png (red=changed, dimmed=matched)");
+    // Print summary table
+    eprintln!("\n=== Round-Trip Summary ===");
+    eprintln!("| Fixture | Notes (Δ) | Measures (Δ) | Visual Diff |");
+    eprintln!("|---------|-----------|--------------|-------------|");
+    for (name, orig_notes, import_notes, note_delta, orig_meas, import_meas, diff_pct) in &results {
+        let note_status = if *note_delta == 0 {
+            format!("{}", orig_notes)
+        } else {
+            format!("{}→{} ({:+})", orig_notes, import_notes, note_delta)
+        };
+        let meas_delta = *import_meas as i32 - *orig_meas as i32;
+        let meas_status = format!("{}→{} ({:+})", orig_meas, import_meas, meas_delta);
+        let diff_status = diff_pct
+            .map(|p| format!("{:.1}%", p))
+            .unwrap_or_else(|| "N/A".to_string());
+        eprintln!(
+            "| {:<20} | {:<9} | {:<12} | {:<11} |",
+            name.trim_end_matches(".ngl"),
+            note_status,
+            meas_status,
+            diff_status
+        );
+    }
+
+    eprintln!("\n✓ All {} fixtures processed successfully", results.len());
+    eprintln!("  Output: test-output/musicxml_pipeline/ngl_roundtrip/");
+    eprintln!("  Files: {{original,roundtrip}}.pdf + *_diff.png");
 }
 
 // ============================================================================
