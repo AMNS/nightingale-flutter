@@ -57,8 +57,13 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 
 ### Deferred
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
-- [ ] .ngl binary writer
 - [~] RPTEND subtypes RPT_DC/DS/SEGNO — OG also logs errors for these; no fixtures use them
+
+### In Progress
+- [~] .ngl binary writer — Skeleton implemented (src/ngl/writer.rs), full implementation pending
+  - File structure and API designed
+  - OG source analyzed (FileSave.cp, HeapFileIO.cp, EndianUtils.cp)
+  - TODO: LINK conversion, endian handling, object/subobject packing
 
 ## Phase 3: Engraving Engine — MOSTLY COMPLETE
 - [x] Beam.cp → beam.rs (GetBeamEndYStems, FixSyncInBeamset, cross-staff beams)

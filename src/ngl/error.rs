@@ -28,6 +28,9 @@ pub enum NglError {
 
     /// Invalid object type encountered
     InvalidObjectType(u8),
+
+    /// Feature not yet implemented
+    NotImplemented(String),
 }
 
 impl fmt::Display for NglError {
@@ -40,6 +43,7 @@ impl fmt::Display for NglError {
             NglError::InvalidLastType(v) => write!(f, "Invalid LASTtype: {} (expected 25)", v),
             NglError::UnexpectedEof => write!(f, "Unexpected end of file"),
             NglError::InvalidObjectType(t) => write!(f, "Invalid object type: {}", t),
+            NglError::NotImplemented(s) => write!(f, "Not implemented: {}", s),
         }
     }
 }

@@ -33,9 +33,7 @@ pub mod unpack_notes;
 pub mod unpack_slur;
 pub mod unpack_structural;
 pub mod unpack_stubs;
-
-// Future modules (stubs for now):
-// pub mod writer;
+pub mod writer;
 
 // Re-export key types for convenience
 pub use doc_header::DocumentHeader;
@@ -46,3 +44,4 @@ pub use interpret::{
     ObjData,
 };
 pub use reader::{decode_string, mac_roman_to_string, HeapData, NglFile, NglVersion};
+pub use writer::NglWriter;

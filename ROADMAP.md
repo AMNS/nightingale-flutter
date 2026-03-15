@@ -52,8 +52,10 @@
    - Port basic editing from CFilesEditor/
    - Flutter tool palette UI
 
-10. **NGL Binary Writer** — Save edited scores
-    - Port file writer logic (inverse of read_ngl.rs)
+10. **NGL Binary Writer** — Save edited scores (skeleton complete, implementation pending)
+    - ✅ File structure and API designed (src/ngl/writer.rs)
+    - ✅ OG source analyzed (FileSave.cp, HeapFileIO.cp, EndianUtils.cp)
+    - TODO: LINK conversion, endian handling, object/subobject packing
     - Support N105 format (N106 future)
 
 ### Tier 4: Future
