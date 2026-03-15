@@ -33,7 +33,7 @@
 - Essential: CLAUDE.md, README.md, ROADMAP.md, PROGRESS.md  
 - Reference: ENGRAVING_GAPS.md, TESTING.md, rendering rules/quick-ref
 
-### 4. Git History
+### 4. Documentation Cleanup & Consolidation (continued)
 ```
 7ee64bf Documentation consolidation and ROADMAP updates
 8231023 Cleanup: archive completed analysis docs, deprecate visual-review.sh
@@ -42,16 +42,37 @@
 eb79e88 Add QA Compare (Before/After) screen to Flutter app
 ```
 
+### 5. Accidental Staggering — Verified Complete
+- **Discovered**: Algorithm already implemented as `arrange_nc_accs()` in `src/objects.rs:412-513`
+  - Faithful port of `PitchUtils.cp:1517-1572` (ArrangeNCAccs)
+  - Creates pyramid stagger pattern (middle accidentals pushed furthest left)
+  - Used by Notelist/MusicXML pipelines via `process_sync_chords()`
+  - NGL files use pre-computed `xmove_acc` values from original Nightingale
+
+- **Test Added**: `tests/render_score.rs:242` test_accidental_staggering_in_chords
+  - Tests pyramid stagger on dense 4-note chord with accidentals
+  - Verifies xmove_acc values differ (non-zero staggering)
+  - All tests passing ✅
+
+- **Documentation Updated**:
+  - `ENGRAVING_GAPS.md`: Status changed from PUNT → COMPLETE
+  - `ROADMAP.md`: Tier 1 task #1 marked complete, tasks renumbered
+
+**Git History**:
+```
+0bc2a7f Mark accidental staggering as complete in ROADMAP
+a6f9f82 Document accidental staggering implementation and add test
+bef468c Add SESSION_SUMMARY.md: comprehensive session recap
+```
+
+**Impact**: Confirmed that accidental collision avoidance is working correctly across all three pipelines (NGL/Notelist/MusicXML).
+
 ---
 
 ## 🎯 Next Priorities (from ROADMAP.md)
 
 ### Tier 1: Critical (do next)
-1. **Accidental Staggering** — Port `DrawNRGR.cp::ChkNoteAccs()` logic
-   - Most visible engraving flaw  
-   - Impacts tc_ich_bin_ja (24.7% diff), tc_55_1 (19.9% diff), tc_05 (4.48% diff)
-   - Test file: `tests/render_score.rs:238` (currently `#[ignore]`)
-
+1. ✅ **Accidental Staggering** — COMPLETE
 2. **MusicXML Round-Trip Stability** — Investigate visual deltas on re-import
    - Critical for Dorico/MuseScore interop
    - Add round-trip regression tests
