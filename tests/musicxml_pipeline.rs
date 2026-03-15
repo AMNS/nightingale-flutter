@@ -575,6 +575,8 @@ fn full_pipeline_dichterliebe() {
 /// 5. Compare PDFs (ideally identical, document any differences)
 #[test]
 fn ngl_musicxml_roundtrip_visual_test() {
+    use common::{compare_images_and_diff, pdf_to_png};
+
     let out_dir = Path::new("test-output/musicxml_pipeline/ngl_roundtrip");
     fs::create_dir_all(out_dir).unwrap();
 
@@ -597,7 +599,8 @@ fn ngl_musicxml_roundtrip_visual_test() {
         let pdf_orig = render_to_pdf(&score_orig);
 
         let stem = fixture_name.trim_end_matches(".ngl");
-        fs::write(out_dir.join(format!("{}_original.pdf", stem)), &pdf_orig).unwrap();
+        let orig_pdf = out_dir.join(format!("{}_original.pdf", stem));
+        fs::write(&orig_pdf, &pdf_orig).unwrap();
 
         // Step 2: Export to MusicXML
         let xml = export_musicxml(&score_orig);
@@ -615,7 +618,8 @@ fn ngl_musicxml_roundtrip_visual_test() {
 
         // Step 4: Render the imported score
         let pdf_import = render_to_pdf(&score_import);
-        fs::write(out_dir.join(format!("{}_roundtrip.pdf", stem)), &pdf_import).unwrap();
+        let roundtrip_pdf = out_dir.join(format!("{}_roundtrip.pdf", stem));
+        fs::write(&roundtrip_pdf, &pdf_import).unwrap();
 
         // Step 5: Compare counts (structural check)
         let orig_note_count: usize = score_orig.notes.values().map(|v| v.len()).sum();
@@ -635,9 +639,28 @@ fn ngl_musicxml_roundtrip_visual_test() {
             pdf_import.len()
         );
 
-        // Visual differences require manual PDF inspection
-        // The PDFs are written to test-output/musicxml_pipeline/ngl_roundtrip/
-        // for side-by-side comparison
+        // Step 6: Visual diff (convert PDFs → PNGs → generate diff image)
+        let orig_png = out_dir.join(format!("{}_original.png", stem));
+        let roundtrip_png = out_dir.join(format!("{}_roundtrip.png", stem));
+        let diff_png = out_dir.join(format!("{}_diff.png", stem));
+
+        match pdf_to_png(&orig_pdf, &orig_png) {
+            Ok(true) => {
+                if pdf_to_png(&roundtrip_pdf, &roundtrip_png).unwrap_or(false) {
+                    match compare_images_and_diff(&orig_png, &roundtrip_png, &diff_png) {
+                        Ok((_total, _diff_px, diff_pct)) => {
+                            eprintln!("  Visual diff: {:.2}% pixels changed", diff_pct);
+                        }
+                        Err(e) => eprintln!("  ⚠️  Diff generation failed: {}", e),
+                    }
+                }
+            }
+            Ok(false) => {
+                eprintln!("  ⚠️  PDF→PNG conversion not available (install sips/pdftoppm/magick)")
+            }
+            Err(e) => eprintln!("  ⚠️  PDF→PNG error: {}", e),
+        }
+
         let note_delta = (import_note_count as i32) - (orig_note_count as i32);
         if note_delta != 0 {
             eprintln!(
@@ -659,8 +682,11 @@ fn ngl_musicxml_roundtrip_visual_test() {
         );
     }
 
-    eprintln!("\n✓ Visual comparison PDFs written to test-output/musicxml_pipeline/ngl_roundtrip/");
-    eprintln!("  Review {{original,roundtrip}}.pdf pairs for visual deltas");
+    eprintln!(
+        "\n✓ Visual comparison files written to test-output/musicxml_pipeline/ngl_roundtrip/"
+    );
+    eprintln!("  PDFs: {{original,roundtrip}}.pdf");
+    eprintln!("  Visual diffs: *_diff.png (red=changed, dimmed=matched)");
 }
 
 // ============================================================================
