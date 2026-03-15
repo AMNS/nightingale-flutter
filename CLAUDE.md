@@ -406,4 +406,8 @@ src/draw/
 - Rust code: `snake_case`, modules mirror the original C file organization
 - Tests: every ported function gets at least one test with data from a real .ngl file
 - Comments: when porting, include a reference to the original C file and line number
-- Commits: `[phase-N] descriptive message` format
+- Commits:
+  - Keep commits small and focused on one change
+  - **DO NOT** make commits with only progress/documentation updates (ROADMAP.md, SESSION_SUMMARY.md, etc.)
+  - Roll documentation updates into substantive commits (e.g., commit code + test + doc updates together)
+  - Use descriptive commit messages that explain what and why
