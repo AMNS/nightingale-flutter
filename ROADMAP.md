@@ -36,11 +36,11 @@
    - MusCharXOffset/MusCharYOffset (Sonata-specific) not needed for SMuFL fonts
    - Courtesy accidentals (parentheses) deferred (no fixture coverage)
 
-5. **Slash Notation** — DEFERRED (no fixture coverage)
-   - Slash noteheads: Implemented (draw_nrgr.rs:194-226)
-   - Tremolo slashes (MOD_TREMOLO1-6): OG renders via DrawSlashes() (DrawNRGR.cp:28-99)
-   - No test fixtures use either feature
-   - Will implement when fixtures/test data available
+5. ✅ **Slash Notation** — COMPLETE (slash noteheads)
+   - Implemented: draw_nrgr.rs:194-226 via line_horizontal_thick()
+   - Matches OG DrawNRGR.cp:477-499 and PS_Stdio.cp:1850-1863
+   - Test coverage: me_and_lucy.ngl (32 slash noteheads in guitar part)
+   - Tremolo slashes (MOD_TREMOLO1-6) deferred (no fixtures use MOD_TREMOLO modifiers)
 
 6. **Staff Visibility Model** — Empty staff continuation
    - Understand OG staff visibility logic

@@ -199,6 +199,66 @@ fn test_interpret_heap_basic() {
 }
 
 #[test]
+fn test_find_slash_noteheads_in_me_and_lucy() {
+    use nightingale_core::ngl::unpack_anote_n105;
+    use std::collections::HashMap;
+
+    let path = "tests/fixtures/01_me_and_lucy.ngl";
+    let ngl = NglFile::read_from_file(path).expect("Failed to read NGL file");
+
+    // Extract the SYNC heap (index 2) which contains notes
+    let sync_heap = &ngl.heaps[2];
+    println!("\n=== Searching for Slash Noteheads in me_and_lucy.ngl ===");
+    println!(
+        "SYNC heap: {} subobjects, obj_size={}",
+        sync_heap.obj_count, sync_heap.obj_size
+    );
+
+    let mut slash_count = 0;
+    let mut notes_by_staff: HashMap<u8, Vec<usize>> = HashMap::new();
+
+    // Iterate through all subobjects in the SYNC heap
+    for i in 0..sync_heap.obj_count {
+        let offset = i as usize * sync_heap.obj_size as usize;
+        if offset + sync_heap.obj_size as usize > sync_heap.obj_data.len() {
+            break;
+        }
+
+        let subobj_data = &sync_heap.obj_data[offset..offset + sync_heap.obj_size as usize];
+
+        // Unpack the note
+        match unpack_anote_n105(subobj_data) {
+            Ok(note) => {
+                if note.head_shape == 9 {
+                    // SlashShape = 9
+                    slash_count += 1;
+                    let staff_n = note.header.staffn as u8;
+                    println!(
+                        "  Found slash notehead: sync_index={}, staff={}, pitch={}",
+                        i, staff_n, note.yqpit
+                    );
+                    notes_by_staff.entry(staff_n).or_default().push(i as usize);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error unpacking note at index {}: {}", i, e);
+            }
+        }
+    }
+
+    println!("\n=== Summary ===");
+    println!("Total slash noteheads found: {}", slash_count);
+    if slash_count > 0 {
+        for staff_n in notes_by_staff.keys() {
+            let count = notes_by_staff[staff_n].len();
+            println!("  Staff {}: {} slash noteheads", staff_n, count);
+        }
+    } else {
+        println!("No slash noteheads found in this fixture.");
+    }
+}
+
+#[test]
 fn test_object_walker() {
     use nightingale_core::ngl::interpret_heap;
 
