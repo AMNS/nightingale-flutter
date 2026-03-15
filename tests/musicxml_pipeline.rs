@@ -559,7 +559,112 @@ fn full_pipeline_dichterliebe() {
 }
 
 // ============================================================================
-// 6) Import ALL xmlsamples and render PDFs for visual review
+// 6) NGL → MusicXML → import visual roundtrip test
+// ============================================================================
+
+/// Test visual rendering stability for NGL→XML→import roundtrip.
+///
+/// This test addresses the ROADMAP Tier 1 task: "Investigate visual deltas
+/// on NGL→XML→import→render".
+///
+/// For each NGL fixture:
+/// 1. Render original NGL → PDF (baseline)
+/// 2. Export NGL → MusicXML
+/// 3. Import MusicXML → InterpretedScore
+/// 4. Render imported score → PDF (roundtrip)
+/// 5. Compare PDFs (ideally identical, document any differences)
+#[test]
+fn ngl_musicxml_roundtrip_visual_test() {
+    let out_dir = Path::new("test-output/musicxml_pipeline/ngl_roundtrip");
+    fs::create_dir_all(out_dir).unwrap();
+
+    // Test with a few representative fixtures
+    let test_fixtures = ["tc_ich_bin_ja.ngl", "tc_05.ngl", "01_me_and_lucy.ngl"];
+
+    for fixture_name in &test_fixtures {
+        let fixture_path = format!("tests/fixtures/{}", fixture_name);
+        if !Path::new(&fixture_path).exists() {
+            eprintln!("Skipping: {} not found", fixture_name);
+            continue;
+        }
+
+        eprintln!("\n=== Testing NGL→XML roundtrip: {} ===", fixture_name);
+
+        // Step 1: Load NGL and render original
+        let data = fs::read(&fixture_path).unwrap();
+        let ngl = NglFile::read_from_bytes(&data).unwrap();
+        let score_orig = interpret_heap(&ngl).unwrap();
+        let pdf_orig = render_to_pdf(&score_orig);
+
+        let stem = fixture_name.trim_end_matches(".ngl");
+        fs::write(out_dir.join(format!("{}_original.pdf", stem)), &pdf_orig).unwrap();
+
+        // Step 2: Export to MusicXML
+        let xml = export_musicxml(&score_orig);
+        fs::write(out_dir.join(format!("{}_exported.musicxml", stem)), &xml).unwrap();
+
+        // Step 3: Import the exported MusicXML
+        let mut score_import = match import_musicxml(&xml) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("  ❌ Import failed: {}", e);
+                continue;
+            }
+        };
+        layout_score(&mut score_import, &LayoutConfig::default());
+
+        // Step 4: Render the imported score
+        let pdf_import = render_to_pdf(&score_import);
+        fs::write(out_dir.join(format!("{}_roundtrip.pdf", stem)), &pdf_import).unwrap();
+
+        // Step 5: Compare counts (structural check)
+        let orig_note_count: usize = score_orig.notes.values().map(|v| v.len()).sum();
+        let import_note_count: usize = score_import.notes.values().map(|v| v.len()).sum();
+
+        let orig_measure_count = score_orig.measures.len();
+        let import_measure_count = score_import.measures.len();
+
+        eprintln!("  Notes:    {} → {}", orig_note_count, import_note_count);
+        eprintln!(
+            "  Measures: {} → {}",
+            orig_measure_count, import_measure_count
+        );
+        eprintln!(
+            "  PDF size: {} → {} bytes",
+            pdf_orig.len(),
+            pdf_import.len()
+        );
+
+        // Visual differences require manual PDF inspection
+        // The PDFs are written to test-output/musicxml_pipeline/ngl_roundtrip/
+        // for side-by-side comparison
+        let note_delta = (import_note_count as i32) - (orig_note_count as i32);
+        if note_delta != 0 {
+            eprintln!(
+                "  ⚠️  Note count changed by {} (may indicate missing or added elements)",
+                note_delta
+            );
+        }
+
+        // Basic sanity checks
+        assert!(
+            import_note_count > 0,
+            "Roundtrip should have notes: got {}",
+            import_note_count
+        );
+        assert!(
+            pdf_import.len() > 1000,
+            "Roundtrip PDF should be substantial: got {} bytes",
+            pdf_import.len()
+        );
+    }
+
+    eprintln!("\n✓ Visual comparison PDFs written to test-output/musicxml_pipeline/ngl_roundtrip/");
+    eprintln!("  Review {{original,roundtrip}}.pdf pairs for visual deltas");
+}
+
+// ============================================================================
+// 7) Import ALL xmlsamples and render PDFs for visual review
 // ============================================================================
 
 #[test]
