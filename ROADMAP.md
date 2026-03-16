@@ -57,9 +57,16 @@
    - Port NightingaleMIDI.cp duration/pitch/velocity logic
    - Flutter audio synthesis integration
 
-8. **SMuFL Metadata** — Use Bravura's engraving defaults
-   - Load SMuFL JSON metadata (anchors, defaults)
-   - Apply optical spacing corrections
+8. **SMuFL Metadata** — Use Bravura's engraving defaults (IN PROGRESS)
+   - ✅ Bravura metadata JSON downloaded (assets/fonts/bravura_metadata.json, 716KB)
+   - ✅ Module skeleton created (src/smufl_metadata.rs) with data structures
+   - ✅ Integration plan documented (staff-space → point conversion)
+   - TODO: Add serde_json dependency to Cargo.toml
+   - TODO: Implement JSON parsing with serde_json
+   - TODO: Integrate with rendering pipeline (dynamic line width calculation)
+   - TODO: Update renderer state to use metadata values
+   - TODO: Test visual output to validate improvements
+   - Challenge: Current line widths are absolute (points), SMuFL values are relative (staff spaces)
 
 9. **Editing Operations** — Tool palette, insert/delete
    - Port basic editing from CFilesEditor/

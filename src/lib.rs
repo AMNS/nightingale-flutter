@@ -31,5 +31,6 @@ pub mod objects;
 pub mod og_render;
 pub mod pitch_utils;
 pub mod render;
+pub mod smufl_metadata;
 pub mod space_time;
 pub mod utility;
