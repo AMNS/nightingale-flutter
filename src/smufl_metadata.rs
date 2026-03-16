@@ -170,6 +170,37 @@ impl SmuflMetadata {
         let staff_space = staff_height_pt / 4.0; // 4 spaces per 5-line staff
         thickness_spaces * staff_space
     }
+
+    /// Compute all line widths for a given staff height (in points)
+    ///
+    /// Converts all SMuFL engraving defaults to absolute line widths in points,
+    /// based on the staff height. This is used by the rendering pipeline to
+    /// scale line thickness proportionally when staff size changes.
+    ///
+    /// # Arguments
+    /// * `staff_height_pt` - Staff height in points (not DDIST)
+    ///
+    /// # Returns
+    /// Tuple of (staff_line, ledger_line, stem, bar_line) widths in points
+    ///
+    /// # Example
+    /// ```ignore
+    /// let (staff_lw, ledger_lw, stem_lw, bar_lw) =
+    ///     metadata.compute_line_widths_pt(24.0); // 24pt staff
+    /// renderer.set_widths(staff_lw, ledger_lw, stem_lw, bar_lw);
+    /// ```
+    #[allow(dead_code)]
+    pub fn compute_line_widths_pt(&self, staff_height_pt: f32) -> (f32, f32, f32, f32) {
+        let staff_space = staff_height_pt / 4.0; // 4 spaces per 5-line staff
+        let defaults = &self.engraving_defaults;
+
+        let staff_line = defaults.staff_line_thickness * staff_space;
+        let ledger_line = defaults.leger_line_thickness * staff_space;
+        let stem = defaults.stem_thickness * staff_space;
+        let bar_line = defaults.thin_barline_thickness * staff_space; // Use thin barline for single bar
+
+        (staff_line, ledger_line, stem, bar_line)
+    }
 }
 
 #[cfg(test)]

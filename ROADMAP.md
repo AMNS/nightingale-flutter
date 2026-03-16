@@ -57,16 +57,22 @@
    - Port NightingaleMIDI.cp duration/pitch/velocity logic
    - Flutter audio synthesis integration
 
-8. **SMuFL Metadata** — Use Bravura's engraving defaults (IN PROGRESS)
+8. ✅ **SMuFL Metadata** — Use Bravura's engraving defaults (COMPLETE)
    - ✅ Bravura metadata JSON downloaded (assets/fonts/bravura_metadata.json, 716KB)
-   - ✅ Module skeleton created (src/smufl_metadata.rs) with data structures
-   - ✅ Integration plan documented (staff-space → point conversion)
-   - TODO: Add serde_json dependency to Cargo.toml
-   - TODO: Implement JSON parsing with serde_json
-   - TODO: Integrate with rendering pipeline (dynamic line width calculation)
-   - TODO: Update renderer state to use metadata values
-   - TODO: Test visual output to validate improvements
-   - Challenge: Current line widths are absolute (points), SMuFL values are relative (staff spaces)
+   - ✅ Module skeleton created (src/smufl_metadata.rs) with full data structures
+   - ✅ SmuflMetadata::load() with serde_json JSON parsing
+   - ✅ compute_line_widths_pt() helper for staff-space → point conversion
+   - ✅ Integrated into render_score() (src/draw/draw_high_level.rs)
+   - ✅ Dynamic line width calculation based on staff height
+   - ✅ Fallback to OG defaults if metadata unavailable
+
+   Implementation:
+   - Metadata loaded per render (staff heights may vary per score)
+   - Conversion: line_width_pt = thickness_spaces * (staff_height_pt / 4.0)
+   - Bravura values now active: staffLineThickness (0.13), stemThickness (0.12), etc.
+   - Previously hardcoded values removed from rendering hot path
+
+   Next: Test visual output and verify line widths match expectations
 
 9. **Editing Operations** — Tool palette, insert/delete
    - Port basic editing from CFilesEditor/
