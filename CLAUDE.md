@@ -259,6 +259,89 @@ Each discrete drawing function should be ported as its own unit with tests:
 - Test with real Notelist data rendered to PDF
 - Create `#[ignore]` tests for known-punted items so they show up in test output
 
+## SMuFL Metadata Integration (Line Width Scaling)
+
+The rendering pipeline uses **SMuFL (Standard Music Font Layout) metadata** from the Bravura font
+to dynamically compute line widths based on staff height, replacing hardcoded thickness values.
+
+### Motivation
+
+The OG Nightingale hardcodes line thicknesses as percentages of line space (`8%`, `13%`, etc.),
+which only work for one specific staff size. SMuFL metadata provides relative thickness values
+(in staff spaces) that scale correctly across different staff sizes and fonts.
+
+### Implementation
+
+**File**: `src/smufl_metadata.rs` (240 lines)
+
+Data structures (serde deserialization):
+```rust
+#[derive(Deserialize)]
+pub struct SmuflMetadata {
+    pub font_name: String,
+    pub font_version: f32,
+    pub engraving_defaults: EngravingDefaults,
+    // ... glyph data (for future use)
+}
+
+pub struct EngravingDefaults {
+    pub staff_line_thickness: f32,      // 0.13 staff spaces (Bravura)
+    pub leger_line_thickness: f32,      // 0.16 staff spaces
+    pub stem_thickness: f32,            // 0.12 staff spaces
+    pub thin_barline_thickness: f32,    // 0.16 staff spaces
+    // ... other thickness values
+}
+```
+
+**Key Methods**:
+- `SmuflMetadata::load(path)` — Load JSON from file, deserialize via serde_json
+- `compute_line_widths_pt(staff_height_pt)` — Convert staff-space values → points
+
+**Unit Conversion** (critical for correctness):
+```
+staff_space = staff_height_pt / 4.0              // 4 spaces per 5-line staff
+line_width_pt = thickness_spaces * staff_space
+```
+
+Example: For a 24pt staff:
+- staff_space = 24 / 4 = 6pt
+- stem_width = 0.12 * 6 = 0.72pt
+
+### Integration Point
+
+**File**: `src/draw/draw_high_level.rs:42-62` (render_score function)
+
+When rendering begins, load metadata and compute line widths dynamically:
+```rust
+let (staff_lw, ledger_lw, stem_lw, bar_lw) =
+    if let Ok(metadata) = SmuflMetadata::load("assets/fonts/bravura_metadata.json") {
+        metadata.compute_line_widths_pt(lnspace * 4.0)  // lnspace is already in points
+    } else {
+        // Fallback to OG defaults (percentages)
+        (0.08 * lnspace, 0.13 * lnspace, 0.08 * lnspace, 0.10 * lnspace)
+    };
+
+renderer.set_widths(staff_lw, ledger_lw, stem_lw, bar_lw);
+```
+
+Graceful degradation: If Bravura metadata file is missing or corrupted, the fallback to OG
+percentage-based defaults ensures rendering still works.
+
+### Why This Matters
+
+1. **Correct scaling** — Staff sizes now render with proportionally correct line widths
+2. **Font independence** — Future font support (e.g., SMuFL fonts other than Bravura) can
+   provide their own metadata without code changes
+3. **Standards compliance** — Uses official W3C SMuFL specification
+4. **Future extensibility** — Metadata also contains glyph bounding boxes, advance widths,
+   and anchors (currently unused but available for precise glyph positioning)
+
+### Bravura Metadata Source
+
+- **File**: `assets/fonts/bravura_metadata.json` (716KB, v1.392)
+- **Source**: https://github.com/steinbergmedia/bravura (Steinberg official)
+- **Spec**: https://w3c.github.io/smufl/latest/specification/font-specific-metadata.html
+
 ## OG Nightingale Source Location
 
 The OG C source is a **separate checkout of https://github.com/AMNS/Nightingale**,
