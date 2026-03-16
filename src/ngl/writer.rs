@@ -29,14 +29,177 @@
 //! - Variable-length objects (SUPEROBJECT) are written at actual size, not padded
 //! - Fixed-length subobjects are written at full heap obj_size
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::basic_types::Link;
 use crate::ngl::interpret::InterpretedScore;
 use crate::ngl::reader::NglVersion;
 
 use super::error::{NglError, Result};
+
+// =============================================================================
+// Endian Conversion Helpers (FIX_END pattern from OG EndianUtils.cp)
+// =============================================================================
+
+/// Convert a i16 value to big-endian bytes (same as to_be_bytes)
+#[allow(dead_code)]
+fn fix_i16(val: i16) -> i16 {
+    val.swap_bytes()
+}
+
+/// Convert a u16 value to big-endian bytes
+#[allow(dead_code)]
+fn fix_u16(val: u16) -> u16 {
+    val.swap_bytes()
+}
+
+/// Convert a i32 value to big-endian bytes
+#[allow(dead_code)]
+fn fix_i32(val: i32) -> i32 {
+    val.swap_bytes()
+}
+
+/// Convert a u32 value to big-endian bytes
+#[allow(dead_code)]
+fn fix_u32(val: u32) -> u32 {
+    val.swap_bytes()
+}
+
+// =============================================================================
+// Time Utilities (FileSave.cp WriteFile line 269)
+// =============================================================================
+
+/// Get current time as seconds since 1904 (Mac epoch)
+/// OG Nightingale stores file timestamp as seconds since Jan 1, 1904
+#[allow(dead_code)]
+fn get_mac_timestamp() -> u32 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => {
+            // UNIX epoch is Jan 1, 1970
+            // Mac epoch is Jan 1, 1904
+            // Difference: 66 years = 2,082,844,800 seconds
+            const MAC_EPOCH_OFFSET: u64 = 2_082_844_800;
+            (duration.as_secs() + MAC_EPOCH_OFFSET) as u32
+        }
+        Err(_) => 0, // Fallback to epoch if time is unavailable
+    }
+}
+
+// =============================================================================
+// String Pool Serialization (StringPool.cp + EndianUtils.cp)
+// =============================================================================
+
+/// Serialize a string pool into binary format
+/// Format: 0x02 <length:u8> <string bytes>
+/// All multi-byte values in big-endian
+#[allow(dead_code)]
+fn serialize_string_pool(strings: &[String]) -> Vec<u8> {
+    let mut pool = Vec::new();
+
+    for s in strings {
+        pool.push(0x02); // String marker byte
+        let len = s.len() as u8;
+        pool.push(len);
+        pool.extend_from_slice(s.as_bytes());
+    }
+
+    pool
+}
+
+// =============================================================================
+// LINK Conversion Infrastructure (HeapFileIO.cp InitTrackingLinks + WriteObjHeap)
+// =============================================================================
+
+/// Maps memory LINK values to file indices for serialization.
+///
+/// During file writing, all LINK values (which are memory pointers/indices in the
+/// in-memory InterpretedScore) must be converted to sequential file indices (1, 2, 3, ...).
+/// This mapping stores that conversion and allows both directions:
+/// - memory_to_file[link]: converts a memory LINK to its file index
+/// - file_to_memory[index]: reverse mapping for verification/testing
+///
+/// Source: OG HeapFileIO.cp lines 765-776 (InitTrackingLinks)
+///         and lines 167-233 (WriteObjHeap with backpatching)
+#[derive(Debug, Clone)]
+pub struct LinkMap {
+    /// Map from memory LINK → file index (1-based)
+    memory_to_file: HashMap<Link, Link>,
+    /// Map from file index → memory LINK (for reverse lookups)
+    file_to_memory: HashMap<Link, Link>,
+}
+
+impl LinkMap {
+    /// Create a new empty LinkMap
+    pub fn new() -> Self {
+        Self {
+            memory_to_file: HashMap::new(),
+            file_to_memory: HashMap::new(),
+        }
+    }
+
+    /// Build LinkMap by walking the object list in order.
+    ///
+    /// Algorithm (from OG HeapFileIO.cp lines 772-776):
+    /// 1. Walk main object list (starting at head_l)
+    /// 2. For each object, assign a sequential file index (1, 2, 3, ...)
+    /// 3. Store bidirectional mapping
+    ///
+    /// This ensures:
+    /// - File contains sequential indices independent of memory layout
+    /// - In-memory pointers are preserved for continued use (double-conversion pattern)
+    /// - Objects can be restored to original state after writing
+    pub fn from_interpreted_score(score: &InterpretedScore) -> Result<Self> {
+        let mut map = LinkMap::new();
+        let mut file_index: Link = 1;
+
+        // Walk all objects in heap order
+        // Note: InterpretedScore.objects[0] is unused (index 0 reserved for NILINK)
+        for memory_link in 1..score.objects.len() {
+            map.insert(memory_link as Link, file_index);
+            file_index += 1;
+        }
+
+        Ok(map)
+    }
+
+    /// Insert a mapping from memory LINK → file index
+    fn insert(&mut self, memory_link: Link, file_index: Link) {
+        self.memory_to_file.insert(memory_link, file_index);
+        self.file_to_memory.insert(file_index, memory_link);
+    }
+
+    /// Convert a memory LINK to its file index.
+    ///
+    /// Returns the file index (1-based) for this memory link.
+    /// If the link is not in the map, returns NILINK (0).
+    ///
+    /// Usage: Before writing an object field that contains a LINK,
+    /// convert it using this method.
+    pub fn convert_link(&self, memory_link: Link) -> Link {
+        self.memory_to_file.get(&memory_link).copied().unwrap_or(0)
+    }
+
+    /// Get the count of mapped objects
+    pub fn object_count(&self) -> usize {
+        self.memory_to_file.len()
+    }
+
+    /// Iterator over (memory_link, file_index) pairs for testing
+    #[cfg(test)]
+    pub fn iter(&self) -> impl Iterator<Item = (&Link, &Link)> {
+        self.memory_to_file.iter()
+    }
+}
+
+impl Default for LinkMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// NGL file writer
 ///
@@ -176,6 +339,118 @@ impl Default for NglWriter {
 mod tests {
     #[allow(unused_imports)]
     use super::*;
+
+    // =========================================================================
+    // LinkMap tests
+    // =========================================================================
+
+    #[test]
+    fn test_linkmap_creation() {
+        let map = LinkMap::new();
+        assert_eq!(map.object_count(), 0);
+    }
+
+    #[test]
+    fn test_linkmap_convert_link_unmapped() {
+        let map = LinkMap::new();
+        // Unmapped links should return NILINK (0)
+        assert_eq!(map.convert_link(5), 0);
+        assert_eq!(map.convert_link(100), 0);
+    }
+
+    // DEFERRED: Integration test for LinkMap::from_interpreted_score()
+    // This requires constructing a full InterpretedScore, which has many complex fields.
+    // For now, test LinkMap.insert() directly as a substitute.
+    // Full integration test should be added once we have fixture-based roundtrip tests.
+
+    #[test]
+    fn test_linkmap_sequential_file_indices() {
+        let map = LinkMap::new();
+        let mut map = map;
+
+        // Manually insert some mappings
+        map.insert(5, 1);
+        map.insert(10, 2);
+        map.insert(3, 3);
+
+        // File indices should follow insertion order, not memory order
+        assert_eq!(map.convert_link(5), 1);
+        assert_eq!(map.convert_link(10), 2);
+        assert_eq!(map.convert_link(3), 3);
+    }
+
+    // =========================================================================
+    // Endian conversion tests
+    // =========================================================================
+
+    #[test]
+    fn test_fix_u16_endian() {
+        let val: u16 = 0x1234;
+        let converted = fix_u16(val);
+        assert_eq!(converted, 0x3412);
+        // Double conversion should restore original
+        let restored = fix_u16(converted);
+        assert_eq!(restored, val);
+    }
+
+    #[test]
+    fn test_fix_u32_endian() {
+        let val: u32 = 0x12345678;
+        let converted = fix_u32(val);
+        assert_eq!(converted, 0x78563412);
+        let restored = fix_u32(converted);
+        assert_eq!(restored, val);
+    }
+
+    // =========================================================================
+    // Timestamp tests
+    // =========================================================================
+
+    #[test]
+    fn test_mac_timestamp() {
+        let ts = get_mac_timestamp();
+        // Timestamp should be nonzero and reasonable
+        // Mac epoch started in 1904, so any timestamp after 1970 should be > 2M seconds
+        assert!(ts > 2_000_000);
+    }
+
+    // =========================================================================
+    // String pool serialization tests
+    // =========================================================================
+
+    #[test]
+    fn test_serialize_string_pool_empty() {
+        let pool = serialize_string_pool(&[]);
+        assert!(pool.is_empty());
+    }
+
+    #[test]
+    fn test_serialize_string_pool_single() {
+        let strings = vec!["hello".to_string()];
+        let pool = serialize_string_pool(&strings);
+        // Format: 0x02 <length> <bytes>
+        // Expected: [0x02, 0x05, 'h', 'e', 'l', 'l', 'o']
+        assert_eq!(pool[0], 0x02);
+        assert_eq!(pool[1], 5);
+        assert_eq!(&pool[2..], b"hello");
+    }
+
+    #[test]
+    fn test_serialize_string_pool_multiple() {
+        let strings = vec!["hi".to_string(), "bye".to_string()];
+        let pool = serialize_string_pool(&strings);
+        // Expected: [0x02, 0x02, 'h', 'i', 0x02, 0x03, 'b', 'y', 'e']
+        assert_eq!(pool[0], 0x02);
+        assert_eq!(pool[1], 2);
+        assert_eq!(&pool[2..4], b"hi");
+        assert_eq!(pool[4], 0x02);
+        assert_eq!(pool[5], 3);
+        assert_eq!(&pool[6..9], b"bye");
+    }
+
+    // =========================================================================
+    // Full implementation tests (deferred, marked as ignore)
+    // =========================================================================
 
     #[test]
     #[ignore = "NGL writer not yet implemented"]
