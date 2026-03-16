@@ -93,9 +93,17 @@ fn get_mac_timestamp() -> u32 {
 // String Pool Serialization (StringPool.cp + EndianUtils.cp)
 // =============================================================================
 
-/// Serialize a string pool into binary format
-/// Format: 0x02 <length:u8> <string bytes>
-/// All multi-byte values in big-endian
+/// Serialize a collection of strings into binary format with string pool encoding.
+///
+/// Binary format for each string:
+///   - 1 byte: 0x02 (string marker)
+///   - 1 byte: string length (u8)
+///   - N bytes: UTF-8 encoded string content
+///
+/// The string pool is a sequential concatenation of these encoded strings.
+///
+/// Source: OG StringPool.cp - stores text strings with length-prefixed encoding
+/// Reference: OG EndianUtils.cp EndianFixStringPool() line 364
 #[allow(dead_code)]
 fn serialize_string_pool(strings: &[String]) -> Vec<u8> {
     let mut pool = Vec::new();
@@ -108,6 +116,48 @@ fn serialize_string_pool(strings: &[String]) -> Vec<u8> {
     }
 
     pool
+}
+
+/// Extract all strings from an InterpretedScore that need to be in the string pool.
+///
+/// Collects (in order):
+/// 1. Font names from font_names table (deferred to document header phase)
+/// 2. Text content from graphic_strings
+/// 3. Tempo verbal and metronome strings
+///
+/// Returns a deduplicated list of unique strings, preserving insertion order.
+/// Empty strings are skipped.
+///
+/// Source: OG FileSave.cp WriteFile() - collects all strings before serialization
+#[allow(dead_code)]
+fn collect_strings_from_score(score: &InterpretedScore) -> Vec<String> {
+    use std::collections::HashSet;
+
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut result: Vec<String> = Vec::new();
+
+    // Add font names (deferred - will be in document header implementation)
+    // score.font_names is populated from DOCUMENTHDR.fontNameTbl
+    // Will be added when we implement document header serialization
+
+    // Add graphic text strings
+    for text in score.graphic_strings.values() {
+        if !text.is_empty() && seen.insert(text.clone()) {
+            result.push(text.clone());
+        }
+    }
+
+    // Add tempo strings (both verbal and metronome)
+    for (verbal, metro) in score.tempo_strings.values() {
+        if !verbal.is_empty() && seen.insert(verbal.clone()) {
+            result.push(verbal.clone());
+        }
+        if !metro.is_empty() && seen.insert(metro.clone()) {
+            result.push(metro.clone());
+        }
+    }
+
+    result
 }
 
 // =============================================================================
@@ -446,6 +496,38 @@ mod tests {
         assert_eq!(pool[4], 0x02);
         assert_eq!(pool[5], 3);
         assert_eq!(&pool[6..9], b"bye");
+    }
+
+    #[test]
+    fn test_serialize_string_pool_long_string() {
+        // Test with a longer string to verify length encoding
+        let text = "This is a longer string";
+        let strings = vec![text.to_string()];
+        let pool = serialize_string_pool(&strings);
+
+        assert_eq!(pool[0], 0x02);
+        assert_eq!(pool[1] as usize, text.len());
+        assert_eq!(&pool[2..2 + text.len()], text.as_bytes());
+    }
+
+    #[test]
+    fn test_serialize_string_pool_preserves_order() {
+        // Verify that string order is preserved in the pool
+        let strings = vec![
+            "first".to_string(),
+            "second".to_string(),
+            "third".to_string(),
+        ];
+        let pool = serialize_string_pool(&strings);
+
+        // Find each string in the pool
+        let mut idx = 0;
+        for s in &strings {
+            assert_eq!(pool[idx], 0x02);
+            assert_eq!(pool[idx + 1] as usize, s.len());
+            assert_eq!(&pool[idx + 2..idx + 2 + s.len()], s.as_bytes());
+            idx += 2 + s.len();
+        }
     }
 
     // =========================================================================
