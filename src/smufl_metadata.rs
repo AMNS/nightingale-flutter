@@ -62,20 +62,27 @@
 //! This requires calling `set_widths()` whenever staff height changes (currently
 //! only at staff object rendering time).
 
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 
 /// SMuFL font metadata (top-level structure)
-///
-/// TODO: Add #[derive(Deserialize)] once serde_json is added to Cargo.toml
 #[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SmuflMetadata {
+    #[serde(rename = "fontName")]
     pub font_name: String,
-    pub font_version: String,
+    #[serde(rename = "fontVersion")]
+    pub font_version: f32,
     pub engraving_defaults: EngravingDefaults,
+    #[serde(default)]
     pub glyph_advance_widths: HashMap<String, f32>,
+    #[serde(default)]
     pub glyph_bboxes: HashMap<String, BBox>,
-    pub glyphs_with_anchors: HashMap<String, GlyphAnchors>,
+    #[serde(default)]
+    pub glyphs_with_anchors: HashMap<String, HashMap<String, (f32, f32)>>,
 }
 
 /// Engraving defaults (line thicknesses, spacing, etc.)
@@ -83,9 +90,9 @@ pub struct SmuflMetadata {
 /// All values are in staff spaces (floating point).
 /// To convert to points: `value_pt = value_spaces * staff_space_pt`
 /// where `staff_space_pt = staff_height_pt / 4.0` for a 5-line staff.
-///
-/// TODO: Add #[derive(Deserialize)] once serde_json is added
 #[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EngravingDefaults {
     // Line thicknesses
     pub staff_line_thickness: f32,
@@ -115,30 +122,27 @@ pub struct EngravingDefaults {
 
 /// Glyph bounding box (in staff spaces)
 #[allow(dead_code)]
+#[derive(Debug, Deserialize)]
 pub struct BBox {
+    #[serde(rename = "bBoxNE")]
     pub ne: (f32, f32), // Northeast (top-right)
+    #[serde(rename = "bBoxSW")]
     pub sw: (f32, f32), // Southwest (bottom-left)
-}
-
-/// Glyph anchor points (for connecting stems, etc.)
-#[allow(dead_code)]
-pub struct GlyphAnchors {
-    pub anchors: HashMap<String, (f32, f32)>,
 }
 
 /// Load SMuFL metadata from JSON file
 ///
-/// TODO: Implement once serde_json is added to Cargo.toml
-///
-/// Example usage (future):
+/// Example usage:
 /// ```ignore
 /// let metadata = SmuflMetadata::load("assets/fonts/bravura_metadata.json")?;
 /// ```
 #[allow(dead_code)]
 impl SmuflMetadata {
-    pub fn load<P: AsRef<Path>>(_path: P) -> Result<Self, String> {
-        // TODO: Implement JSON parsing with serde_json
-        Err("SMuFL metadata loading not yet implemented (needs serde_json)".to_string())
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, String> {
+        let json = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+        let metadata: SmuflMetadata =
+            serde_json::from_str(&json).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        Ok(metadata)
     }
 
     /// Get line width in points for a given staff height
@@ -173,12 +177,20 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "SMuFL metadata loading not yet implemented"]
     fn test_load_bravura_metadata() {
         let metadata =
             SmuflMetadata::load("assets/fonts/bravura_metadata.json").expect("Failed to load");
         assert_eq!(metadata.font_name, "Bravura");
-        assert!(metadata.engraving_defaults.staff_line_thickness > 0.0);
+        assert!((metadata.font_version - 1.392).abs() < 0.001); // Compare f32 with tolerance
+
+        // Verify key engraving defaults
+        let defaults = &metadata.engraving_defaults;
+        assert_eq!(defaults.staff_line_thickness, 0.13);
+        assert_eq!(defaults.leger_line_thickness, 0.16);
+        assert_eq!(defaults.stem_thickness, 0.12);
+        assert_eq!(defaults.beam_thickness, 0.5);
+        assert_eq!(defaults.thin_barline_thickness, 0.16);
+        assert_eq!(defaults.thick_barline_thickness, 0.5);
     }
 
     #[test]
@@ -195,7 +207,7 @@ mod tests {
         // Use a minimal struct for testing
         let metadata = SmuflMetadata {
             font_name: "Test".to_string(),
-            font_version: "1.0".to_string(),
+            font_version: 1.0,
             engraving_defaults: EngravingDefaults {
                 staff_line_thickness: thickness_spaces,
                 leger_line_thickness: 0.16,
