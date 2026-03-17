@@ -35,11 +35,13 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::basic_types::Link;
+use crate::basic_types::{Link, Point, Rect};
+use crate::doc_types::DocumentHeader;
 use crate::ngl::interpret::InterpretedScore;
 use crate::ngl::reader::NglVersion;
 
 use super::error::{NglError, Result};
+use super::pack_headers::pack_document_header_n105;
 
 // =============================================================================
 // Endian Conversion Helpers (FIX_END pattern from OG EndianUtils.cp)
@@ -298,15 +300,63 @@ impl NglWriter {
         file.write_all(&timestamp.to_be_bytes())?;
 
         // 3. Write document header (72 bytes)
-        // TODO: Serialize DOCUMENTHDR with endian conversion
         // Source: EndianUtils.cp EndianFixDocumentHdr() (line 149)
-        let doc_header = vec![0u8; 72]; // Placeholder
+        // TODO: Extract actual header values from InterpretedScore (deferred implementation)
+        // For now, use a default header to allow compilation of skeleton writer
+        let doc_header_default = DocumentHeader {
+            origin: Point { v: 0, h: 0 },
+            paper_rect: Rect {
+                top: 0,
+                left: 0,
+                bottom: 792,
+                right: 612,
+            }, // US Letter
+            orig_paper_rect: Rect {
+                top: 0,
+                left: 0,
+                bottom: 792,
+                right: 612,
+            },
+            hold_origin: Point { v: 0, h: 0 },
+            margin_rect: Rect {
+                top: 72,
+                left: 72,
+                bottom: 720,
+                right: 540,
+            },
+            sheet_origin: Point { v: 0, h: 0 },
+            current_sheet: 0,
+            num_sheets: 1,
+            first_sheet: 0,
+            first_page_number: 1,
+            start_page_number: 1,
+            num_rows: 1,
+            num_cols: 1,
+            page_type: 0,
+            meas_system: 0,
+            header_footer_margins: Rect {
+                top: 0,
+                left: 0,
+                bottom: 0,
+                right: 0,
+            },
+            current_paper: Rect {
+                top: 0,
+                left: 0,
+                bottom: 792,
+                right: 612,
+            },
+            landscape: 0,
+            little_endian: 0,
+        };
+        let doc_header = pack_document_header_n105(&doc_header_default);
         file.write_all(&doc_header)?;
 
         // 4. Write score header (2148 bytes for N105)
-        // TODO: Serialize SCOREHEADER with endian conversion
         // Source: EndianUtils.cp EndianFixScoreHdr() (line 176)
-        let score_header = vec![0u8; 2148]; // Placeholder
+        // TODO: Extract actual header values from InterpretedScore (deferred implementation)
+        // For now, use placeholder zero-initialized header for skeleton writer
+        let score_header = vec![0u8; 2148];
         file.write_all(&score_header)?;
 
         // 5. Write LASTtype sentinel (2 bytes, value 25)
