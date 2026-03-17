@@ -19,6 +19,7 @@
 //! - `unpack_slur`: ASlur unpacker
 //! - `unpack_stubs`: Stub unpackers for types not yet fully implemented
 //! - `pack_subobjects`: Subobject serialization (inverse of unpack_* functions)
+//! - `pack_headers`: Document/score header serialization (72 + 2148 bytes)
 //! - `doc_header`: Parses the 72-byte document header
 //! - `writer`: Writes .ngl files to disk (skeleton with helper functions)
 //!
@@ -27,6 +28,7 @@
 pub mod doc_header;
 pub mod error;
 pub mod interpret;
+pub mod pack_headers;
 pub mod pack_objects;
 pub mod pack_subobjects;
 pub mod reader;
