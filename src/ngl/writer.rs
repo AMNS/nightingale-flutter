@@ -35,13 +35,14 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::basic_types::{Link, Point, Rect};
-use crate::doc_types::DocumentHeader;
+use crate::basic_types::{Link, Point, Rect, VoiceInfo};
+use crate::doc_types::{DocumentHeader, FontItem, ScoreHeader};
+use crate::limits::{MAXVOICES, MAX_COMMENT_LEN, MAX_SCOREFONTS};
 use crate::ngl::interpret::InterpretedScore;
 use crate::ngl::reader::NglVersion;
 
 use super::error::{NglError, Result};
-use super::pack_headers::pack_document_header_n105;
+use super::pack_headers::{pack_document_header_n105, pack_score_header_n105};
 
 // =============================================================================
 // Endian Conversion Helpers (FIX_END pattern from OG EndianUtils.cp)
@@ -253,6 +254,321 @@ impl Default for LinkMap {
     }
 }
 
+// =============================================================================
+// ScoreHeader Reconstruction (Phase 6 - Full Header Reconstruction)
+// =============================================================================
+
+/// Counts unique STAFF and SYSTEM objects in the object heap.
+///
+/// Returns (nstaves, nsystems) tuple needed for ScoreHeader fields.
+///
+/// Algorithm:
+/// 1. Walk through all objects in the heap
+/// 2. Count objects of type STAFF (type_idx == 4) to get nstaves
+/// 3. Count objects of type SYSTEM (type_idx == 1) to get nsystems
+fn count_staves_and_systems(score: &InterpretedScore) -> (i16, i16) {
+    let mut nstaves = 0i16;
+    let mut nsystems = 0i16;
+
+    for obj in &score.objects {
+        // Type values from NObjTypesN105.h:
+        // 1 = SYSTEM, 4 = STAFF
+        match obj.header.obj_type {
+            1 => nsystems += 1, // SYSTEM_5
+            4 => nstaves += 1,  // STAFF_5
+            _ => {}
+        }
+    }
+
+    // Ensure at least 1 of each (should always be true for valid scores)
+    (nstaves.max(1), nsystems.max(1))
+}
+
+/// Reconstructs a full ScoreHeader from InterpretedScore fields.
+///
+/// This function:
+/// 1. Extracts available fields from InterpretedScore
+/// 2. Computes counts (nstaves, nsystems) by walking objects
+/// 3. Uses reasonable defaults for fields not in InterpretedScore
+/// 4. Builds 256-entry voice table with safe defaults
+/// 5. Returns a complete ScoreHeader ready for serialization
+///
+/// Source: NDocAndCnfgTypes.h (NIGHTSCOREHEADER definition, lines 120-335)
+fn reconstruct_score_header_from_interpreted(score: &InterpretedScore) -> ScoreHeader {
+    // Count staves and systems from object heap
+    let (nstaves, nsystems) = count_staves_and_systems(score);
+
+    // Build voice table (256 entries: MAXVOICES+1=101 + expansion=155)
+    let mut voice_tab = [VoiceInfo::default(); MAXVOICES + 1];
+    let expansion = [VoiceInfo::default(); 256 - (MAXVOICES + 1)];
+
+    // Initialize first voice as active (voice 0)
+    if !voice_tab.is_empty() {
+        voice_tab[0] = VoiceInfo {
+            partn: 1,      // Default to part 1
+            voice_role: 0, // Default voice role
+            rel_voice: 1,  // First voice in part
+        };
+    }
+
+    // Build spacing map with default values (duration-based spacing)
+    // These are reasonable defaults from OG Nightingale
+    let space_map = [
+        256i32, // MAX_L_DUR=0: whole note spacing
+        192i32, // 1: half note
+        128i32, // 2: quarter note (basic spacing unit)
+        96i32,  // 3: eighth note
+        64i32,  // 4: sixteenth note
+        48i32,  // 5: thirty-second note
+        32i32,  // 6: sixty-fourth note
+        24i32,  // 7
+        16i32,  // 8
+    ];
+
+    // Build 15 TextStyle records (fonts for different purposes)
+    // All use reasonable default values
+    let default_font_name = b"Helvetica\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+    ScoreHeader {
+        // Links (from InterpretedScore)
+        head_l: score.head_l,
+        tail_l: 0, // Will be computed during pack_objects if available
+        sel_start_l: 0,
+        sel_end_l: 0,
+
+        // Counts
+        nstaves,
+        nsystems,
+
+        // Comment and config
+        comment: [0u8; MAX_COMMENT_LEN + 1],
+        note_ins_feedback: 1,
+        dont_send_patches: 0,
+        saved: 1,
+        named: 1,
+        used: 1,
+        transposed: 0,
+        filler_sc1: 0,
+        poly_timbral: 0,
+        filler_sc2: 0,
+
+        // Layout and spacing
+        space_percent: 100,
+        srastral: 4,
+        altsrastral: 4,
+        tempo: 120,
+        channel: 0,
+        vel_offset: 0,
+
+        // String management (placeholder offsets)
+        header_str_offset: 0,
+        footer_str_offset: 0,
+
+        // Page numbering
+        top_pgn: 0,
+        h_pos_pgn: 2, // Center
+        alternate_pgn: 0,
+        use_header_footer: 0,
+        filler_pgn: 0,
+        filler_mb: 0,
+        filler2: 0,
+
+        // System indentation (from InterpretedScore)
+        d_indent_other: score.d_indent_other,
+
+        // Part names (from InterpretedScore)
+        first_names: score.first_names,
+        other_names: score.other_names,
+
+        // Font management
+        last_global_font: 0,
+
+        // Measure numbers (from InterpretedScore)
+        x_mn_offset: score.x_mn_offset,
+        y_mn_offset: score.y_mn_offset,
+        x_sys_mn_offset: score.x_sys_mn_offset,
+        above_mn: score.above_mn as i16,
+        sys_first_mn: score.sys_first_mn as i16,
+        start_mn_print1: score.start_mn_print1 as i16,
+        first_mn_number: score.first_mn_number,
+
+        // Master page list
+        master_head_l: 0,
+        master_tail_l: 0,
+        filler1: 0,
+        n_font_records: 15,
+
+        // TextStyle records (15 records for different text types)
+        // All initialized with default font name and reasonable settings
+        font_name_mn: *default_font_name,
+        filler_mn: 0,
+        lyric_mn: 0,
+        enclosure_mn: 0,
+        rel_f_size_mn: 100,
+        font_size_mn: 10,
+        font_style_mn: 0,
+
+        font_name_pn: *default_font_name,
+        filler_pn: 0,
+        lyric_pn: 0,
+        enclosure_pn: 0,
+        rel_f_size_pn: 100,
+        font_size_pn: 12,
+        font_style_pn: 0,
+
+        font_name_rm: *default_font_name,
+        filler_rm: 0,
+        lyric_rm: 0,
+        enclosure_rm: 0,
+        rel_f_size_rm: 100,
+        font_size_rm: 10,
+        font_style_rm: 0,
+
+        font_name1: *default_font_name,
+        filler_r1: 0,
+        lyric1: 0,
+        enclosure1: 0,
+        rel_f_size1: 100,
+        font_size1: 10,
+        font_style1: 0,
+
+        font_name2: *default_font_name,
+        filler_r2: 0,
+        lyric2: 0,
+        enclosure2: 0,
+        rel_f_size2: 100,
+        font_size2: 10,
+        font_style2: 0,
+
+        font_name3: *default_font_name,
+        filler_r3: 0,
+        lyric3: 0,
+        enclosure3: 0,
+        rel_f_size3: 100,
+        font_size3: 10,
+        font_style3: 0,
+
+        font_name4: *default_font_name,
+        filler_r4: 0,
+        lyric4: 0,
+        enclosure4: 0,
+        rel_f_size4: 100,
+        font_size4: 10,
+        font_style4: 0,
+
+        font_name_tm: *default_font_name,
+        filler_tm: 0,
+        lyric_tm: 0,
+        enclosure_tm: 0,
+        rel_f_size_tm: 100,
+        font_size_tm: 10,
+        font_style_tm: 0,
+
+        font_name_cs: *default_font_name,
+        filler_cs: 0,
+        lyric_cs: 0,
+        enclosure_cs: 0,
+        rel_f_size_cs: 100,
+        font_size_cs: 10,
+        font_style_cs: 0,
+
+        font_name_pg: *default_font_name,
+        filler_pg: 0,
+        lyric_pg: 0,
+        enclosure_pg: 0,
+        rel_f_size_pg: 100,
+        font_size_pg: 10,
+        font_style_pg: 0,
+
+        font_name5: *default_font_name,
+        filler_r5: 0,
+        lyric5: 0,
+        enclosure5: 0,
+        rel_f_size5: 100,
+        font_size5: 10,
+        font_style5: 0,
+
+        font_name6: *default_font_name,
+        filler_r6: 0,
+        lyric6: 0,
+        enclosure6: 0,
+        rel_f_size6: 100,
+        font_size6: 10,
+        font_style6: 0,
+
+        font_name7: *default_font_name,
+        filler_r7: 0,
+        lyric7: 0,
+        enclosure7: 0,
+        rel_f_size7: 100,
+        font_size7: 10,
+        font_style7: 0,
+
+        font_name8: *default_font_name,
+        filler_r8: 0,
+        lyric8: 0,
+        enclosure8: 0,
+        rel_f_size8: 100,
+        font_size8: 10,
+        font_style8: 0,
+
+        font_name9: *default_font_name,
+        filler_r9: 0,
+        lyric9: 0,
+        enclosure9: 0,
+        rel_f_size9: 100,
+        font_size9: 10,
+        font_style9: 0,
+
+        // Font table
+        nfonts_used: 1,
+        font_table: [FontItem {
+            font_id: 0,
+            font_name: *default_font_name,
+        }; MAX_SCOREFONTS],
+        mus_font_name: *b"Bravura\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+
+        // Display and editing state
+        magnify: 0,
+        sel_staff: 1,
+        other_mn_staff: 1,
+        number_meas: score.number_meas,
+        current_system: 1,
+        space_table: 0,
+        htight: 100,
+        filler_int: 0,
+        look_voice: 0,
+        filler_hp: 0,
+        filler_lp: 0,
+        ledger_y_sp: 2,
+        deflam_time: 0,
+
+        // Boolean flags
+        auto_respace: 1,
+        insert_mode: 1,
+        beam_rests: 1,
+        graph_mode: 1,
+        show_syncs: 0,
+        frame_systems: 0,
+        filler_em: 0,
+        color_voices: 0,
+        show_invis: 0,
+        show_dur_prob: 0,
+        record_flats: 1,
+
+        // Spacing map
+        space_map,
+
+        // System indentation
+        d_indent_first: score.d_indent_first,
+        y_between_sys: 0,
+
+        // Voice table (256 entries)
+        voice_tab,
+        expansion,
+    }
+}
+
 /// NGL file writer
 ///
 /// TODO: This is a foundational implementation. Full implementation requires:
@@ -354,9 +670,9 @@ impl NglWriter {
 
         // 4. Write score header (2148 bytes for N105)
         // Source: EndianUtils.cp EndianFixScoreHdr() (line 176)
-        // TODO: Extract actual header values from InterpretedScore (deferred implementation)
-        // For now, use placeholder zero-initialized header for skeleton writer
-        let score_header = vec![0u8; 2148];
+        // Extract and reconstruct actual header values from InterpretedScore
+        let reconstructed_header = reconstruct_score_header_from_interpreted(_score);
+        let score_header = pack_score_header_n105(&reconstructed_header);
         file.write_all(&score_header)?;
 
         // 5. Write LASTtype sentinel (2 bytes, value 25)
