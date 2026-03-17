@@ -27,6 +27,7 @@
 pub mod doc_header;
 pub mod error;
 pub mod interpret;
+pub mod pack_objects;
 pub mod pack_subobjects;
 pub mod reader;
 pub mod unpack_headers;
