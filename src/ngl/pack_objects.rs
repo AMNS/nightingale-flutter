@@ -36,16 +36,22 @@ use std::collections::HashMap;
 /// - Value: sequential file index (starting at 1 for first object)
 ///
 /// This mapping is used during backpatching to convert all LINK fields before writing.
-struct LinkMap {
+pub struct LinkMap {
     /// Map from in-memory Link to file index
     map: HashMap<Link, Link>,
     /// Next available file index (incremented as objects are added)
     next_index: Link,
 }
 
+impl Default for LinkMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LinkMap {
     /// Create a new LinkMap, starting with index 1 (0 reserved for NILINK).
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             map: HashMap::new(),
             next_index: 1,
@@ -53,7 +59,7 @@ impl LinkMap {
     }
 
     /// Register a Link value and return its file index.
-    fn register(&mut self, in_memory_link: Link) -> Link {
+    pub fn register(&mut self, in_memory_link: Link) -> Link {
         if in_memory_link == 0 {
             // NILINK (null pointer) stays 0
             return 0;
@@ -154,7 +160,7 @@ fn pack_objectheader_n105(header: &ObjectHeader, link_map: &LinkMap, buf: &mut [
 /// Each object type has a specific N105 binary layout extending OBJECTHEADER_5.
 ///
 /// Source: OG NObjTypesN105.h SUPEROBJ_5 union (lines 43-210)
-fn pack_object_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
+pub fn pack_object_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     match &obj.data {
         // Core object types with full implementations
         ObjData::Header(_) => pack_header_n105(obj, link_map),

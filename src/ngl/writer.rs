@@ -610,7 +610,13 @@ impl NglWriter {
         let mut buf = Vec::new();
 
         // 1. Write version tag (4 bytes)
-        buf.extend_from_slice(b"N105");
+        let version_bytes = match score.version {
+            crate::ngl::reader::NglVersion::N101 => b"N101",
+            crate::ngl::reader::NglVersion::N102 => b"N102",
+            crate::ngl::reader::NglVersion::N103 => b"N103",
+            crate::ngl::reader::NglVersion::N105 => b"N105",
+        };
+        buf.extend_from_slice(version_bytes);
 
         // 2. Write timestamp (4 bytes, big-endian)
         let timestamp = get_mac_timestamp();
@@ -681,7 +687,7 @@ impl NglWriter {
         buf.extend_from_slice(&string_pool);
 
         // 7. Write all subobject heaps (types 0-23)
-        // Each heap: HEAP_HEADER (objSize + objCount) followed by objects
+        // Each heap: 2 bytes nFObjs + 16 bytes HEAP header + heap data
         // Iterate through all subobject types and serialize them
         use super::pack_subobjects::{pack_ameasure_n105, pack_astaff_n105};
 
@@ -722,27 +728,54 @@ impl NglWriter {
                 0
             };
 
-            buf.extend_from_slice(&obj_size.to_be_bytes());
+            // Write nFObjs (2 bytes, big-endian)
             buf.extend_from_slice(&obj_count.to_be_bytes());
+
+            // Write 16-byte HEAP header
+            // [0..3] Handle (runtime pointer, ignored - write 0)
+            // [4..5] objSize (i16, big-endian)
+            // [6..7] type (i16, big-endian)
+            // [8..9] firstFree (u16, ignored - write 0)
+            // [10..11] nObjs (u16, write obj_count)
+            // [12..13] nFree (u16, ignored - write 0)
+            // [14..15] lockLevel (u16, ignored - write 0)
+            buf.extend_from_slice(&0u32.to_be_bytes()); // Handle [0..3]
+            buf.extend_from_slice(&obj_size.to_be_bytes()); // objSize [4..5]
+            buf.extend_from_slice(&(subobj_type as i16).to_be_bytes()); // type [6..7]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree [8..9]
+            buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs [10..11]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // nFree [12..13]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel [14..15]
+
+            // Write heap data
             buf.extend_from_slice(&heap_data);
         }
 
         // 8. Write object heap (type 24)
-        // Object heap HEAP header: 2 bytes (objSize=12) + 2 bytes (objCount)
-        // For now, collect just the OBJECTHEADER_5 (12 bytes minimum)
-        let obj_count = score.objects.len() as u16;
-        // Each object is at least 12 bytes (OBJECTHEADER_5)
-        // Type-specific data varies, but for now we'll write just headers
+        // Object heap contains variable-length objects with LINK backpatching
+        // Objects are packed via LinkMap conversion of in-memory LINK pointers to file indices
+        use super::pack_objects::LinkMap;
 
-        buf.extend_from_slice(&12u16.to_be_bytes()); // objSize (minimal OBJECTHEADER_5)
-        buf.extend_from_slice(&obj_count.to_be_bytes()); // objCount
-
-        // TODO: Write actual object heap data with LinkMap backpatching
-        // For now, write placeholder (empty object heap)
-        for _ in 0..obj_count {
-            // Write 12 bytes of zeros for each object (will be replaced by real pack functions)
-            buf.extend_from_slice(&[0u8; 12]);
+        // Build LinkMap: register all object indices
+        let mut link_map = LinkMap::new();
+        for obj in &score.objects {
+            link_map.register(obj.index);
         }
+
+        // Pack all objects using type-specific pack functions
+        let mut object_heap_data = Vec::new();
+        for obj in &score.objects {
+            // Call pack_object_n105 which dispatches to type-specific packers
+            let packed = super::pack_objects::pack_object_n105(obj, &link_map);
+            object_heap_data.extend_from_slice(&packed);
+        }
+
+        // Write object heap header (objSize not used for variable-length objects)
+        // For now, use 12 (minimal OBJECTHEADER_5) as a marker, actual sizes vary
+        let obj_count = score.objects.len() as u16;
+        buf.extend_from_slice(&12u16.to_be_bytes()); // objSize (marker for variable-length)
+        buf.extend_from_slice(&obj_count.to_be_bytes()); // objCount
+        buf.extend_from_slice(&object_heap_data); // Actual variable-length objects
 
         // 9. Write CoreMIDI device list (optional)
         // TODO: Deferred implementation
@@ -925,7 +958,6 @@ mod tests {
     // =========================================================================
 
     #[test]
-    #[ignore = "NGL roundtrip: heaps empty (waiting for Phase 5 object serialization)"]
     fn test_write_basic_score() {
         use crate::ngl::interpret::interpret_heap;
         use crate::ngl::reader::NglFile;

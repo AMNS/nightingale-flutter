@@ -61,6 +61,10 @@ pub use super::unpack_stubs::{
 /// This struct holds the fully interpreted score data, organized by type for efficient access.
 #[derive(Debug, Clone)]
 pub struct InterpretedScore {
+    /// Version of the NGL format (N103, N105, N106, etc.)
+    /// Used to preserve format version when round-tripping through write_to_bytes()
+    pub version: crate::ngl::reader::NglVersion,
+
     /// Link to the score HEADER object (start of score linked list).
     /// For NGL files, this comes from ScoreHeader.head_l (same as OG doc->headL).
     /// For Notelist-generated scores, this is the first HEADER link.
@@ -353,6 +357,8 @@ impl InterpretedScore {
             // Score metadata
             title: String::new(),
             composer: String::new(),
+            // Default to N105 format
+            version: crate::ngl::reader::NglVersion::N105,
         }
     }
 
@@ -756,6 +762,9 @@ use crate::ngl::reader::{decode_string as reader_decode_string, NglFile};
 /// Source: HeapFileIO.cp ReadObjHeap() (line 973), WriteObject() (line 659)
 pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
     let mut score = InterpretedScore::new();
+
+    // Populate version from the original NGL file to preserve format
+    score.version = ngl.version;
 
     // Parse head_l from score header — equivalent to OG doc->headL.
     // This is the first field of ScoreHeader (2 bytes, big-endian u16).
