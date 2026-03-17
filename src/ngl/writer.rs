@@ -609,14 +609,9 @@ impl NglWriter {
     pub fn write_to_bytes(&self, score: &InterpretedScore) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
 
-        // 1. Write version tag (4 bytes)
-        let version_bytes = match score.version {
-            crate::ngl::reader::NglVersion::N101 => b"N101",
-            crate::ngl::reader::NglVersion::N102 => b"N102",
-            crate::ngl::reader::NglVersion::N103 => b"N103",
-            crate::ngl::reader::NglVersion::N105 => b"N105",
-        };
-        buf.extend_from_slice(version_bytes);
+        // 1. Write version tag (4 bytes) — always N105.
+        // We only produce N105 format regardless of the source file version.
+        buf.extend_from_slice(b"N105");
 
         // 2. Write timestamp (4 bytes, big-endian)
         let timestamp = get_mac_timestamp();
@@ -722,8 +717,10 @@ impl NglWriter {
             };
 
             let (obj_size, heap_data) = heap_data;
+            // Compute obj_count as usize first to avoid u16 overflow for large heaps.
+            // (heap_data.len() as u16) overflows if len > 65535, giving wrong nFObjs.
             let obj_count = if obj_size > 0 {
-                (heap_data.len() as u16) / obj_size
+                (heap_data.len() / obj_size as usize) as u16
             } else {
                 0
             };
@@ -752,30 +749,37 @@ impl NglWriter {
         }
 
         // 8. Write object heap (type 24)
-        // Object heap contains variable-length objects with LINK backpatching
-        // Objects are packed via LinkMap conversion of in-memory LINK pointers to file indices
-        use super::pack_objects::LinkMap;
+        //
+        // Reader expects (HeapFileIO.cp ReadHeaps / read_heap):
+        //   2 bytes  nFObjs           (number of objects)
+        //  16 bytes  HEAP header      (Handle=0, objSize, type=24, firstFree=0, nObjs, nFree=0, lockLevel=0)
+        //   4 bytes  sizeAllObjsFile  (total byte length of packed object data, including these 4 bytes)
+        //   N bytes  packed objects
+        //
+        // serialize_object_heap() returns (heap_bytes, total_size) where heap_bytes is
+        // already [4-byte size | packed objects], matching what the reader expects after
+        // the HEAP header.
+        use super::pack_objects::{serialize_object_heap, LinkMap};
 
-        // Build LinkMap: register all object indices
-        let mut link_map = LinkMap::new();
-        for obj in &score.objects {
-            link_map.register(obj.index);
-        }
-
-        // Pack all objects using type-specific pack functions
-        let mut object_heap_data = Vec::new();
-        for obj in &score.objects {
-            // Call pack_object_n105 which dispatches to type-specific packers
-            let packed = super::pack_objects::pack_object_n105(obj, &link_map);
-            object_heap_data.extend_from_slice(&packed);
-        }
-
-        // Write object heap header (objSize not used for variable-length objects)
-        // For now, use 12 (minimal OBJECTHEADER_5) as a marker, actual sizes vary
+        let link_map = LinkMap::new(); // serialize_object_heap registers all objects itself
         let obj_count = score.objects.len() as u16;
-        buf.extend_from_slice(&12u16.to_be_bytes()); // objSize (marker for variable-length)
-        buf.extend_from_slice(&obj_count.to_be_bytes()); // objCount
-        buf.extend_from_slice(&object_heap_data); // Actual variable-length objects
+        let (heap_bytes, _total_size) = serialize_object_heap(score, link_map);
+
+        // nFObjs (2 bytes, big-endian)
+        buf.extend_from_slice(&obj_count.to_be_bytes());
+
+        // 16-byte HEAP header (identical structure to subobject heaps above)
+        buf.extend_from_slice(&0u32.to_be_bytes()); // Handle      [0..3]
+        buf.extend_from_slice(&12u16.to_be_bytes()); // objSize=12  [4..5]  (min OBJECTHEADER size)
+        buf.extend_from_slice(&24i16.to_be_bytes()); // type=24     [6..7]
+        buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree   [8..9]
+        buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs       [10..11]
+        buf.extend_from_slice(&0u16.to_be_bytes()); // nFree       [12..13]
+        buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel   [14..15]
+
+        // heap_bytes = [4-byte sizeAllObjsFile | packed objects]
+        // This is exactly what read_heap() reads after the HEAP header for is_object_heap=true
+        buf.extend_from_slice(&heap_bytes);
 
         // 9. Write CoreMIDI device list (optional)
         // TODO: Deferred implementation
@@ -958,140 +962,169 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_write_basic_score() {
-        use crate::ngl::interpret::interpret_heap;
-        use crate::ngl::reader::NglFile;
-
-        // Load a fixture for roundtrip testing
-        let fixture_path = "tests/fixtures/01_me_and_lucy.ngl";
-        let file_bytes =
-            std::fs::read(fixture_path).expect("Could not read fixture file for roundtrip test");
-
-        // Parse the original file
-        let original_ngl =
-            NglFile::read_from_bytes(&file_bytes).expect("Could not parse original NGL file");
-
-        // Interpret the heap to get structured data
-        let interpreted =
-            interpret_heap(&original_ngl).expect("Could not interpret original NGL file");
-
-        // Write the score back to bytes (not yet implemented)
-        let writer = NglWriter::new();
-        let written_bytes = writer
-            .write_to_bytes(&interpreted)
-            .expect("Could not write score to bytes");
-
-        // Parse the written file to verify it's valid
-        let roundtrip_ngl =
-            NglFile::read_from_bytes(&written_bytes).expect("Could not parse roundtrip NGL file");
-
-        // Verify basic properties preserved
-        assert_eq!(
-            original_ngl.version, roundtrip_ngl.version,
-            "Version should be preserved"
-        );
-        assert!(
-            !written_bytes.is_empty(),
-            "Written bytes should not be empty"
-        );
-    }
-
-    #[test]
     fn test_roundtrip_all_fixtures() {
         use crate::ngl::interpret::interpret_heap;
         use crate::ngl::reader::NglFile;
         use std::path::PathBuf;
 
-        // Collect all NGL fixture files
         let fixture_dir = PathBuf::from("tests/fixtures");
         if !fixture_dir.exists() {
             eprintln!("Fixture directory not found, skipping roundtrip test");
             return;
         }
 
-        let mut fixtures = Vec::new();
-        for entry in std::fs::read_dir(&fixture_dir).expect("Could not read fixture directory") {
-            let entry = entry.expect("Could not read directory entry");
-            let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "ngl") {
-                fixtures.push(path);
-            }
-        }
+        let output_dir = PathBuf::from("test-output/roundtrip");
+        std::fs::create_dir_all(&output_dir)
+            .expect("Could not create test-output/roundtrip directory");
 
-        if fixtures.is_empty() {
-            eprintln!("No NGL fixtures found, skipping roundtrip test");
-            return;
-        }
+        let mut fixtures: Vec<_> = std::fs::read_dir(&fixture_dir)
+            .expect("Could not read fixture directory")
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "ngl"))
+            .collect();
+        fixtures.sort();
 
-        // Test roundtrip for first 3 fixtures to keep test time reasonable
-        let fixtures_to_test = fixtures.iter().take(3);
+        assert!(!fixtures.is_empty(), "No NGL fixtures found");
 
-        for fixture_path in fixtures_to_test {
+        let mut passed = 0usize;
+        let mut skipped = 0usize;
+
+        for fixture_path in &fixtures {
+            let fixture_name = fixture_path.file_name().unwrap().to_string_lossy();
+
             let file_bytes = std::fs::read(fixture_path)
                 .unwrap_or_else(|e| panic!("Could not read {}: {}", fixture_path.display(), e));
 
-            // Parse original file
+            // --- Parse and interpret original ---
             let original_ngl = match NglFile::read_from_bytes(&file_bytes) {
                 Ok(ngl) => ngl,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Could not parse {}: {}, skipping",
-                        fixture_path.display(),
-                        e
-                    );
+                    eprintln!("SKIP {fixture_name}: parse failed: {e}");
+                    skipped += 1;
                     continue;
                 }
             };
-
-            // Interpret heap
-            let interpreted = match interpret_heap(&original_ngl) {
-                Ok(interp) => interp,
+            let original = match interpret_heap(&original_ngl) {
+                Ok(s) => s,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Could not interpret {}: {}, skipping",
-                        fixture_path.display(),
-                        e
-                    );
+                    eprintln!("SKIP {fixture_name}: interpret failed: {e}");
+                    skipped += 1;
                     continue;
                 }
             };
 
-            // Write to bytes
+            // --- Write roundtrip ---
             let writer = NglWriter::new();
-            let written_bytes = match writer.write_to_bytes(&interpreted) {
-                Ok(bytes) => bytes,
+            let written_bytes = match writer.write_to_bytes(&original) {
+                Ok(b) => b,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Could not write {}: {}, skipping",
-                        fixture_path.display(),
-                        e
-                    );
+                    eprintln!("SKIP {fixture_name}: write failed: {e}");
+                    skipped += 1;
                     continue;
                 }
             };
 
-            // Re-parse written bytes
+            let output_path = output_dir.join(fixture_path.file_name().unwrap());
+            std::fs::write(&output_path, &written_bytes)
+                .unwrap_or_else(|e| panic!("Could not write {}: {}", output_path.display(), e));
+
+            // --- Parse and interpret roundtrip ---
             let roundtrip_ngl = match NglFile::read_from_bytes(&written_bytes) {
                 Ok(ngl) => ngl,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Could not parse roundtrip {}: {}, skipping",
-                        fixture_path.display(),
-                        e
-                    );
+                    eprintln!("SKIP {fixture_name}: roundtrip parse failed: {e}");
+                    skipped += 1;
+                    continue;
+                }
+            };
+            let roundtrip = match interpret_heap(&roundtrip_ngl) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("SKIP {fixture_name}: roundtrip interpret failed: {e}");
+                    skipped += 1;
                     continue;
                 }
             };
 
-            // Verify critical properties match
-            let fixture_name = fixture_path.file_name().unwrap().to_string_lossy();
-            assert_eq!(
-                original_ngl.version, roundtrip_ngl.version,
-                "Version mismatch for {}",
-                fixture_name
-            );
-            // Note: Cannot directly compare doc_header fields because NglFile stores raw bytes.
-            // After write_to_bytes is fully implemented, we can parse doc_header_raw and compare.
+            // --- Compare InterpretedScore fields ---
+            assert_interpreted_scores_match(&original, &roundtrip, &fixture_name);
+
+            passed += 1;
         }
+
+        println!(
+            "Roundtrip: {passed}/{} passed, {skipped} skipped",
+            fixtures.len()
+        );
+
+        let skip_threshold = fixtures.len() / 4;
+        assert!(
+            skipped <= skip_threshold,
+            "Too many fixtures skipped ({skipped}/{})",
+            fixtures.len()
+        );
+        assert!(
+            passed > 0,
+            "No fixtures completed the roundtrip successfully"
+        );
+    }
+
+    /// Compare two InterpretedScores field-by-field and panic with a descriptive
+    /// message on the first mismatch. Only compares fields the writer is
+    /// responsible for preserving; intentionally excludes ephemeral fields like
+    /// the timestamp.
+    fn assert_interpreted_scores_match(
+        original: &InterpretedScore,
+        roundtrip: &InterpretedScore,
+        fixture_name: &str,
+    ) {
+        macro_rules! check {
+            ($field:ident) => {
+                assert_eq!(
+                    original.$field, roundtrip.$field,
+                    "{fixture_name}: InterpretedScore.{} mismatch\n  original:  {:?}\n  roundtrip: {:?}",
+                    stringify!($field), original.$field, roundtrip.$field
+                );
+            };
+        }
+
+        // Note: version is intentionally not checked — the writer always
+        // upgrades to N105 regardless of source format.
+
+        // Structural counts — most sensitive to heap serialization regressions
+        assert_eq!(
+            original.objects.len(),
+            roundtrip.objects.len(),
+            "{fixture_name}: object count changed ({} → {})",
+            original.objects.len(),
+            roundtrip.objects.len()
+        );
+        // staffs map is keyed by first_sub_obj (subobject LINK), which is not
+        // backpatched in the current writer — all collapse to key 0 in roundtrip.
+        // TODO: implement subobject LINK backpatching.
+        // assert_eq!(original.staffs.len(), roundtrip.staffs.len(), ...);
+        // measures map similarly keyed by subobject LINKs — same issue as staffs.
+        // TODO: implement subobject LINK backpatching.
+        // assert_eq!(original.measures.len(), roundtrip.measures.len(), ...);
+
+        // Score header fields round-tripped through reconstruct_score_header_from_interpreted()
+        check!(head_l);
+        check!(number_meas);
+        check!(d_indent_first);
+        check!(d_indent_other);
+        check!(first_names);
+        check!(other_names);
+        check!(x_mn_offset);
+        check!(y_mn_offset);
+        check!(x_sys_mn_offset);
+        check!(above_mn);
+        check!(sys_first_mn);
+        check!(start_mn_print1);
+        check!(first_mn_number);
+
+        // String pools — skipped until string pool writer is implemented.
+        // assert_eq!(original.graphic_strings.len(), roundtrip.graphic_strings.len(), ...);
+        // assert_eq!(original.tempo_strings.len(), roundtrip.tempo_strings.len(), ...);
     }
 }

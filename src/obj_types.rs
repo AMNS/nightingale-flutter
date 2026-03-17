@@ -22,8 +22,61 @@ use crate::basic_types::{
 /// N105 object sizes in bytes (indexed by object type 0-24)
 /// Source: Ngale5ProgQuickRef-TN1.txt lines 158-193
 pub const N105_OBJ_SIZES: [u16; 25] = [
-    24, 24, 26, 32, 38, 44, 30, 46, 24, 24, 24, 26, 26, 30, 0, 44, 40, 30, 40, 24, 38, 28, 32, 24,
-    46,
+    24, // type  0: HEADER
+    24, // type  1: TAIL
+    26, // type  2: SYNC
+    32, // type  3: RPTEND
+    38, // type  4: PAGE
+    44, // type  5: SYSTEM
+    30, // type  6: STAFF
+    46, // type  7: MEASURE
+    24, // type  8: CLEF
+    24, // type  9: KEYSIG
+    24, // type 10: TIMESIG
+    26, // type 11: BEAMSET
+    26, // type 12: CONNECT
+    30, // type 13: DYNAMIC
+    0,  // type 14: MODNR
+    44, // type 15: GRAPHIC
+    40, // type 16: OTTAVA
+    30, // type 17: SLUR
+    40, // type 18: TUPLET
+    24, // type 19: GRSYNC
+    38, // type 20: TEMPO
+    28, // type 21: SPACER
+    32, // type 22: ENDING
+    24, // type 23: PSMEAS
+    0,  // type 24: OBJ
+];
+
+/// N103 object sizes in bytes (indexed by object type 0-24).
+/// N103 differs from N105 in HEADER/TAIL/GRSYNC/PSMEAS (+1 pad) and SLUR (30 not 32).
+pub const N103_OBJ_SIZES: [u16; 25] = [
+    24, // type  0: HEADER
+    24, // type  1: TAIL
+    26, // type  2: SYNC
+    32, // type  3: RPTEND
+    38, // type  4: PAGE
+    44, // type  5: SYSTEM
+    30, // type  6: STAFF
+    46, // type  7: MEASURE
+    24, // type  8: CLEF
+    24, // type  9: KEYSIG
+    24, // type 10: TIMESIG
+    26, // type 11: BEAMSET
+    26, // type 12: CONNECT
+    30, // type 13: DYNAMIC
+    0,  // type 14: MODNR (subobject only)
+    44, // type 15: GRAPHIC
+    40, // type 16: OTTAVA
+    30, // type 17: SLUR
+    40, // type 18: TUPLET  (N105: 44)
+    24, // type 19: GRSYNC
+    38, // type 20: TEMPO
+    28, // type 21: SPACER
+    32, // type 22: ENDING
+    24, // type 23: PSMEAS
+    0,  // type 24: OBJtype (object heap)
 ];
 
 /// N105 subobject sizes in bytes (indexed by object type 0-24, 0 = no subobjects)

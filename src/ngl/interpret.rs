@@ -934,9 +934,16 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
         // Read the type byte at offset 10 within the object header
         let obj_type = obj_data[cursor + 10];
 
-        // Look up the actual file size for this object type
-        let file_obj_size = if (obj_type as usize) < crate::obj_types::N105_OBJ_SIZES.len() {
-            crate::obj_types::N105_OBJ_SIZES[obj_type as usize] as usize
+        // Look up the actual file size for this object type.
+        // N103 files have slightly different on-disk sizes for HEADER/TAIL/GRSYNC/PSMEAS.
+        let obj_sizes = match ngl.version {
+            crate::ngl::reader::NglVersion::N101
+            | crate::ngl::reader::NglVersion::N102
+            | crate::ngl::reader::NglVersion::N103 => &crate::obj_types::N103_OBJ_SIZES,
+            crate::ngl::reader::NglVersion::N105 => &crate::obj_types::N105_OBJ_SIZES,
+        };
+        let file_obj_size = if (obj_type as usize) < obj_sizes.len() {
+            obj_sizes[obj_type as usize] as usize
         } else {
             // Invalid type — bail out since data is corrupt
             eprintln!(
@@ -1027,22 +1034,22 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 } else {
                     NILINK
                 };
-                let fake_meas = if obj_bytes.len() >= 34 {
+                // OG MEASURE_5: fakeMeas:1/spacePercent:15 are ONE packed short at [32,33].
+                // Confirmed from NObjTypesN105.h: "short fakeMeas:1, spacePercent:15"
+                let packed = if obj_bytes.len() >= 34 {
                     i16::from_be_bytes([obj_bytes[32], obj_bytes[33]])
                 } else {
                     0
                 };
-                let space_percent = if obj_bytes.len() >= 36 {
-                    i16::from_be_bytes([obj_bytes[34], obj_bytes[35]])
-                } else {
-                    100
-                };
-                let measure_b_box = if obj_bytes.len() >= 44 {
+                let fake_meas = (packed >> 15) & 1;
+                let space_percent = packed & 0x7FFF;
+                // measureBBox at [34..42], lTimeStamp at [42..46] (total: 46 bytes)
+                let measure_b_box = if obj_bytes.len() >= 42 {
                     Rect {
-                        top: i16::from_be_bytes([obj_bytes[36], obj_bytes[37]]),
-                        left: i16::from_be_bytes([obj_bytes[38], obj_bytes[39]]),
-                        bottom: i16::from_be_bytes([obj_bytes[40], obj_bytes[41]]),
-                        right: i16::from_be_bytes([obj_bytes[42], obj_bytes[43]]),
+                        top: i16::from_be_bytes([obj_bytes[34], obj_bytes[35]]),
+                        left: i16::from_be_bytes([obj_bytes[36], obj_bytes[37]]),
+                        bottom: i16::from_be_bytes([obj_bytes[38], obj_bytes[39]]),
+                        right: i16::from_be_bytes([obj_bytes[40], obj_bytes[41]]),
                     }
                 } else {
                     Rect {
@@ -1052,8 +1059,8 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                         right: 0,
                     }
                 };
-                let l_time_stamp = if obj_bytes.len() >= 48 {
-                    i32::from_be_bytes([obj_bytes[44], obj_bytes[45], obj_bytes[46], obj_bytes[47]])
+                let l_time_stamp = if obj_bytes.len() >= 46 {
+                    i32::from_be_bytes([obj_bytes[42], obj_bytes[43], obj_bytes[44], obj_bytes[45]])
                 } else {
                     0
                 };

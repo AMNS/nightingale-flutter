@@ -148,6 +148,22 @@ fn pack_objectheader_n105(header: &ObjectHeader, link_map: &LinkMap, buf: &mut [
         b11 |= 0x04; // bit 2
     }
     buf[11] = b11;
+
+    // Offset 12-19: objRect (top, left, bottom, right -- each i16 big-endian)
+    // Confirmed: OG OBJECTHEADER_5 macro: Rect objRect at (.+#12)
+    buf[12..14].copy_from_slice(&header.obj_rect.top.to_be_bytes());
+    buf[14..16].copy_from_slice(&header.obj_rect.left.to_be_bytes());
+    buf[16..18].copy_from_slice(&header.obj_rect.bottom.to_be_bytes());
+    buf[18..20].copy_from_slice(&header.obj_rect.right.to_be_bytes());
+
+    // Offset 20: relSize (SignedByte)
+    buf[20] = header.rel_size as u8;
+
+    // Offset 21: ohdrFiller2 (SignedByte)
+    buf[21] = header.ohdr_filler2 as u8;
+
+    // Offset 22: nEntries (Byte) -- confirmed: OG comment (.+#22)
+    buf[22] = header.n_entries;
 }
 
 // =============================================================================
@@ -239,7 +255,7 @@ pub fn pack_object_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> 
 /// Pack Type 0: HEADER (24 bytes).
 /// Minimal implementation: just OBJECTHEADER_5, no additional fields.
 fn pack_header_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 12];
+    let mut buf = vec![0u8; 24];
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
     buf
 }
@@ -259,29 +275,29 @@ fn pack_header_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Source: NObjTypesN105.h lines 125-132
 fn pack_page_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 52];
+    let mut buf = vec![0u8; 38];
 
     // Offset 0-31: OBJECTHEADER_5
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     // Extract type-specific fields from ObjData::Page variant
     if let ObjData::Page(page) = &obj.data {
-        // Offset 32-33: lPage (LINK, big-endian)
+        // Offset 24-25: lPage (LINK, big-endian)
         let lpage_idx = link_map.convert(page.l_page);
-        buf[32..34].copy_from_slice(&lpage_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&lpage_idx.to_be_bytes());
 
-        // Offset 34-35: rPage (LINK, big-endian)
+        // Offset 26-27: rPage (LINK, big-endian)
         let rpage_idx = link_map.convert(page.r_page);
-        buf[34..36].copy_from_slice(&rpage_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&rpage_idx.to_be_bytes());
 
-        // Offset 36-37: sheetNum (short, big-endian)
-        buf[36..38].copy_from_slice(&page.sheet_num.to_be_bytes());
+        // Offset 28-29: sheetNum (short, big-endian)
+        buf[28..30].copy_from_slice(&page.sheet_num.to_be_bytes());
 
-        // Offset 38-41: headerStrOffset (4 bytes - string pool offset)
-        buf[38..42].copy_from_slice(&page.header_str_offset.to_be_bytes());
+        // Offset 30-33: headerStrOffset (4 bytes - string pool offset)
+        buf[30..34].copy_from_slice(&page.header_str_offset.to_be_bytes());
 
-        // Offset 42-45: footerStrOffset (4 bytes - string pool offset)
-        buf[42..46].copy_from_slice(&page.footer_str_offset.to_be_bytes());
+        // Offset 34-37: footerStrOffset (4 bytes - string pool offset)
+        buf[34..38].copy_from_slice(&page.footer_str_offset.to_be_bytes());
     }
 
     buf
@@ -303,37 +319,37 @@ fn pack_page_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Source: NObjTypesN105.h lines 137-145
 fn pack_system_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 52];
+    let mut buf = vec![0u8; 44];
 
     // Offset 0-31: OBJECTHEADER_5
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     // Extract type-specific fields from ObjData::System variant
     if let ObjData::System(system) = &obj.data {
-        // Offset 32-33: lSystem (LINK, big-endian)
+        // Offset 24-25: lSystem (LINK, big-endian)
         let lsystem_idx = link_map.convert(system.l_system);
-        buf[32..34].copy_from_slice(&lsystem_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&lsystem_idx.to_be_bytes());
 
-        // Offset 34-35: rSystem (LINK, big-endian)
+        // Offset 26-27: rSystem (LINK, big-endian)
         let rsystem_idx = link_map.convert(system.r_system);
-        buf[34..36].copy_from_slice(&rsystem_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&rsystem_idx.to_be_bytes());
 
-        // Offset 36-37: pageL (LINK, big-endian)
+        // Offset 28-29: pageL (LINK, big-endian)
         let pagel_idx = link_map.convert(system.page_l);
-        buf[36..38].copy_from_slice(&pagel_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&pagel_idx.to_be_bytes());
 
-        // Offset 38-39: systemNum (short, big-endian)
-        buf[38..40].copy_from_slice(&system.system_num.to_be_bytes());
+        // Offset 30-31: systemNum (short, big-endian)
+        buf[30..32].copy_from_slice(&system.system_num.to_be_bytes());
 
-        // Offset 40-47: systemRect (DRect = 4 x DDIST/short, big-endian)
-        buf[40..42].copy_from_slice(&system.system_rect.top.to_be_bytes());
-        buf[42..44].copy_from_slice(&system.system_rect.left.to_be_bytes());
-        buf[44..46].copy_from_slice(&system.system_rect.bottom.to_be_bytes());
-        buf[46..48].copy_from_slice(&system.system_rect.right.to_be_bytes());
+        // Offset 32-39: systemRect (DRect = 4 x DDIST/short, big-endian)
+        buf[32..34].copy_from_slice(&system.system_rect.top.to_be_bytes());
+        buf[34..36].copy_from_slice(&system.system_rect.left.to_be_bytes());
+        buf[36..38].copy_from_slice(&system.system_rect.bottom.to_be_bytes());
+        buf[38..40].copy_from_slice(&system.system_rect.right.to_be_bytes());
 
-        // Offset 48-51: sysDescPtr (4 bytes - upper 32 bits of u64, big-endian)
+        // Offset 40-43: sysDescPtr (4 bytes, big-endian)
         let desc_ptr_bytes = system.sys_desc_ptr.to_be_bytes();
-        buf[48..52].copy_from_slice(&desc_ptr_bytes[4..8]); // Use lower 32 bits
+        buf[40..44].copy_from_slice(&desc_ptr_bytes[4..8]); // Use lower 32 bits
     }
 
     buf
@@ -352,24 +368,24 @@ fn pack_system_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Source: NObjTypesN105.h lines 182-187
 fn pack_staff_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 38];
+    let mut buf = vec![0u8; 30];
 
     // Offset 0-31: OBJECTHEADER_5
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     // Extract type-specific fields from ObjData::Staff variant
     if let ObjData::Staff(staff) = &obj.data {
-        // Offset 32-33: lStaff (LINK, big-endian)
+        // Offset 24-25: lStaff (LINK, big-endian)
         let lstaff_idx = link_map.convert(staff.l_staff);
-        buf[32..34].copy_from_slice(&lstaff_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&lstaff_idx.to_be_bytes());
 
-        // Offset 34-35: rStaff (LINK, big-endian)
+        // Offset 26-27: rStaff (LINK, big-endian)
         let rstaff_idx = link_map.convert(staff.r_staff);
-        buf[34..36].copy_from_slice(&rstaff_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&rstaff_idx.to_be_bytes());
 
-        // Offset 36-37: systemL (LINK, big-endian)
+        // Offset 28-29: systemL (LINK, big-endian)
         let systeml_idx = link_map.convert(staff.system_l);
-        buf[36..38].copy_from_slice(&systeml_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&systeml_idx.to_be_bytes());
     }
 
     buf
@@ -394,50 +410,47 @@ fn pack_staff_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Source: NObjTypesN105.h lines 212-223
 fn pack_measure_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 56];
+    let mut buf = vec![0u8; 46];
 
     // Offset 0-31: OBJECTHEADER_5
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     // Extract type-specific fields from ObjData::Measure variant
     if let ObjData::Measure(measure) = &obj.data {
-        // Offset 32: fillerM (SignedByte)
-        buf[32] = measure.filler_m as u8;
+        // Offset 23: fillerM (SignedByte)
+        buf[23] = measure.filler_m as u8;
 
-        // Offset 33: mac68k padding
-        // buf[33] stays 0
-
-        // Offset 34-35: lMeasure (LINK, big-endian)
+        // Offset 24-25: lMeasure (LINK, big-endian)
         let lmeasure_idx = link_map.convert(measure.l_measure);
-        buf[34..36].copy_from_slice(&lmeasure_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&lmeasure_idx.to_be_bytes());
 
-        // Offset 36-37: rMeasure (LINK, big-endian)
+        // Offset 26-27: rMeasure (LINK, big-endian)
         let rmeasure_idx = link_map.convert(measure.r_measure);
-        buf[36..38].copy_from_slice(&rmeasure_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&rmeasure_idx.to_be_bytes());
 
-        // Offset 38-39: systemL (LINK, big-endian)
+        // Offset 28-29: systemL (LINK, big-endian)
         let systeml_idx = link_map.convert(measure.system_l);
-        buf[38..40].copy_from_slice(&systeml_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&systeml_idx.to_be_bytes());
 
-        // Offset 40-41: staffL (LINK, big-endian)
+        // Offset 30-31: staffL (LINK, big-endian)
         let staffl_idx = link_map.convert(measure.staff_l);
-        buf[40..42].copy_from_slice(&staffl_idx.to_be_bytes());
+        buf[30..32].copy_from_slice(&staffl_idx.to_be_bytes());
 
-        // Offset 42-43: fakeMeas:1 | spacePercent:15 (bitfield in short)
+        // Offset 32-33: fakeMeas:1 | spacePercent:15 (bitfield in short)
         // fakeMeas in bit 15 (MSB), spacePercent in bits 14-0
         let fake_meas_bit = if measure.fake_meas != 0 { 0x8000u16 } else { 0 };
         let space_percent_bits = (measure.space_percent as u16) & 0x7FFF;
         let combined = fake_meas_bit | space_percent_bits;
-        buf[42..44].copy_from_slice(&combined.to_be_bytes());
+        buf[32..34].copy_from_slice(&combined.to_be_bytes());
 
-        // Offset 44-51: measureBBox (Rect = 4 x DDIST/short, big-endian)
-        buf[44..46].copy_from_slice(&measure.measure_b_box.top.to_be_bytes());
-        buf[46..48].copy_from_slice(&measure.measure_b_box.left.to_be_bytes());
-        buf[48..50].copy_from_slice(&measure.measure_b_box.bottom.to_be_bytes());
-        buf[50..52].copy_from_slice(&measure.measure_b_box.right.to_be_bytes());
+        // Offset 34-41: measureBBox (Rect = 4 x DDIST/short, big-endian)
+        buf[34..36].copy_from_slice(&measure.measure_b_box.top.to_be_bytes());
+        buf[36..38].copy_from_slice(&measure.measure_b_box.left.to_be_bytes());
+        buf[38..40].copy_from_slice(&measure.measure_b_box.bottom.to_be_bytes());
+        buf[40..42].copy_from_slice(&measure.measure_b_box.right.to_be_bytes());
 
-        // Offset 52-55: lTimeStamp (long/i32, big-endian)
-        buf[52..56].copy_from_slice(&measure.l_time_stamp.to_be_bytes());
+        // Offset 42-45: lTimeStamp (long/i32, big-endian)
+        buf[42..46].copy_from_slice(&measure.l_time_stamp.to_be_bytes());
     }
 
     buf
@@ -454,15 +467,16 @@ fn pack_measure_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Source: NObjTypesN105.h lines 98-101
 fn pack_sync_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
-    let mut buf = vec![0u8; 34];
+    let mut buf = vec![0u8; 26];
 
     // Offset 0-31: OBJECTHEADER_5
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     // Extract type-specific fields from ObjData::Sync variant
     if let ObjData::Sync(sync) = &obj.data {
-        // Offset 32-33: timeStamp (unsigned short, big-endian)
-        buf[32..34].copy_from_slice(&sync.time_stamp.to_be_bytes());
+        // Offset 24-25: timeStamp (unsigned short, big-endian)
+        // Note: 1 byte mac68k padding at offset 23 between header and timeStamp
+        buf[24..26].copy_from_slice(&sync.time_stamp.to_be_bytes());
     }
 
     buf
@@ -509,23 +523,19 @@ fn pack_rptend_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::RptEnd(rptend) = &obj.data {
-        // Offset 12-13: firstObj (LINK, big-endian)
+        // RPTEND_5: LINKs align to even after odd OBJ(23)
+        // [24..26] firstObj, [26..28] startRpt, [28..30] endRpt, [30] subType, [31] count
         let first_obj_idx = link_map.convert(rptend.first_obj);
-        buf[12..14].copy_from_slice(&first_obj_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&first_obj_idx.to_be_bytes());
 
-        // Offset 14-15: startRpt (LINK, big-endian)
         let start_rpt_idx = link_map.convert(rptend.start_rpt);
-        buf[14..16].copy_from_slice(&start_rpt_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&start_rpt_idx.to_be_bytes());
 
-        // Offset 16-17: endRpt (LINK, big-endian)
         let end_rpt_idx = link_map.convert(rptend.end_rpt);
-        buf[16..18].copy_from_slice(&end_rpt_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&end_rpt_idx.to_be_bytes());
 
-        // Offset 18: subType (RptEndType enum, i8)
-        buf[18] = rptend.sub_type as u8;
-
-        // Offset 19: count (repeat count, u8)
-        buf[19] = rptend.count;
+        buf[30] = rptend.sub_type as u8;
+        buf[31] = rptend.count;
     }
 
     buf
@@ -547,8 +557,8 @@ fn pack_clef_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Clef(clef) = &obj.data {
-        // Offset 12: inMeasure (bool)
-        buf[12] = if clef.in_measure { 1 } else { 0 };
+        // Offset 23: inMeasure (bool)
+        buf[23] = if clef.in_measure { 1 } else { 0 };
     }
 
     buf
@@ -570,8 +580,8 @@ fn pack_keysig_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::KeySig(keysig) = &obj.data {
-        // Offset 12: inMeasure (bool)
-        buf[12] = if keysig.in_measure { 1 } else { 0 };
+        // Offset 23: inMeasure (bool)
+        buf[23] = if keysig.in_measure { 1 } else { 0 };
     }
 
     buf
@@ -593,8 +603,8 @@ fn pack_timesig_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::TimeSig(timesig) = &obj.data {
-        // Offset 12: inMeasure (bool)
-        buf[12] = if timesig.in_measure { 1 } else { 0 };
+        // Offset 23: inMeasure (bool)
+        buf[23] = if timesig.in_measure { 1 } else { 0 };
     }
 
     buf
@@ -618,22 +628,22 @@ fn pack_beamset_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::BeamSet(beamset) = &obj.data {
-        // Offset 12: extHeader (u8)
-        buf[12] = beamset.ext_header.staffn as u8;
+        // Offset 23: extHeader (u8)
+        buf[23] = beamset.ext_header.staffn as u8;
 
-        // Offset 13: voice (i8)
-        buf[13] = beamset.voice as u8;
+        // Offset 24: voice (i8)
+        buf[24] = beamset.voice as u8;
 
-        // Offset 14: bitfield thin:1 | beamRests:1 | feather:2 | grace:1 | firstSystem:1 | crossStaff:1 | crossSystem:1
-        let mut b14: u8 = 0;
-        b14 |= (beamset.thin & 1) << 7;
-        b14 |= (beamset.beam_rests & 1) << 6;
-        b14 |= (beamset.feather & 0x03) << 4;
-        b14 |= (beamset.grace & 1) << 3;
-        b14 |= (beamset.first_system & 1) << 2;
-        b14 |= (beamset.cross_staff & 1) << 1;
-        b14 |= beamset.cross_system & 1;
-        buf[14] = b14;
+        // Offset 25: bitfield thin:1 | beamRests:1 | feather:2 | grace:1 | firstSystem:1 | crossStaff:1 | crossSystem:1
+        let mut b25: u8 = 0;
+        b25 |= (beamset.thin & 1) << 7;
+        b25 |= (beamset.beam_rests & 1) << 6;
+        b25 |= (beamset.feather & 0x03) << 4;
+        b25 |= (beamset.grace & 1) << 3;
+        b25 |= (beamset.first_system & 1) << 2;
+        b25 |= (beamset.cross_staff & 1) << 1;
+        b25 |= beamset.cross_system & 1;
+        buf[25] = b25;
     }
 
     buf
@@ -655,8 +665,8 @@ fn pack_connect_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Connect(_connect) = &obj.data {
-        // Offset 12-13: connFiller (LINK, typically NILINK)
-        buf[12..14].copy_from_slice(&(0i16).to_be_bytes()); // Usually NILINK
+        // CONNECT_5: LINK connFiller aligns to even after OBJ(23) → offset 24
+        buf[24..26].copy_from_slice(&(0i16).to_be_bytes());
     }
 
     buf
@@ -681,22 +691,20 @@ fn pack_dynamic_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Dynamic(dynamic) = &obj.data {
-        // Offset 12: dynamicType (i8)
-        buf[12] = dynamic.dynamic_type as u8;
+        // Offset 23: dynamicType (i8)
+        buf[23] = dynamic.dynamic_type as u8;
 
-        // Offset 13: filler:7 | crossSys:1
-        let mut b13: u8 = 0;
-        // filler is unused padding, set to 0
-        b13 |= if dynamic.cross_sys { 1 } else { 0 };
-        buf[13] = b13;
+        // Offset 24: filler:7 | crossSys:1
+        let mut b24: u8 = 0;
+        b24 |= if dynamic.cross_sys { 1 } else { 0 };
+        buf[24] = b24;
 
-        // Offset 14-15: firstSyncL (LINK, big-endian)
+        // DYNAMIC_5: LINKs align to even. [26..28] firstSyncL, [28..30] lastSyncL
         let first_sync_idx = link_map.convert(dynamic.first_sync_l);
-        buf[14..16].copy_from_slice(&first_sync_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&first_sync_idx.to_be_bytes());
 
-        // Offset 16-17: lastSyncL (LINK, big-endian)
         let last_sync_idx = link_map.convert(dynamic.last_sync_l);
-        buf[16..18].copy_from_slice(&last_sync_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&last_sync_idx.to_be_bytes());
     }
 
     buf
@@ -731,57 +739,58 @@ fn pack_graphic_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Graphic(graphic) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = graphic.ext_header.staffn as u8;
+        // Offset 23: staffn (ExtObjHeader)
+        buf[23] = graphic.ext_header.staffn as u8;
 
-        // Offset 13: graphicType
-        buf[13] = graphic.graphic_type as u8;
+        // Offset 24: graphicType
+        buf[24] = graphic.graphic_type as u8;
 
-        // Offset 14: voice
-        buf[14] = graphic.voice as u8;
+        // Offset 25: voice
+        buf[25] = graphic.voice as u8;
 
-        // Offset 15: enclosure:2 | justify:3 | vConstrain:1 | hConstrain:1
-        let mut b15: u8 = 0;
-        b15 |= (graphic.enclosure & 0x03) << 6;
-        b15 |= (graphic.justify & 0x07) << 3;
-        b15 |= (if graphic.v_constrain { 1 } else { 0 }) << 1;
-        b15 |= if graphic.h_constrain { 1 } else { 0 };
-        buf[15] = b15;
+        // Offset 26: enclosure:2|justify:3|vConstrain:1|hConstrain:1|multiLine:1
+        // Reader (interpret.rs) packs enclosure/justify/vConstrain/hConstrain into b26,
+        // and uses b26&1 for multiLine — all 5 fields share one byte.
+        let mut b26: u8 = 0;
+        b26 |= (graphic.enclosure & 0x03) << 6;
+        b26 |= (graphic.justify & 0x07) << 3;
+        b26 |= (if graphic.v_constrain { 1 } else { 0 }) << 2;
+        b26 |= (if graphic.h_constrain { 1 } else { 0 }) << 1;
+        b26 |= graphic.multi_line & 1;
+        buf[26] = b26;
 
-        // Offset 16: multiLine
-        buf[16] = graphic.multi_line;
+        // Offset 27: padding byte (reader skips this)
 
-        // Offset 17-18: info
-        buf[17..19].copy_from_slice(&graphic.info.to_be_bytes());
+        // Offset 28-29: info (short)
+        buf[28..30].copy_from_slice(&graphic.info.to_be_bytes());
 
-        // Offset 19-26: guHandle (8 bytes - typically 0)
-        buf[19..27].copy_from_slice(&graphic.gu_handle.to_be_bytes());
+        // Offset 30-33: gu union (4 bytes on 32-bit Mac; guThickness at [30-31])
+        // OG Handle = 4 bytes (32-bit pointer), not 8.
+        buf[30..32].copy_from_slice(&graphic.gu_thickness.to_be_bytes());
+        // [32-33] unused union bytes, stay zero
 
-        // Offset 27-28: guThickness
-        buf[27..29].copy_from_slice(&graphic.gu_thickness.to_be_bytes());
+        // Offset 34: fontInd
+        buf[34] = graphic.font_ind as u8;
 
-        // Offset 29: fontInd
-        buf[29] = graphic.font_ind as u8;
+        // Offset 35: relFSize:1 | fontSize:7
+        let mut b35: u8 = 0;
+        b35 |= (if graphic.rel_f_size != 0 { 1 } else { 0 }) << 7;
+        b35 |= graphic.font_size & 0x7F;
+        buf[35] = b35;
 
-        // Offset 30: relFSize:1 | fontSize:7
-        let mut b30: u8 = 0;
-        b30 |= (if graphic.rel_f_size != 0 { 1 } else { 0 }) << 7;
-        b30 |= graphic.font_size & 0x7F;
-        buf[30] = b30;
+        // Offset 36-37: fontStyle (short)
+        buf[36..38].copy_from_slice(&graphic.font_style.to_be_bytes());
 
-        // Offset 31-32: fontStyle
-        buf[31..33].copy_from_slice(&graphic.font_style.to_be_bytes());
+        // Offset 38-39: info2 (short)
+        buf[38..40].copy_from_slice(&graphic.info2.to_be_bytes());
 
-        // Offset 33-34: info2
-        buf[33..35].copy_from_slice(&graphic.info2.to_be_bytes());
-
-        // Offset 35-36: firstObj (LINK)
+        // Offset 40-41: firstObj (LINK)
         let first_obj_idx = link_map.convert(graphic.first_obj);
-        buf[35..37].copy_from_slice(&first_obj_idx.to_be_bytes());
+        buf[40..42].copy_from_slice(&first_obj_idx.to_be_bytes());
 
-        // Offset 37-38: lastObj (LINK)
+        // Offset 42-43: lastObj (LINK)
         let last_obj_idx = link_map.convert(graphic.last_obj);
-        buf[37..39].copy_from_slice(&last_obj_idx.to_be_bytes());
+        buf[42..44].copy_from_slice(&last_obj_idx.to_be_bytes());
     }
 
     buf
@@ -812,44 +821,36 @@ fn pack_ottava_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Ottava(ottava) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = ottava.ext_header.staffn as u8;
+        // Offset 23: extHeader
+        buf[23] = ottava.ext_header.staffn as u8;
 
-        // Offset 13: noCutoff:1 | crossStaff:1 | crossSystem:1 | octSignType:5
-        let mut b13: u8 = 0;
-        b13 |= (if ottava.no_cutoff != 0 { 1 } else { 0 }) << 7;
-        b13 |= (if ottava.cross_staff != 0 { 1 } else { 0 }) << 6;
-        b13 |= (if ottava.cross_system != 0 { 1 } else { 0 }) << 5;
-        b13 |= ottava.oct_sign_type & 0x1F;
-        buf[13] = b13;
+        // Offset 24: noCutoff:1 | crossStaff:1 | crossSystem:1 | octSignType:5
+        let mut b24: u8 = 0;
+        b24 |= (if ottava.no_cutoff != 0 { 1 } else { 0 }) << 7;
+        b24 |= (if ottava.cross_staff != 0 { 1 } else { 0 }) << 6;
+        b24 |= (if ottava.cross_system != 0 { 1 } else { 0 }) << 5;
+        b24 |= ottava.oct_sign_type & 0x1F;
+        buf[24] = b24;
 
-        // Offset 14: filler
-        buf[14] = ottava.filler as u8;
+        // Offset 25: filler
+        buf[25] = ottava.filler as u8;
 
-        // Offset 15: numberVis:1 | unused1:1 | brackVis:1 | unused2:5
-        let mut b15: u8 = 0;
-        b15 |= (if ottava.number_vis { 1 } else { 0 }) << 7;
-        b15 |= (if ottava.unused1 { 1 } else { 0 }) << 6;
-        b15 |= (if ottava.brack_vis { 1 } else { 0 }) << 5;
-        buf[15] = b15;
+        // Offset 26: numberVis:1 | unused1:1 | brackVis:1 | unused2:5
+        let mut b26: u8 = 0;
+        b26 |= (if ottava.number_vis { 1 } else { 0 }) << 7;
+        b26 |= (if ottava.unused1 { 1 } else { 0 }) << 6;
+        b26 |= (if ottava.brack_vis { 1 } else { 0 }) << 5;
+        buf[26] = b26;
 
-        // Offset 16-17: nxd (DDIST, big-endian)
-        buf[16..18].copy_from_slice(&ottava.nxd.to_be_bytes());
-
-        // Offset 18-19: nyd (DDIST, big-endian)
-        buf[18..20].copy_from_slice(&ottava.nyd.to_be_bytes());
-
-        // Offset 20-21: xdFirst (DDIST, big-endian)
-        buf[20..22].copy_from_slice(&ottava.xd_first.to_be_bytes());
-
-        // Offset 22-23: ydFirst (DDIST, big-endian)
-        buf[22..24].copy_from_slice(&ottava.yd_first.to_be_bytes());
-
-        // Offset 24-25: xdLast (DDIST, big-endian)
-        buf[24..26].copy_from_slice(&ottava.xd_last.to_be_bytes());
-
-        // Offset 26-27: ydLast (DDIST, big-endian)
-        buf[26..28].copy_from_slice(&ottava.yd_last.to_be_bytes());
+        // OTTAVA_5: DDISTs align to even after 4 byte fields at [23..27]
+        // [28..30] nxd, [30..32] nyd, [32..34] xdFirst, [34..36] ydFirst
+        // [36..38] xdLast, [38..40] ydLast
+        buf[28..30].copy_from_slice(&ottava.nxd.to_be_bytes());
+        buf[30..32].copy_from_slice(&ottava.nyd.to_be_bytes());
+        buf[32..34].copy_from_slice(&ottava.xd_first.to_be_bytes());
+        buf[34..36].copy_from_slice(&ottava.yd_first.to_be_bytes());
+        buf[36..38].copy_from_slice(&ottava.xd_last.to_be_bytes());
+        buf[38..40].copy_from_slice(&ottava.yd_last.to_be_bytes());
     }
 
     buf
@@ -876,34 +877,30 @@ fn pack_slur_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Slur(slur) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = slur.ext_header.staffn as u8;
+        // SLUR_5 after OBJECTHEADER_5(23):
+        // [23] staffn (EXTOBJHEADER, 1 byte)
+        // [24] voice (SignedByte)
+        // [25] bitfields: filler:2|crossStaff:1|crossStfBack:1|crossSystem:1|tempFlag:1|used:1|tie:1
+        // [26..28] firstSyncL (LINK, aligns to even — 26 is even ✓)
+        // [28..30] lastSyncL (LINK)
+        buf[23] = slur.ext_header.staffn as u8;
+        buf[24] = slur.voice as u8;
 
-        // Offset 13: voice
-        buf[13] = slur.voice as u8;
+        let mut b25: u8 = 0;
+        b25 |= (slur.philler & 0x03) << 6;
+        b25 |= (if slur.cross_staff != 0 { 1 } else { 0 }) << 5;
+        b25 |= (if slur.cross_stf_back != 0 { 1 } else { 0 }) << 4;
+        b25 |= (if slur.cross_system != 0 { 1 } else { 0 }) << 3;
+        b25 |= (if slur.temp_flag { 1 } else { 0 }) << 2;
+        b25 |= (if slur.used { 1 } else { 0 }) << 1;
+        b25 |= if slur.tie { 1 } else { 0 };
+        buf[25] = b25;
 
-        // Offset 14: philler:2 | crossStaff:1 | crossStfBack:1 | crossSystem:1 | unused:3
-        let mut b14: u8 = 0;
-        b14 |= (slur.philler & 0x03) << 6;
-        b14 |= (if slur.cross_staff != 0 { 1 } else { 0 }) << 4;
-        b14 |= (if slur.cross_stf_back != 0 { 1 } else { 0 }) << 3;
-        b14 |= (if slur.cross_system != 0 { 1 } else { 0 }) << 2;
-        buf[14] = b14;
-
-        // Offset 15: tempFlag:1 | used:1 | tie:1 | unused:5
-        let mut b15: u8 = 0;
-        b15 |= (if slur.temp_flag { 1 } else { 0 }) << 7;
-        b15 |= (if slur.used { 1 } else { 0 }) << 6;
-        b15 |= (if slur.tie { 1 } else { 0 }) << 5;
-        buf[15] = b15;
-
-        // Offset 16-17: firstSyncL (LINK, big-endian)
         let first_sync_idx = link_map.convert(slur.first_sync_l);
-        buf[16..18].copy_from_slice(&first_sync_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&first_sync_idx.to_be_bytes());
 
-        // Offset 18-19: lastSyncL (LINK, big-endian)
         let last_sync_idx = link_map.convert(slur.last_sync_l);
-        buf[18..20].copy_from_slice(&last_sync_idx.to_be_bytes());
+        buf[28..30].copy_from_slice(&last_sync_idx.to_be_bytes());
     }
 
     buf
@@ -939,50 +936,32 @@ fn pack_tuplet_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Tuplet(tuplet) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = tuplet.ext_header.staffn as u8;
+        // TUPLET_5 after OBJECTHEADER_5(23):
+        // [23] staffn (EXTOBJHEADER)
+        // [24] accNum, [25] accDenom, [26] voice
+        // [27] bitfields: numVis:1|denomVis:1|brackVis:1|small:2|filler:3
+        // [28..30] acnxd (DDIST, aligns to 28 even ✓)
+        // [30..32] acnyd, [32..34] xdFirst, [34..36] ydFirst
+        // [36..38] xdLast, [38..40] ydLast
+        buf[23] = tuplet.ext_header.staffn as u8;
+        buf[24] = tuplet.acc_num;
+        buf[25] = tuplet.acc_denom;
+        buf[26] = tuplet.voice as u8;
 
-        // Offset 13: accNum
-        buf[13] = tuplet.acc_num;
+        let mut b27: u8 = 0;
+        b27 |= (tuplet.num_vis & 1) << 7;
+        b27 |= (tuplet.denom_vis & 1) << 6;
+        b27 |= (tuplet.brack_vis & 1) << 5;
+        b27 |= (tuplet.small & 0x03) << 3;
+        b27 |= tuplet.filler & 0x07;
+        buf[27] = b27;
 
-        // Offset 14: accDenom
-        buf[14] = tuplet.acc_denom;
-
-        // Offset 15: voice
-        buf[15] = tuplet.voice as u8;
-
-        // Offset 16: numVis
-        buf[16] = tuplet.num_vis;
-
-        // Offset 17: denomVis
-        buf[17] = tuplet.denom_vis;
-
-        // Offset 18: brackVis
-        buf[18] = tuplet.brack_vis;
-
-        // Offset 19: small
-        buf[19] = tuplet.small;
-
-        // Offset 20: filler
-        buf[20] = tuplet.filler;
-
-        // Offset 21-22: acnxd (DDIST, big-endian)
-        buf[21..23].copy_from_slice(&tuplet.acnxd.to_be_bytes());
-
-        // Offset 23-24: acnyd (DDIST, big-endian)
-        buf[23..25].copy_from_slice(&tuplet.acnyd.to_be_bytes());
-
-        // Offset 25-26: xdFirst (DDIST, big-endian)
-        buf[25..27].copy_from_slice(&tuplet.xd_first.to_be_bytes());
-
-        // Offset 27-28: ydFirst (DDIST, big-endian)
-        buf[27..29].copy_from_slice(&tuplet.yd_first.to_be_bytes());
-
-        // Offset 29-30: xdLast (DDIST, big-endian)
-        buf[29..31].copy_from_slice(&tuplet.xd_last.to_be_bytes());
-
-        // Offset 31-32: ydLast (DDIST, big-endian)
-        buf[31..33].copy_from_slice(&tuplet.yd_last.to_be_bytes());
+        buf[28..30].copy_from_slice(&tuplet.acnxd.to_be_bytes());
+        buf[30..32].copy_from_slice(&tuplet.acnyd.to_be_bytes());
+        buf[32..34].copy_from_slice(&tuplet.xd_first.to_be_bytes());
+        buf[34..36].copy_from_slice(&tuplet.yd_first.to_be_bytes());
+        buf[36..38].copy_from_slice(&tuplet.xd_last.to_be_bytes());
+        buf[38..40].copy_from_slice(&tuplet.yd_last.to_be_bytes());
     }
 
     buf
@@ -1001,7 +980,7 @@ fn pack_tuplet_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 fn pack_grsync_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 24];
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
-    // GRSYNC is just header + reserved
+
     buf
 }
 
@@ -1027,33 +1006,33 @@ fn pack_tempo_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Tempo(tempo) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = tempo.ext_header.staffn as u8;
+        // Offset 23: extHeader
+        buf[23] = tempo.ext_header.staffn as u8;
 
-        // Offset 13: subType
-        buf[13] = tempo.sub_type as u8;
+        // Offset 24: subType (beat unit)
+        buf[24] = tempo.sub_type as u8;
 
-        // Offset 14: expanded:1 | noMM:1 | filler:4 | dotted:1 | hideMM:1
-        let mut b14: u8 = 0;
-        b14 |= (if tempo.expanded { 1 } else { 0 }) << 7;
-        b14 |= (if tempo.no_mm { 1 } else { 0 }) << 6;
-        b14 |= (tempo.filler & 0x0F) << 2;
-        b14 |= (if tempo.dotted { 1 } else { 0 }) << 1;
-        b14 |= if tempo.hide_mm { 1 } else { 0 };
-        buf[14] = b14;
+        // Offset 25: expanded:1 | noMM:1 | filler:4 | dotted:1 | hideMM:1
+        let mut b25: u8 = 0;
+        b25 |= (if tempo.expanded { 1 } else { 0 }) << 7;
+        b25 |= (if tempo.no_mm { 1 } else { 0 }) << 6;
+        b25 |= (tempo.filler & 0x0F) << 2;
+        b25 |= (if tempo.dotted { 1 } else { 0 }) << 1;
+        b25 |= if tempo.hide_mm { 1 } else { 0 };
+        buf[25] = b25;
 
-        // Offset 15-16: tempoMM (i16, big-endian)
-        buf[15..17].copy_from_slice(&tempo.tempo_mm.to_be_bytes());
+        // Offset 26-27: tempoMM (i16)
+        buf[26..28].copy_from_slice(&tempo.tempo_mm.to_be_bytes());
 
-        // Offset 17-20: strOffset (u32/StringOffset, big-endian)
-        buf[17..21].copy_from_slice(&tempo.str_offset.to_be_bytes());
+        // Offset 28-31: strOffset (u32)
+        buf[28..32].copy_from_slice(&tempo.str_offset.to_be_bytes());
 
-        // Offset 21-22: firstObjL (LINK, big-endian)
+        // Offset 32-33: firstObjL (LINK)
         let first_obj_idx = link_map.convert(tempo.first_obj_l);
-        buf[21..23].copy_from_slice(&first_obj_idx.to_be_bytes());
+        buf[32..34].copy_from_slice(&first_obj_idx.to_be_bytes());
 
-        // Offset 23-26: metroStrOffset (u32/StringOffset, big-endian)
-        buf[23..27].copy_from_slice(&tempo.metro_str_offset.to_be_bytes());
+        // Offset 34-37: metroStrOffset (u32)
+        buf[34..38].copy_from_slice(&tempo.metro_str_offset.to_be_bytes());
     }
 
     buf
@@ -1077,14 +1056,14 @@ fn pack_spacer_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Spacer(spacer) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = spacer.ext_header.staffn as u8;
+        // Offset 23: extHeader
+        buf[23] = spacer.ext_header.staffn as u8;
 
-        // Offset 13: bottomStaff
-        buf[13] = spacer.bottom_staff as u8;
+        // Offset 24: bottomStaff
+        buf[24] = spacer.bottom_staff as u8;
 
-        // Offset 14-15: spWidth (STDIST, big-endian)
-        buf[14..16].copy_from_slice(&spacer.sp_width.to_be_bytes());
+        // SPACER_5: STDIST(short) aligns to even: [26..28] spWidth
+        buf[26..28].copy_from_slice(&spacer.sp_width.to_be_bytes());
     }
 
     buf
@@ -1111,26 +1090,26 @@ fn pack_ending_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::Ending(ending) = &obj.data {
-        // Offset 12: extHeader
-        buf[12] = ending.ext_header.staffn as u8;
+        // Offset 23: extHeader
+        buf[23] = ending.ext_header.staffn as u8;
 
-        // Offset 13-14: firstObjL (LINK, big-endian)
+        // Offset 24-25: firstObjL (LINK)
         let first_obj_idx = link_map.convert(ending.first_obj_l);
-        buf[13..15].copy_from_slice(&first_obj_idx.to_be_bytes());
+        buf[24..26].copy_from_slice(&first_obj_idx.to_be_bytes());
 
-        // Offset 15-16: lastObjL (LINK, big-endian)
+        // Offset 26-27: lastObjL (LINK)
         let last_obj_idx = link_map.convert(ending.last_obj_l);
-        buf[15..17].copy_from_slice(&last_obj_idx.to_be_bytes());
+        buf[26..28].copy_from_slice(&last_obj_idx.to_be_bytes());
 
-        // Offset 17: noLCutoff:1 | noRCutoff:1 | endNum:6
-        let mut b17: u8 = 0;
-        b17 |= (if ending.no_l_cutoff != 0 { 1 } else { 0 }) << 7;
-        b17 |= (if ending.no_r_cutoff != 0 { 1 } else { 0 }) << 6;
-        b17 |= ending.end_num & 0x3F;
-        buf[17] = b17;
+        // Offset 28: noLCutoff:1 | noRCutoff:1 | endNum:6
+        let mut b28: u8 = 0;
+        b28 |= (if ending.no_l_cutoff != 0 { 1 } else { 0 }) << 7;
+        b28 |= (if ending.no_r_cutoff != 0 { 1 } else { 0 }) << 6;
+        b28 |= ending.end_num & 0x3F;
+        buf[28] = b28;
 
-        // Offset 18-19: endxd (DDIST, big-endian)
-        buf[18..20].copy_from_slice(&ending.endxd.to_be_bytes());
+        // ENDING_5: DDIST endxd aligns to even after byte at 28: [30..32]
+        buf[30..32].copy_from_slice(&ending.endxd.to_be_bytes());
     }
 
     buf
@@ -1152,8 +1131,8 @@ fn pack_psmeas_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
     if let ObjData::PsMeas(psmeas) = &obj.data {
-        // Offset 12: filler
-        buf[12] = psmeas.filler as u8;
+        // Offset 23: filler
+        buf[23] = psmeas.filler as u8;
     }
 
     buf
@@ -1189,8 +1168,11 @@ pub fn serialize_object_heap(score: &InterpretedScore, mut link_map: LinkMap) ->
         object_data.extend_from_slice(&packed);
     }
 
-    // Calculate total size: 4-byte size field + object data
-    let total_size = 4 + object_data.len() as u32;
+    // OG sizeAllObjsFile = bytes of object data only (does NOT include itself).
+    // Confirmed from HeapFileIO.cp line 298:
+    //   sizeAllObjsFile = endPosition - startPosition - sizeof(long)
+    // where startPosition is captured before writing the 4-byte placeholder.
+    let total_size = object_data.len() as u32;
 
     // Build final heap: size field (4 bytes) + object data
     let mut heap_bytes = Vec::new();
@@ -1209,21 +1191,18 @@ mod tests {
     fn test_link_map_basic() {
         let mut map = LinkMap::new();
 
-        // Register some links
         let idx1 = map.register(42);
         let idx2 = map.register(100);
-        let idx3 = map.register(42); // Duplicate should return same index
+        let idx3 = map.register(42); // duplicate
 
-        // Verify sequential indexing
         assert_eq!(idx1, 1);
         assert_eq!(idx2, 2);
-        assert_eq!(idx3, 1); // Same as first
+        assert_eq!(idx3, 1);
 
-        // Verify conversion
         assert_eq!(map.convert(42), 1);
         assert_eq!(map.convert(100), 2);
         assert_eq!(map.convert(0), 0); // NILINK stays 0
-        assert_eq!(map.convert(999), 0); // Unregistered returns 0
+        assert_eq!(map.convert(999), 0); // unregistered returns 0
     }
 
     #[test]
@@ -1249,36 +1228,31 @@ mod tests {
         map.register(20);
         map.register(30);
 
-        let mut buf = vec![0u8; 12];
+        let mut buf = vec![0u8; 23];
         pack_objectheader_n105(&header, &map, &mut buf);
 
-        // Verify header structure
-        assert_eq!(buf.len(), 12);
-        // Check LINK conversions (should be sequential indices)
-        let right_idx = i16::from_be_bytes([buf[0], buf[1]]);
-        let left_idx = i16::from_be_bytes([buf[2], buf[3]]);
-        let first_sub_idx = i16::from_be_bytes([buf[4], buf[5]]);
-        assert_eq!(right_idx, 1); // First registered
-        assert_eq!(left_idx, 2); // Second registered
-        assert_eq!(first_sub_idx, 3); // Third registered
+        assert_eq!(buf.len(), 23);
 
-        // Check coordinates
-        let xd = i16::from_be_bytes([buf[6], buf[7]]);
-        let yd = i16::from_be_bytes([buf[8], buf[9]]);
-        assert_eq!(xd, 100);
-        assert_eq!(yd, 200);
+        // LINKs converted to sequential file indices
+        assert_eq!(i16::from_be_bytes([buf[0], buf[1]]), 1); // right
+        assert_eq!(i16::from_be_bytes([buf[2], buf[3]]), 2); // left
+        assert_eq!(i16::from_be_bytes([buf[4], buf[5]]), 3); // firstSubObj
 
-        // Check type
+        // Coordinates
+        assert_eq!(i16::from_be_bytes([buf[6], buf[7]]), 100); // xd
+        assert_eq!(i16::from_be_bytes([buf[8], buf[9]]), 200); // yd
+
+        // Type byte
         assert_eq!(buf[10], 2);
 
-        // Check bitfield (selected and visible should be set)
+        // Bitfield: selected (bit 7) and visible (bit 6) set
         assert_eq!(buf[11] & 0xC0, 0xC0);
     }
 
     #[test]
     fn test_pack_objectheader_nilink() {
         let header = ObjectHeader {
-            right: 0, // NILINK
+            right: 0,
             left: 0,
             first_sub_obj: 0,
             xd: 50,
@@ -1294,18 +1268,15 @@ mod tests {
         };
 
         let map = LinkMap::new();
-        let mut buf = vec![0u8; 12];
+        let mut buf = vec![0u8; 23];
         pack_objectheader_n105(&header, &map, &mut buf);
 
-        // NILINK values (0) should stay 0
-        let right_idx = i16::from_be_bytes([buf[0], buf[1]]);
-        let left_idx = i16::from_be_bytes([buf[2], buf[3]]);
-        let first_sub_idx = i16::from_be_bytes([buf[4], buf[5]]);
-        assert_eq!(right_idx, 0);
-        assert_eq!(left_idx, 0);
-        assert_eq!(first_sub_idx, 0);
+        // NILINK (0) stays 0
+        assert_eq!(i16::from_be_bytes([buf[0], buf[1]]), 0);
+        assert_eq!(i16::from_be_bytes([buf[2], buf[3]]), 0);
+        assert_eq!(i16::from_be_bytes([buf[4], buf[5]]), 0);
 
-        // Bitfield: soft (bit 5) and tweaked (bit 3) should be set
+        // Bitfield: soft (bit 5) and tweaked (bit 3) set
         assert_eq!(buf[11] & 0x28, 0x28);
     }
 }
