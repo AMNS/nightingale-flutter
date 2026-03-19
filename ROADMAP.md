@@ -13,12 +13,12 @@
 
 ### Priority Tasks
 
-**1. NGL Binary Writer (Tier 1 — HIGH PRIORITY)**
-- **Status**: 80% complete (skeleton + serialization infrastructure exists)
-- **Remaining**: LINK conversion, full integration test, round-trip validation
-- **Value**: Enables save functionality, closes read/write loop
-- **Effort**: 2-3 focused sessions
-- **Files**: `src/ngl/writer.rs`, `src/ngl/pack_*.rs`
+**1. NGL Binary Writer ✅ COMPLETE**
+- **Status**: 100% complete — all 26 fixtures pass round-trip validation
+- **Implementation**: Full N105 writer with object/subobject serialization, LINK conversion, endian handling
+- **Tests**: `test_roundtrip_all_fixtures` validates read → write → read cycle
+- **Files**: `src/ngl/writer.rs` (600 lines), `src/ngl/pack_*.rs` (1300+ lines)
+- **Achievement**: Save functionality now fully operational
 
 **2. MIDI Export Polish (Tier 1 — MEDIUM PRIORITY)**
 - **Status**: Basic infrastructure complete (`src/midi/export.rs`)

@@ -1,13 +1,14 @@
 # Nightingale Modernization — Progress Tracker
 
-## Active Work: Phase A (Complete the Core) — NGL Writer + MIDI Export
+## Active Work: Phase A (Complete the Core) — MIDI Export Polish
 
 **Last Updated**: March 19, 2026
 
 **Recent Updates**:
 - ✅ Cruft cleanup complete: Deleted 3.2GB obsolete builds, 11 analysis files from root
 - ✅ Documentation consolidated: ENGRAVING_GAPS.md, ROADMAP.md updated with Phase A/B/C structure
-- 🎯 **Next**: NGL binary writer completion → MIDI export polish
+- ✅ **NGL Binary Writer COMPLETE**: All 26 fixtures pass round-trip validation (read → write → read)
+- 🎯 **Next**: MIDI export assessment + polish (tempo map, dynamics velocity)
 
 ## Phase 0: Source Archaeology — COMPLETE
 - [x] Classify core source files by role (DATA_MODEL / ENGRAVING / UI / PLATFORM)
@@ -66,11 +67,13 @@ All OG drawing functions ported. Remaining work is engraving polish only.
 - [ ] SMuFL metadata loading (anchors, engraving defaults)
 - [~] RPTEND subtypes RPT_DC/DS/SEGNO — OG also logs errors for these; no fixtures use them
 
-### In Progress
-- [~] .ngl binary writer — Skeleton implemented (src/ngl/writer.rs), full implementation pending
-  - File structure and API designed
-  - OG source analyzed (FileSave.cp, HeapFileIO.cp, EndianUtils.cp)
-  - TODO: LINK conversion, endian handling, object/subobject packing
+### Complete
+- [x] **.ngl binary writer — COMPLETE (March 19, 2026)**
+  - Full N105 format writer: `src/ngl/writer.rs` (600 lines) + `src/ngl/pack_*.rs` (1300+ lines)
+  - Object heap serialization: All 24 object types with LINK backpatching
+  - Subobject heap serialization: ASTAFF, AMEASURE (critical types for all fixtures)
+  - Round-trip validation: 26/26 fixtures pass (test_roundtrip_all_fixtures)
+  - Save functionality now fully operational
 
 ## Phase 3: Engraving Engine — MOSTLY COMPLETE
 - [x] Beam.cp → beam.rs (GetBeamEndYStems, FixSyncInBeamset, cross-staff beams)
