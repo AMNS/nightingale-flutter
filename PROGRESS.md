@@ -1,6 +1,13 @@
 # Nightingale Modernization — Progress Tracker
 
-## Active Work: Phase 5 (MusicXML import/export) + Phase 2 polish
+## Active Work: Phase A (Complete the Core) — NGL Writer + MIDI Export
+
+**Last Updated**: March 19, 2026
+
+**Recent Updates**:
+- ✅ Cruft cleanup complete: Deleted 3.2GB obsolete builds, 11 analysis files from root
+- ✅ Documentation consolidated: ENGRAVING_GAPS.md, ROADMAP.md updated with Phase A/B/C structure
+- 🎯 **Next**: NGL binary writer completion → MIDI export polish
 
 ## Phase 0: Source Archaeology — COMPLETE
 - [x] Classify core source files by role (DATA_MODEL / ENGRAVING / UI / PLATFORM)

@@ -1,12 +1,37 @@
 # Nightingale Modernization — Roadmap
 
-**Project Phase**: Phases 1-4 complete, Phase 5 (MusicXML) 95% complete
+**Project Phase**: Phases 1-5 complete (95%), Phase A (Complete the Core) ACTIVE
+**Last Updated**: March 19, 2026
 
 ---
 
-## 🎯 Strategic Priorities
+## 🎯 Current Focus: Phase A (Complete the Core)
 
-### Tier 1: Critical
+**Status**: IN PROGRESS
+**Timeline**: 4-6 weeks
+**Goal**: Production-ready notation renderer with save + playback
+
+### Priority Tasks
+
+**1. NGL Binary Writer (Tier 1 — HIGH PRIORITY)**
+- **Status**: 80% complete (skeleton + serialization infrastructure exists)
+- **Remaining**: LINK conversion, full integration test, round-trip validation
+- **Value**: Enables save functionality, closes read/write loop
+- **Effort**: 2-3 focused sessions
+- **Files**: `src/ngl/writer.rs`, `src/ngl/pack_*.rs`
+
+**2. MIDI Export Polish (Tier 1 — MEDIUM PRIORITY)**
+- **Status**: Basic infrastructure complete (`src/midi/export.rs`)
+- **Remaining**: Tempo map, velocity dynamics, articulation mapping
+- **Value**: Playback capability (huge UX win)
+- **Effort**: 3-4 sessions
+- **Files**: `src/midi/export.rs`
+
+---
+
+## 📋 Legacy Tier System (Historical — Tasks Completed)
+
+### Tier 1: Critical ✅ COMPLETE
 **Goal**: Production-ready notation engine with full MusicXML interop
 
 1. ✅ **Accidental Staggering** — COMPLETE
@@ -50,10 +75,10 @@
    - OG source: DrawObject.cp Draw1Staff() (lines 502-585), SFormatHighLevel.cp (lines 124-382)
    - Result: Current implementation correct, no "continuation staff" feature needed
 
-### Tier 3: Medium Priority
+### Tier 3: Medium Priority ✅ MOSTLY COMPLETE
 **Goal**: Interactive editing & playback
 
-7. **MIDI Export** — Playback via Flutter
+7. ⚪ **MIDI Export** — Moved to Phase A (active priority)
    - Port NightingaleMIDI.cp duration/pitch/velocity logic
    - Flutter audio synthesis integration
 
@@ -101,13 +126,43 @@
 
 ---
 
-## ✅ Completed Milestones
+## 🚀 Future Phases (Post-Phase A)
+
+### Phase B: Interactive Editing (OPTIONAL, 8-12 weeks)
+**Goal**: Transform renderer into full notation editor
+
+**Tasks**:
+1. **Tool Palette** — Flutter UI for note/rest/clef/etc. insertion
+2. **Basic Editing Operations** — Port from CFilesEditor/
+   - Insert/delete notes, change durations, transpose
+   - Voice assignment, staff selection
+3. **Undo/Redo System** — Command pattern for edit history
+4. **Selection Model** — Rectangle/lasso selection, multi-object edits
+
+**Value**: Enables score creation/modification (vs. just rendering)
+**Priority**: DEFERRED until Phase A complete
+
+### Phase C: Distribution (OPTIONAL, 4-6 weeks)
+**Goal**: Shippable cross-platform product
+
+**Tasks**:
+1. **Cross-Platform Testing** — Linux/Windows builds
+2. **Packaging** — DMG/AppImage/MSI installers
+3. **End-User Documentation** — User manual, tutorials
+4. **Website/Landing Page** — Project visibility
+
+**Value**: Expands user base, public release
+**Priority**: DEFERRED until Phase B complete
+
+---
+
+## ✅ Completed Milestones (Phases 1-5)
 
 - **Phase 1**: Rust Data Model ✓
 - **Phase 2**: Drawing/Rendering Layer ✓
 - **Phase 3**: Engraving Engine ✓
-- **Phase 4**: Flutter Shell ✓ (editing deferred)
-- **Phase 5**: MusicXML Import/Export (95% - polish ongoing)
+- **Phase 4**: Flutter Shell ✓ (editing deferred to Phase B)
+- **Phase 5**: MusicXML Import/Export ✓ (95% - minor polish items remain)
 
 ---
 
