@@ -695,6 +695,23 @@ impl MidiExporter {
 
         // Sort all events by time for correct playback order
         self.timed_events.sort_by_key(|ev| ev.time);
+
+        // Normalize timing: shift all events so the first NoteOn starts at time 0
+        // This compensates for any inherent offset in the score representation
+        // and ensures MIDI playback starts immediately without intro silence
+        let min_note_time = self
+            .timed_events
+            .iter()
+            .filter(|ev| matches!(ev.event, MidiEvent::NoteOn { .. }))
+            .map(|ev| ev.time)
+            .min()
+            .unwrap_or(0);
+
+        if min_note_time > 0 {
+            for event in &mut self.timed_events {
+                event.time = event.time.saturating_sub(min_note_time);
+            }
+        }
     }
 
     /// Serialize to Standard MIDI File bytes
