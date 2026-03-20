@@ -22,6 +22,7 @@ pub mod draw;
 pub mod duration;
 pub mod layout;
 pub mod limits;
+pub mod midi;
 pub mod music_font;
 pub mod musicxml;
 pub mod ngl;

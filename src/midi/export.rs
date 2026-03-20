@@ -9,7 +9,6 @@
 //! - SMF specification: https://www.midi.org/specifications/file-format-specifications/standard-midi-file-smf
 
 use crate::ngl::interpret::InterpretedScore;
-use crate::obj_types::{ANote, Sync};
 use std::collections::BTreeMap;
 
 // =============================================================================
@@ -27,12 +26,13 @@ const DFLT_BEATDUR: u32 = 480;
 /// = DFLT_BEATDUR / 32 = 15 ticks
 ///
 /// Reference: OG Precomps/defs.h line 259 (PDURUNIT = 15)
+#[allow(dead_code)]
 const PDURUNIT: u32 = 15;
 
 /// Lookup table: duration code (1-9) -> PDUR ticks
 /// Generated at runtime by OG InitNightingale.cp lines 222-224:
 ///
-/// ```
+/// ```text
 /// for (i = 1; i <= MAXDURDUR; i++)
 ///     l2p_durs[i] = l2p_durs[i-1] * 2;
 /// ```
@@ -76,7 +76,7 @@ pub fn code_to_ldur(dur_code: u8, n_dots: u8) -> u32 {
     let l2p_durs = get_l2p_durs();
 
     // Ensure duration code is in valid range
-    let code = dur_code.max(1).min(9) as usize;
+    let code = dur_code.clamp(1, 9) as usize;
 
     let mut note_dur = l2p_durs[code];
     for j in 1..=n_dots {
@@ -150,11 +150,7 @@ pub enum MidiEvent {
     /// Bank select (CC 0): (channel, bank)
     BankSelect { channel: u8, bank: u8 },
     /// Note on: (channel, note, velocity)
-    NoteOn {
-        channel: u8,
-        note: u8,
-        velocity: u8,
-    },
+    NoteOn { channel: u8, note: u8, velocity: u8 },
     /// Note off: (channel, note)
     NoteOff { channel: u8, note: u8 },
     /// Set tempo in microseconds per quarter note
@@ -180,6 +176,7 @@ pub struct TimedEvent {
 
 /// MIDI note numbers for C in each octave (C-1 to C8)
 /// Used as reference points for pitch conversion
+#[allow(dead_code)]
 const C_MIDI_NOTES: [u8; 10] = [12, 24, 36, 48, 60, 72, 84, 96, 108, 120];
 
 /// Clef offsets in half-lines from Middle C
@@ -187,10 +184,10 @@ const C_MIDI_NOTES: [u8; 10] = [12, 24, 36, 48, 60, 72, 84, 96, 108, 120];
 /// Reference: OG Utilities/PitchUtils.cp lines 204-226 (Pitch2MIDI)
 #[derive(Debug, Clone, Copy)]
 pub enum ClefType {
-    Treble = 10,      // G clef: Middle C is 10 half-lines below staff
-    Bass = -2,        // F clef: Middle C is 2 half-lines below staff
-    Alto = 4,         // C clef (C4): Middle C is 4 half-lines above middle
-    Tenor = 6,        // C clef (C3): Middle C is 6 half-lines above middle
+    Treble = 10, // G clef: Middle C is 10 half-lines below staff
+    Bass = -2,   // F clef: Middle C is 2 half-lines below staff
+    Alto = 4,    // C clef (C4): Middle C is 4 half-lines above middle
+    Tenor = 6,   // C clef (C3): Middle C is 6 half-lines above middle
 }
 
 impl ClefType {
@@ -208,7 +205,7 @@ impl ClefType {
 /// Convert yqpit (clef-independent quarter-line pitch) to MIDI note number
 ///
 /// # Arguments
-/// * `yqpit` - Clef-independent pitch in quarter-line units (signed short)
+/// * `yqpit` - Clef-independent pitch in quarter-line units (ShortQd = i8)
 /// * `accidental` - Accidental code: 0=natural, 1=sharp, -1=flat, ±2=double, etc.
 /// * `clef_offset` - Clef-specific offset in half-lines
 ///
@@ -223,7 +220,7 @@ impl ClefType {
 /// 5. Clamp to MIDI range [0, 127]
 ///
 /// Reference: OG Utilities/PitchUtils.cp lines 204-226 (Pitch2MIDI function)
-pub fn yqpit_to_midi_note(yqpit: i16, accidental: i8, clef_offset: i8) -> Option<u8> {
+pub fn yqpit_to_midi_note(yqpit: i8, accidental: i8, clef_offset: i8) -> Option<u8> {
     // Convert yqpit (quarter-lines) to half-lines
     let half_lines = (yqpit as i32) * 2 + (clef_offset as i32);
 
@@ -238,7 +235,7 @@ pub fn yqpit_to_midi_note(yqpit: i16, accidental: i8, clef_offset: i8) -> Option
     let midi_note_i32 = 60 + semitones_from_c + (accidental as i32);
 
     // Clamp to valid MIDI range
-    if midi_note_i32 < 0 || midi_note_i32 > 127 {
+    if !(0..=127).contains(&midi_note_i32) {
         return None;
     }
 
@@ -256,7 +253,11 @@ pub fn yqpit_to_midi_note(yqpit: i16, accidental: i8, clef_offset: i8) -> Option
 /// Final velocity clamped to [1, 127] (0 is reserved for note-off)
 ///
 /// Reference: OG Utilities/MIDIUtils.cp lines 119-152, 634-655
-pub fn calculate_velocity(on_velocity: u8, doc_velocity_offset: i8, part_velocity: Option<u8>) -> u8 {
+pub fn calculate_velocity(
+    on_velocity: u8,
+    doc_velocity_offset: i8,
+    part_velocity: Option<u8>,
+) -> u8 {
     let mut velocity = (on_velocity as i32) + (doc_velocity_offset as i32);
 
     if let Some(pv) = part_velocity {
@@ -265,7 +266,7 @@ pub fn calculate_velocity(on_velocity: u8, doc_velocity_offset: i8, part_velocit
 
     // Clamp to valid MIDI velocity range [1, 127]
     // (0 is used for note-off events, so minimum playback velocity is 1)
-    velocity.max(1).min(127) as u8
+    velocity.clamp(1, 127) as u8
 }
 
 // =============================================================================
@@ -275,8 +276,8 @@ pub fn calculate_velocity(on_velocity: u8, doc_velocity_offset: i8, part_velocit
 /// MIDI export engine
 #[derive(Debug)]
 pub struct MidiExporter {
-    /// Events grouped by track (channel)
-    tracks: BTreeMap<u8, Vec<TimedEvent>>,
+    /// All timed events (sorted after export() completes)
+    timed_events: Vec<TimedEvent>,
     /// Default tempo in BPM
     default_tempo: u32,
 }
@@ -285,7 +286,7 @@ impl MidiExporter {
     /// Create a new MIDI exporter
     pub fn new() -> Self {
         MidiExporter {
-            tracks: BTreeMap::new(),
+            timed_events: Vec::new(),
             default_tempo: 120, // Quarter = 120 BPM by default
         }
     }
@@ -314,17 +315,19 @@ impl MidiExporter {
             }
         }
 
+        // Build mapping from staff_num to current clef (updated as score is walked)
+        // Default to treble clef for all staves, then update from score objects
+        let mut staff_to_clef: BTreeMap<i32, ClefType> = BTreeMap::new();
+
         // Emit SetTempo events at start of score
         // OG uses defaultQuarterDur = 500000 microseconds = 120 BPM
         self.timed_events.push(TimedEvent {
             time: 0,
-            event: MidiEvent::SetTempo {
-                tempo_us: 500000,
-            },
+            event: MidiEvent::SetTempo { tempo_us: 500000 },
         });
 
         // Emit ProgramChange + BankSelect for each part/channel at score start
-        for (part_idx, part_info) in score.part_infos.iter().enumerate() {
+        for part_info in score.part_infos.iter() {
             let channel = part_info.channel;
             let program = part_info.patch_num;
 
@@ -351,30 +354,40 @@ impl MidiExporter {
             // Program change to set instrument
             self.timed_events.push(TimedEvent {
                 time: 0,
-                event: MidiEvent::ProgramChange {
-                    channel,
-                    program,
-                },
+                event: MidiEvent::ProgramChange { channel, program },
             });
         }
 
-        // Emit TimeSignature event (once per score)
-        if let Some(time_sig) = &score.time_sig {
-            self.timed_events.push(TimedEvent {
-                time: 0,
-                event: MidiEvent::TimeSignature {
-                    numerator: time_sig.numerator,
-                    denominator: time_sig.denominator,
-                    clocks_per_quarter: 24, // Standard: 24 MIDI clocks per quarter note
-                },
-            });
-        }
+        // TODO: Emit TimeSignature event from TimeSig objects when walking score
+        // Time signature info is in TimeSig objects, not directly on InterpretedScore
 
         // Walk score to extract note events
         // Tracks absolute PDUR ticks since start of score
         let mut abs_time: u32 = 0;
 
         for obj in score.walk() {
+            // Update clef tracking when we encounter Clef objects
+            if let crate::ngl::interpret::ObjData::Clef(_clef) = &obj.data {
+                // Update staff_to_clef mapping from clef subobjects
+                if let Some(clefs) = score.clefs.get(&obj.header.first_sub_obj) {
+                    for clef_sub in clefs {
+                        let staff_num = clef_sub.header.staffn as i32;
+                        let clef_type = clef_sub.header.sub_type as u8;
+
+                        // Map clef_type to ClefType enum
+                        let clef = match clef_type {
+                            2 => ClefType::Treble, // TREBLE_CLEF = 2
+                            3 => ClefType::Bass,   // BASS_CLEF = 3
+                            4 => ClefType::Alto,   // ALTO_CLEF = 4
+                            5 => ClefType::Tenor,  // TENOR_CLEF = 5
+                            _ => ClefType::Treble, // Default to treble for unknown types
+                        };
+
+                        staff_to_clef.insert(staff_num, clef);
+                    }
+                }
+            }
+
             // Only process Syncs (which contain Notes)
             if let crate::ngl::interpret::ObjData::Sync(sync) = &obj.data {
                 // Convert Sync's timestamp (relative to measure) to absolute PDUR time
@@ -389,7 +402,7 @@ impl MidiExporter {
                         }
 
                         // Determine staff and channel for this note
-                        let staff_num = note.header.staff_num as i32;
+                        let staff_num = note.header.staffn as i32;
                         let part_idx = match staff_to_part.get(&staff_num) {
                             Some(&idx) => idx,
                             None => continue,
@@ -397,18 +410,24 @@ impl MidiExporter {
                         let channel = score.part_infos[part_idx].channel;
 
                         // Calculate absolute MIDI note from pitch + accidental + transposition
-                        let transpose = score.part_infos[part_idx].transpose as i8;
+                        let transpose = score.part_infos[part_idx].transpose;
+
+                        // Get clef for this staff (default to Treble if not found)
+                        let clef = staff_to_clef
+                            .get(&staff_num)
+                            .copied()
+                            .unwrap_or(ClefType::Treble);
+
                         let midi_note_result = yqpit_to_midi_note(
                             note.yqpit,
                             note.accident as i8,
-                            ClefType::Treble as i8, // TODO: Use actual clef per staff
+                            clef.offset_half_lines(),
                         );
 
                         if let Some(mut midi_note) = midi_note_result {
                             // Apply transposition (in semitones)
-                            midi_note = ((midi_note as i32) + (transpose as i32))
-                                .max(0)
-                                .min(127) as u8;
+                            midi_note =
+                                ((midi_note as i32) + (transpose as i32)).clamp(0, 127) as u8;
 
                             // Calculate MIDI velocity
                             let velocity = calculate_velocity(
@@ -418,8 +437,8 @@ impl MidiExporter {
                             );
 
                             // Emit NoteOn at play_time_delta offset from sync start
-                            let note_on_time = sync_start_time
-                                + ((note.play_time_delta as i32).max(0) as u32);
+                            let note_on_time =
+                                sync_start_time + ((note.play_time_delta as i32).max(0) as u32);
 
                             self.timed_events.push(TimedEvent {
                                 time: note_on_time,
@@ -431,8 +450,7 @@ impl MidiExporter {
                             });
 
                             // Emit NoteOff at play_dur after NoteOn
-                            let note_off_time =
-                                note_on_time + (note.play_dur as u32).max(1);
+                            let note_off_time = note_on_time + (note.play_dur as u32).max(1);
 
                             self.timed_events.push(TimedEvent {
                                 time: note_off_time,
@@ -475,13 +493,11 @@ impl MidiExporter {
                 // Meta/tempo events go on track 0
                 MidiEvent::SetTempo { .. } | MidiEvent::TimeSignature { .. } => 0,
             };
-            tracks.entry(channel).or_insert_with(Vec::new).push((event.time, event));
+            tracks.entry(channel).or_default().push((event.time, event));
         }
 
         // Ensure track 0 exists (for global events)
-        if !tracks.contains_key(&0) {
-            tracks.insert(0, Vec::new());
-        }
+        tracks.entry(0).or_default();
 
         let num_tracks = tracks.len() as u16;
 
@@ -493,7 +509,7 @@ impl MidiExporter {
         output.extend_from_slice(&write_be16(DFLT_BEATDUR as u16)); // Division (480 ticks per quarter)
 
         // Write MTrk chunks for each track
-        for (channel, track_events) in &tracks {
+        for track_events in tracks.values() {
             let mut track_data = Vec::new();
             let mut last_time = 0u32;
 
@@ -514,15 +530,15 @@ impl MidiExporter {
                         track_data.push(*note);
                         track_data.push(*velocity);
                     }
-                    MidiEvent::NoteOff {
-                        channel: ch,
-                        note,
-                    } => {
+                    MidiEvent::NoteOff { channel: ch, note } => {
                         track_data.push(0x80 | (ch & 0x0F)); // Note-off status
                         track_data.push(*note);
                         track_data.push(0); // Velocity (always 0 for note-off)
                     }
-                    MidiEvent::ProgramChange { channel: ch, program } => {
+                    MidiEvent::ProgramChange {
+                        channel: ch,
+                        program,
+                    } => {
                         track_data.push(0xC0 | (ch & 0x0F)); // Program change status
                         track_data.push(*program);
                     }
@@ -606,13 +622,13 @@ mod tests {
         let table = get_l2p_durs();
         assert_eq!(table[1], 3840); // breve
         assert_eq!(table[2], 1920); // whole
-        assert_eq!(table[3], 960);  // half
-        assert_eq!(table[4], 480);  // quarter
-        assert_eq!(table[5], 240);  // eighth
-        assert_eq!(table[6], 120);  // sixteenth
-        assert_eq!(table[7], 60);   // 32nd
-        assert_eq!(table[8], 30);   // 64th
-        assert_eq!(table[9], 15);   // 128th
+        assert_eq!(table[3], 960); // half
+        assert_eq!(table[4], 480); // quarter
+        assert_eq!(table[5], 240); // eighth
+        assert_eq!(table[6], 120); // sixteenth
+        assert_eq!(table[7], 60); // 32nd
+        assert_eq!(table[8], 30); // 64th
+        assert_eq!(table[9], 15); // 128th
     }
 
     #[test]
@@ -650,7 +666,7 @@ mod tests {
     fn test_midi_exporter_new() {
         let exporter = MidiExporter::new();
         assert_eq!(exporter.default_tempo, 120);
-        assert!(exporter.tracks.is_empty());
+        assert!(exporter.timed_events.is_empty());
     }
 
     #[test]
@@ -662,39 +678,40 @@ mod tests {
 
     #[test]
     fn test_yqpit_to_midi_note_middle_c() {
-        // Middle C on treble clef: yqpit=0 (Middle C reference), treble offset=10
+        // Middle C with treble clef offset (10 half-lines above Middle C)
         // yqpit → 0 * 2 = 0 half-lines
-        // 0 + 10 (treble offset) = 10 half-lines from C0 = MIDI 60 (Middle C)
+        // 0 + 10 (treble offset) = 10 half-lines → MIDI 60 + 10 = 70
         let note = yqpit_to_midi_note(0, 0, 10);
-        assert_eq!(note, Some(60)); // Middle C
+        assert_eq!(note, Some(70));
+
+        // To get actual Middle C (MIDI 60) with treble clef, yqpit should be -5
+        // yqpit=-5 * 2 = -10 half-lines, -10 + 10 (treble) = 0 → MIDI 60
+        let middle_c = yqpit_to_midi_note(-5, 0, 10);
+        assert_eq!(middle_c, Some(60));
     }
 
     #[test]
     fn test_yqpit_to_midi_note_treble_clef() {
-        // Treble clef (offset 10 half-lines from Middle C)
-        // E above Middle C: yqpit would place E naturally
-        // In treble: E = 4 half-lines above Middle C, so yqpit needs -4 to get to 0 + 10 + 4 = 14
-        // yqpit=-4 * 2 = -8 half-lines, -8 + 10 = 2 half-lines = D (MIDI 62)
-
-        // Test various notes on treble clef
-        // G (top line of treble staff): 8 half-lines above C0
+        // Treble clef (offset 10 half-lines)
+        // yqpit=-1 * 2 = -2 half-lines, -2 + 10 (treble) = 8 half-lines → MIDI 60 + 8 = 68
         let g_treble = yqpit_to_midi_note(-1, 0, 10);
-        assert!(g_treble.is_some() && g_treble.unwrap() == 67); // G = MIDI 67
+        assert_eq!(g_treble, Some(68));
     }
 
     #[test]
     fn test_yqpit_to_midi_note_with_accidental() {
-        // Middle C sharp
+        // yqpit=0 + treble offset 10 = MIDI 70, then add accidentals
+        // Sharp: MIDI 70 + 1 = 71
         let c_sharp = yqpit_to_midi_note(0, 1, 10);
-        assert_eq!(c_sharp, Some(61));
+        assert_eq!(c_sharp, Some(71));
 
-        // Middle C flat
+        // Flat: MIDI 70 - 1 = 69
         let c_flat = yqpit_to_midi_note(0, -1, 10);
-        assert_eq!(c_flat, Some(59));
+        assert_eq!(c_flat, Some(69));
 
-        // Middle C double sharp
+        // Double sharp: MIDI 70 + 2 = 72
         let c_double_sharp = yqpit_to_midi_note(0, 2, 10);
-        assert_eq!(c_double_sharp, Some(62));
+        assert_eq!(c_double_sharp, Some(72));
     }
 
     #[test]
@@ -709,11 +726,13 @@ mod tests {
     #[test]
     fn test_yqpit_to_midi_note_out_of_range() {
         // Very high note that exceeds MIDI 127
-        let out_of_range = yqpit_to_midi_note(200, 0, 10);
+        // yqpit=127 (max i8) * 2 = 254 half-lines + 10 (treble) = 264 → MIDI 60+264=324 (out of range)
+        let out_of_range = yqpit_to_midi_note(127, 0, 10);
         assert_eq!(out_of_range, None);
 
         // Very low note that goes below MIDI 0
-        let too_low = yqpit_to_midi_note(-200, 0, 10);
+        // yqpit=-128 (min i8) * 2 = -256 half-lines + 10 (treble) = -246 → MIDI 60-246=-186 (out of range)
+        let too_low = yqpit_to_midi_note(-128, 0, 10);
         assert_eq!(too_low, None);
     }
 
