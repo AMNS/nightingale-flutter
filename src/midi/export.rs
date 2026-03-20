@@ -82,6 +82,70 @@ fn bpm_to_microseconds(bpm: u32) -> u32 {
 }
 
 // =============================================================================
+// Dynamics to Velocity Mapping
+// =============================================================================
+
+/// Dynamic mark to MIDI velocity lookup table
+///
+/// Indices 1-23 correspond to DynamicType enum values:
+/// - 1-21: Text dynamics (pppp, ppp, pp, p, mp, mf, f, ff, fff, ffff, sf, etc.)
+/// - 22-23: Hairpins (dim, cresc) - not used for velocity lookup
+///
+/// Values based on standard MIDI velocity conventions for musical dynamics.
+/// Reference: OG InitNightingale.cp:241 (dynam2velo table initialization)
+fn get_dynam2velo() -> [u8; 24] {
+    [
+        64,  // Index 0: unused
+        20,  // 1:  pppp
+        32,  // 2:  ppp
+        45,  // 3:  pp
+        64,  // 4:  p
+        80,  // 5:  mp
+        96,  // 6:  mf (mezzoforte - default moderate level)
+        112, // 7:  f
+        120, // 8:  ff
+        126, // 9:  fff
+        127, // 10: ffff
+        90,  // 11: più (somewhat louder - FIRSTREL_DYNAM)
+        70,  // 12: meno (somewhat softer)
+        72,  // 13: meno (softer variant)
+        92,  // 14: più (louder variant)
+        115, // 15: sf (sforzando - FIRSTSF_DYNAM)
+        116, // 16: fz (forzando)
+        118, // 17: sfz (sforzando)
+        117, // 18: rf (rinforzando)
+        119, // 19: rfz (rinforzando)
+        100, // 20: fp (forte-piano)
+        110, // 21: sfp (sforzando-piano)
+        64,  // 22: dim hairpin (not used for velocity)
+        64,  // 23: cresc hairpin (not used for velocity)
+    ]
+}
+
+/// Convert dynamic mark type to MIDI velocity
+///
+/// # Arguments
+/// * `dynamic_type` - Dynamic type code (1-23 from DynamicType enum)
+///
+/// # Returns
+/// MIDI velocity (1-127), or default (mf = 96) for hairpins or invalid types
+///
+/// # Reference
+/// - OG InitNightingale.cp:241-242 (dynam2velo table)
+/// - OG Context.cp:905 (newVelocity = dynam2velo[newDynamic])
+/// - OG Objects.cp:847 (aNote->onVelocity = dynam2velo[context.dynamicType])
+pub fn dynamic_to_velocity(dynamic_type: i8) -> u8 {
+    let dynam2velo = get_dynam2velo();
+
+    // Hairpins (22-23) and invalid types default to mf (96)
+    if !(1..22).contains(&dynamic_type) {
+        return 96; // mf default
+    }
+
+    dynam2velo[dynamic_type as usize]
+}
+
+// =============================================================================
 // Duration Calculation
 // =============================================================================
 
@@ -347,6 +411,10 @@ impl MidiExporter {
         // Default to treble clef for all staves, then update from score objects
         let mut staff_to_clef: BTreeMap<i32, ClefType> = BTreeMap::new();
 
+        // Build mapping from staff_num to current dynamic (updated as score is walked)
+        // Default to mf (mezzo-forte) for all staves, then update from Dynamic objects
+        let mut staff_to_dynamic: BTreeMap<i32, i8> = BTreeMap::new();
+
         // Emit initial SetTempo event (default 120 BPM = 500000 microseconds per quarter)
         // Will be overridden if score contains Tempo objects
         let initial_tempo_us = bpm_to_microseconds(self.default_tempo);
@@ -435,6 +503,21 @@ impl MidiExporter {
                 }
             }
 
+            // Update dynamic tracking when we encounter Dynamic objects
+            // Dynamic marks (pp, mf, ff, etc.) affect velocity of subsequent notes
+            if let crate::ngl::interpret::ObjData::Dynamic(dynamic) = &obj.data {
+                // Dynamic objects apply to all staves they appear on
+                // Need to determine which staff(s) this dynamic affects
+                // Reference: OG Context.cp:905 (newVelocity = dynam2velo[newDynamic])
+
+                // Dynamics are attached to specific staves via first_sync_l
+                // For simplicity, we'll update all staves in the current part
+                // (More precise would be to track which staff the dynamic is visually on)
+                for (_staff_num, dynamic_val) in staff_to_dynamic.iter_mut() {
+                    *dynamic_val = dynamic.dynamic_type;
+                }
+            }
+
             // Only process Syncs (which contain Notes)
             if let crate::ngl::interpret::ObjData::Sync(sync) = &obj.data {
                 // Convert Sync's timestamp (relative to measure) to absolute PDUR time
@@ -476,10 +559,16 @@ impl MidiExporter {
                             midi_note =
                                 ((midi_note as i32) + (transpose as i32)).clamp(0, 127) as u8;
 
-                            // Calculate MIDI velocity
+                            // Calculate MIDI velocity from current dynamic + part velocity
+                            // Get current dynamic for this staff (default to mf = 6 if not found)
+                            let dynamic_type =
+                                staff_to_dynamic.get(&staff_num).copied().unwrap_or(6);
+                            let base_velocity = dynamic_to_velocity(dynamic_type);
+
+                            // Apply part velocity offset
                             let velocity = calculate_velocity(
-                                note.on_velocity,
-                                0, // TODO: Extract document velocity offset
+                                base_velocity,
+                                0, // Document velocity offset (not stored in InterpretedScore)
                                 Some(score.part_infos[part_idx].part_velocity as u8),
                             );
 
@@ -843,5 +932,45 @@ mod tests {
         // Zero velocity should clamp to 1
         let vel = calculate_velocity(0, 0, None);
         assert_eq!(vel, 1);
+    }
+
+    #[test]
+    fn test_dynamic_to_velocity_common_dynamics() {
+        // Test common dynamic markings
+        assert_eq!(dynamic_to_velocity(1), 20); // pppp
+        assert_eq!(dynamic_to_velocity(2), 32); // ppp
+        assert_eq!(dynamic_to_velocity(3), 45); // pp
+        assert_eq!(dynamic_to_velocity(4), 64); // p
+        assert_eq!(dynamic_to_velocity(5), 80); // mp
+        assert_eq!(dynamic_to_velocity(6), 96); // mf (default moderate)
+        assert_eq!(dynamic_to_velocity(7), 112); // f
+        assert_eq!(dynamic_to_velocity(8), 120); // ff
+        assert_eq!(dynamic_to_velocity(9), 126); // fff
+        assert_eq!(dynamic_to_velocity(10), 127); // ffff (max)
+    }
+
+    #[test]
+    fn test_dynamic_to_velocity_special_marks() {
+        // Sforzando and related marks
+        assert_eq!(dynamic_to_velocity(15), 115); // sf
+        assert_eq!(dynamic_to_velocity(16), 116); // fz
+        assert_eq!(dynamic_to_velocity(17), 118); // sfz
+        assert_eq!(dynamic_to_velocity(20), 100); // fp (forte-piano)
+    }
+
+    #[test]
+    fn test_dynamic_to_velocity_hairpins() {
+        // Hairpins should default to mf (96)
+        assert_eq!(dynamic_to_velocity(22), 96); // dim hairpin
+        assert_eq!(dynamic_to_velocity(23), 96); // cresc hairpin
+    }
+
+    #[test]
+    fn test_dynamic_to_velocity_invalid() {
+        // Invalid dynamic types should default to mf (96)
+        assert_eq!(dynamic_to_velocity(0), 96); // Index 0 (unused)
+        assert_eq!(dynamic_to_velocity(-1), 96); // Negative
+        assert_eq!(dynamic_to_velocity(24), 96); // Beyond range
+        assert_eq!(dynamic_to_velocity(127), 96); // Way out of range
     }
 }
