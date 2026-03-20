@@ -54,6 +54,34 @@ fn get_l2p_durs() -> [u32; 10] {
 }
 
 // =============================================================================
+// Tempo Conversion
+// =============================================================================
+
+/// Convert BPM (beats per minute) to microseconds per quarter note
+///
+/// # Arguments
+/// * `bpm` - Tempo in beats per minute
+///
+/// # Returns
+/// Microseconds per quarter note for MIDI SetTempo meta-event
+///
+/// # Formula
+/// microseconds_per_quarter = 60,000,000 / bpm
+///
+/// # Examples
+/// - 120 BPM → 500,000 μs/quarter
+/// - 60 BPM → 1,000,000 μs/quarter
+/// - 240 BPM → 250,000 μs/quarter
+///
+/// Reference: SMF specification, Meta-Event 0x51 (Set Tempo)
+fn bpm_to_microseconds(bpm: u32) -> u32 {
+    if bpm == 0 {
+        return 500000; // Default to 120 BPM if invalid
+    }
+    60_000_000 / bpm
+}
+
+// =============================================================================
 // Duration Calculation
 // =============================================================================
 
@@ -319,11 +347,14 @@ impl MidiExporter {
         // Default to treble clef for all staves, then update from score objects
         let mut staff_to_clef: BTreeMap<i32, ClefType> = BTreeMap::new();
 
-        // Emit SetTempo events at start of score
-        // OG uses defaultQuarterDur = 500000 microseconds = 120 BPM
+        // Emit initial SetTempo event (default 120 BPM = 500000 microseconds per quarter)
+        // Will be overridden if score contains Tempo objects
+        let initial_tempo_us = bpm_to_microseconds(self.default_tempo);
         self.timed_events.push(TimedEvent {
             time: 0,
-            event: MidiEvent::SetTempo { tempo_us: 500000 },
+            event: MidiEvent::SetTempo {
+                tempo_us: initial_tempo_us,
+            },
         });
 
         // Emit ProgramChange + BankSelect for each part/channel at score start
@@ -385,6 +416,22 @@ impl MidiExporter {
 
                         staff_to_clef.insert(staff_num, clef);
                     }
+                }
+            }
+
+            // Emit tempo change events when we encounter Tempo objects
+            if let crate::ngl::interpret::ObjData::Tempo(tempo) = &obj.data {
+                // Only emit tempo change if no_mm flag is false (meaning: DO use this tempo)
+                // Reference: OG obj_types.rs line 1098: no_mm = False means play at tempo_mm BPM
+                if !tempo.no_mm && tempo.tempo_mm > 0 {
+                    let new_bpm = tempo.tempo_mm as u32;
+                    let tempo_us = bpm_to_microseconds(new_bpm);
+
+                    // Emit SetTempo event at current absolute time
+                    self.timed_events.push(TimedEvent {
+                        time: abs_time,
+                        event: MidiEvent::SetTempo { tempo_us },
+                    });
                 }
             }
 
@@ -674,6 +721,24 @@ mod tests {
         let mut exporter = MidiExporter::new();
         exporter.set_tempo(140);
         assert_eq!(exporter.default_tempo, 140);
+    }
+
+    #[test]
+    fn test_bpm_to_microseconds() {
+        // 120 BPM is the standard tempo (500,000 μs per quarter)
+        assert_eq!(bpm_to_microseconds(120), 500_000);
+
+        // 60 BPM = 1,000,000 μs per quarter (1 second per beat)
+        assert_eq!(bpm_to_microseconds(60), 1_000_000);
+
+        // 240 BPM = 250,000 μs per quarter
+        assert_eq!(bpm_to_microseconds(240), 250_000);
+
+        // Edge case: 0 BPM should default to 120 BPM
+        assert_eq!(bpm_to_microseconds(0), 500_000);
+
+        // Fast tempo: 200 BPM
+        assert_eq!(bpm_to_microseconds(200), 300_000);
     }
 
     #[test]
