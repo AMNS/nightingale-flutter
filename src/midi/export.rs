@@ -577,11 +577,30 @@ impl MidiExporter {
                 if let Some(timesigs) = score.timesigs.get(&obj.header.first_sub_obj) {
                     // Use first timesig subobject (typically only one per TimeSig object)
                     if let Some(ts) = timesigs.first() {
+                        // MIDI denominator is encoded as power of 2:
+                        // 2 (half note) = 1, 4 (quarter) = 2, 8 (eighth) = 3, etc.
+                        let midi_denominator = match ts.denominator {
+                            1 => 0,  // whole note (2^0 = 1)
+                            2 => 1,  // half note (2^1 = 2)
+                            4 => 2,  // quarter note (2^2 = 4)
+                            8 => 3,  // eighth note (2^3 = 8)
+                            16 => 4, // sixteenth note (2^4 = 16)
+                            32 => 5, // thirty-second note (2^5 = 32)
+                            _ => {
+                                // For invalid values, default to quarter note
+                                eprintln!(
+                                    "Warning: invalid time signature denominator {}, defaulting to 4",
+                                    ts.denominator
+                                );
+                                2
+                            }
+                        };
+
                         self.timed_events.push(TimedEvent {
                             time: current_measure_time,
                             event: MidiEvent::TimeSignature {
                                 numerator: ts.numerator as u8,
-                                denominator: ts.denominator as u8,
+                                denominator: midi_denominator,
                                 clocks_per_quarter: 24, // MIDI standard: 24 MIDI clocks per quarter note
                             },
                         });
