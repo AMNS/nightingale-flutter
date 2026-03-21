@@ -655,6 +655,14 @@ impl MidiExporter {
                             continue;
                         }
 
+                        // Skip tied-to notes (continuations) - only emit NoteOn for first note of tie
+                        // Reference: OG MIDIUtils.cp line 129-132 (UseMIDINoteNum returns -1 for tiedL)
+                        // A note with tied_l=True is the continuation of a tie from the previous note;
+                        // it should NOT emit a new NoteOn event (no re-attack).
+                        if note.tied_l {
+                            continue;
+                        }
+
                         // Determine staff and channel for this note
                         let staff_num = note.header.staffn as i32;
                         let part_idx = match staff_to_part.get(&staff_num) {
