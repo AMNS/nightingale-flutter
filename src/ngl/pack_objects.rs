@@ -176,7 +176,11 @@ fn pack_objectheader_n105(header: &ObjectHeader, link_map: &LinkMap, buf: &mut [
 /// Each object type has a specific N105 binary layout extending OBJECTHEADER_5.
 ///
 /// Source: OG NObjTypesN105.h SUPEROBJ_5 union (lines 43-210)
-pub fn pack_object_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
+pub fn pack_object_n105(
+    obj: &InterpretedObject,
+    link_map: &LinkMap,
+    tempo_offsets: &HashMap<Link, (i32, i32)>,
+) -> Vec<u8> {
     match &obj.data {
         // Core object types with full implementations
         ObjData::Header(_) => pack_header_n105(obj, link_map),
@@ -200,7 +204,7 @@ pub fn pack_object_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> 
         ObjData::Slur(_) => pack_slur_n105(obj, link_map),
         ObjData::Tuplet(_) => pack_tuplet_n105(obj, link_map),
         ObjData::GrSync(_) => pack_grsync_n105(obj, link_map),
-        ObjData::Tempo(_) => pack_tempo_n105(obj, link_map),
+        ObjData::Tempo(_) => pack_tempo_n105(obj, link_map, tempo_offsets),
         ObjData::Spacer(_) => pack_spacer_n105(obj, link_map),
         ObjData::Ending(_) => pack_ending_n105(obj, link_map),
         ObjData::PsMeas(_) => pack_psmeas_n105(obj, link_map),
@@ -1001,7 +1005,11 @@ fn pack_grsync_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 230-239
-fn pack_tempo_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
+fn pack_tempo_n105(
+    obj: &InterpretedObject,
+    link_map: &LinkMap,
+    tempo_offsets: &HashMap<Link, (i32, i32)>,
+) -> Vec<u8> {
     let mut buf = vec![0u8; 38];
     pack_objectheader_n105(&obj.header, link_map, &mut buf);
 
@@ -1024,15 +1032,25 @@ fn pack_tempo_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
         // Offset 26-27: tempoMM (i16)
         buf[26..28].copy_from_slice(&tempo.tempo_mm.to_be_bytes());
 
-        // Offset 28-31: strOffset (u32)
-        buf[28..32].copy_from_slice(&tempo.str_offset.to_be_bytes());
+        // Offset 28-31: strOffset (u32) - use backpatched offset if available
+        let str_offset = if let Some(&(verbal_off, _)) = tempo_offsets.get(&obj.index) {
+            verbal_off
+        } else {
+            tempo.str_offset
+        };
+        buf[28..32].copy_from_slice(&str_offset.to_be_bytes());
 
         // Offset 32-33: firstObjL (LINK)
         let first_obj_idx = link_map.convert(tempo.first_obj_l);
         buf[32..34].copy_from_slice(&first_obj_idx.to_be_bytes());
 
-        // Offset 34-37: metroStrOffset (u32)
-        buf[34..38].copy_from_slice(&tempo.metro_str_offset.to_be_bytes());
+        // Offset 34-37: metroStrOffset (u32) - use backpatched offset if available
+        let metro_str_offset = if let Some(&(_, metro_off)) = tempo_offsets.get(&obj.index) {
+            metro_off
+        } else {
+            tempo.metro_str_offset
+        };
+        buf[34..38].copy_from_slice(&metro_str_offset.to_be_bytes());
     }
 
     buf
@@ -1153,7 +1171,11 @@ fn pack_psmeas_n105(obj: &InterpretedObject, link_map: &LinkMap) -> Vec<u8> {
 ///
 /// Returns a tuple (object_heap_bytes, total_size_with_header)
 #[allow(private_interfaces)]
-pub fn serialize_object_heap(score: &InterpretedScore, mut link_map: LinkMap) -> (Vec<u8>, u32) {
+pub fn serialize_object_heap(
+    score: &InterpretedScore,
+    mut link_map: LinkMap,
+    tempo_offsets: &HashMap<Link, (i32, i32)>,
+) -> (Vec<u8>, u32) {
     // Step 1: Register all object indices in LinkMap
     // This ensures every object gets a sequential file index
     link_map.register(score.head_l); // Head object
@@ -1164,7 +1186,7 @@ pub fn serialize_object_heap(score: &InterpretedScore, mut link_map: LinkMap) ->
     // Step 2 & 3: Pack all objects with backpatched links
     let mut object_data = Vec::new();
     for obj in &score.objects {
-        let packed = pack_object_n105(obj, &link_map);
+        let packed = pack_object_n105(obj, &link_map, tempo_offsets);
         object_data.extend_from_slice(&packed);
     }
 

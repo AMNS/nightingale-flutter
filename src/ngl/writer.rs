@@ -137,34 +137,73 @@ fn serialize_string_pool(strings: &[String]) -> Vec<u8> {
 ///
 /// Source: OG FileSave.cp WriteFile() - collects all strings before serialization
 #[allow(dead_code)]
-fn collect_strings_from_score(score: &InterpretedScore) -> Vec<String> {
-    use std::collections::HashSet;
+/// Type alias for string pool collection result: (strings, graphic_offsets, tempo_offsets)
+type StringPoolResult = (Vec<String>, HashMap<Link, i32>, HashMap<Link, (i32, i32)>);
 
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut result: Vec<String> = Vec::new();
+/// Collect strings from the score and build offset mappings for the string pool.
+///
+/// Returns:
+/// - Vec<String>: ordered list of unique strings to serialize
+/// - HashMap<Link, i32>: mapping from GRAPHIC object link → string pool offset
+/// - HashMap<Link, (i32, i32)>: mapping from TEMPO object link → (verbal_offset, metro_offset)
+///
+/// Offsets are calculated based on the serialized string pool format:
+/// each string is encoded as: 0x02 <length:u8> <bytes>
+fn collect_strings_and_offsets(score: &InterpretedScore) -> StringPoolResult {
+    use std::collections::HashMap as StdHashMap;
 
-    // Add font names (deferred - will be in document header implementation)
-    // score.font_names is populated from DOCUMENTHDR.fontNameTbl
-    // Will be added when we implement document header serialization
+    let mut string_to_offset: StdHashMap<String, i32> = StdHashMap::new();
+    let mut strings: Vec<String> = Vec::new();
+    let mut current_offset: i32 = 0;
 
-    // Add graphic text strings
-    for text in score.graphic_strings.values() {
-        if !text.is_empty() && seen.insert(text.clone()) {
-            result.push(text.clone());
+    // Helper to add a string and return its offset
+    let mut add_string = |s: &str| -> i32 {
+        if let Some(&existing_offset) = string_to_offset.get(s) {
+            existing_offset
+        } else {
+            let offset = current_offset;
+            strings.push(s.to_string());
+            string_to_offset.insert(s.to_string(), offset);
+            // Each string: 1 byte (0x02) + 1 byte (length) + length bytes (data)
+            current_offset += 2 + s.len() as i32;
+            offset
+        }
+    };
+
+    // Build graphic offset map (sort by link for deterministic ordering)
+    let mut graphic_offsets: HashMap<Link, i32> = HashMap::new();
+    let mut graphic_links: Vec<_> = score.graphic_strings.keys().collect();
+    graphic_links.sort();
+    for &link in graphic_links {
+        if let Some(text) = score.graphic_strings.get(&link) {
+            if !text.is_empty() {
+                let offset = add_string(text);
+                graphic_offsets.insert(link, offset);
+            }
         }
     }
 
-    // Add tempo strings (both verbal and metronome)
-    for (verbal, metro) in score.tempo_strings.values() {
-        if !verbal.is_empty() && seen.insert(verbal.clone()) {
-            result.push(verbal.clone());
-        }
-        if !metro.is_empty() && seen.insert(metro.clone()) {
-            result.push(metro.clone());
+    // Build tempo offset map (sort by link for deterministic ordering)
+    let mut tempo_offsets: HashMap<Link, (i32, i32)> = HashMap::new();
+    let mut tempo_links: Vec<_> = score.tempo_strings.keys().collect();
+    tempo_links.sort();
+    for &link in tempo_links {
+        if let Some((verbal, metro)) = score.tempo_strings.get(&link) {
+            let verbal_offset = if !verbal.is_empty() {
+                add_string(verbal)
+            } else {
+                0
+            };
+            let metro_offset = if !metro.is_empty() {
+                add_string(metro)
+            } else {
+                0
+            };
+            tempo_offsets.insert(link, (verbal_offset, metro_offset));
         }
     }
 
-    result
+    (strings, graphic_offsets, tempo_offsets)
 }
 
 // =============================================================================
@@ -680,7 +719,7 @@ impl NglWriter {
         buf.extend_from_slice(&25u16.to_be_bytes());
 
         // 6. Write string pool size + data
-        let strings = collect_strings_from_score(score);
+        let (strings, graphic_offsets, _tempo_offsets) = collect_strings_and_offsets(score);
         let string_pool = serialize_string_pool(&strings);
         buf.extend_from_slice(&(string_pool.len() as u32).to_be_bytes());
         buf.extend_from_slice(&string_pool);
@@ -817,9 +856,14 @@ impl NglWriter {
                 // Type 15: AGRAPHIC (6 bytes per graphic)
                 15 => {
                     let mut data = Vec::new();
-                    for graphics in score.graphics.values() {
+                    for (&obj_link, graphics) in &score.graphics {
                         for graphic in graphics {
-                            data.extend_from_slice(&pack_agraphic_n105(graphic));
+                            // Create a corrected graphic with the new string pool offset
+                            let mut corrected = graphic.clone();
+                            if let Some(&new_offset) = graphic_offsets.get(&obj_link) {
+                                corrected.str_offset = new_offset;
+                            }
+                            data.extend_from_slice(&pack_agraphic_n105(&corrected));
                         }
                     }
                     (6u16, data)
@@ -934,7 +978,7 @@ impl NglWriter {
 
         let link_map = LinkMap::new(); // serialize_object_heap registers all objects itself
         let obj_count = score.objects.len() as u16;
-        let (heap_bytes, _total_size) = serialize_object_heap(score, link_map);
+        let (heap_bytes, _total_size) = serialize_object_heap(score, link_map, &_tempo_offsets);
 
         // nFObjs (2 bytes, big-endian)
         buf.extend_from_slice(&obj_count.to_be_bytes());
