@@ -715,22 +715,11 @@ impl MidiExporter {
         // Sort all events by time for correct playback order
         self.timed_events.sort_by_key(|ev| ev.time);
 
-        // Normalize timing: shift all events so the first NoteOn starts at time 0
-        // This compensates for any inherent offset in the score representation
-        // and ensures MIDI playback starts immediately without intro silence
-        let min_note_time = self
-            .timed_events
-            .iter()
-            .filter(|ev| matches!(ev.event, MidiEvent::NoteOn { .. }))
-            .map(|ev| ev.time)
-            .min()
-            .unwrap_or(0);
-
-        if min_note_time > 0 {
-            for event in &mut self.timed_events {
-                event.time = event.time.saturating_sub(min_note_time);
-            }
-        }
+        // NOTE: We do NOT normalize/shift timing to remove pickup measures.
+        // Notation software (Finale, Sibelius, etc.) needs the original timing
+        // with pickup offsets preserved to correctly display anacrusis/pickup bars.
+        // The "intro silence" is actually the musical space before the pickup notes,
+        // which is essential for proper measure display.
     }
 
     /// Serialize to Standard MIDI File bytes
@@ -743,23 +732,28 @@ impl MidiExporter {
     pub fn to_smf(&self) -> Vec<u8> {
         let mut output = Vec::new();
 
-        // Build track data by grouping events by channel
+        // Build track data by grouping events by track number
+        // Track 0 = meta events only (tempo, time sig, key sig)
+        // Tracks 1-N = channel events (notes, program changes, etc.) grouped by channel
         let mut tracks: BTreeMap<u8, Vec<(u32, &TimedEvent)>> = BTreeMap::new();
         for event in &self.timed_events {
-            let channel = match &event.event {
+            let track_num = match &event.event {
                 MidiEvent::NoteOn { channel, .. }
                 | MidiEvent::NoteOff { channel, .. }
                 | MidiEvent::ProgramChange { channel, .. }
-                | MidiEvent::BankSelect { channel, .. } => *channel,
+                | MidiEvent::BankSelect { channel, .. } => channel + 1, // Channels 0-15 → tracks 1-16
                 // Meta events go on track 0
                 MidiEvent::SetTempo { .. }
                 | MidiEvent::TimeSignature { .. }
                 | MidiEvent::KeySignature { .. } => 0,
             };
-            tracks.entry(channel).or_default().push((event.time, event));
+            tracks
+                .entry(track_num)
+                .or_default()
+                .push((event.time, event));
         }
 
-        // Ensure track 0 exists (for global events)
+        // Ensure track 0 exists (for meta events)
         tracks.entry(0).or_default();
 
         let num_tracks = tracks.len() as u16;
@@ -830,9 +824,8 @@ impl MidiExporter {
                         track_data.push(0x58); // Time signature
                         track_data.push(0x04); // Length (4 bytes)
                         track_data.push(*numerator);
-                        // Denominator as power of 2 (4 = quarter note)
-                        let denom_exp = (*denominator as u32).trailing_zeros() as u8;
-                        track_data.push(denom_exp);
+                        // Denominator is already encoded as log2 exponent
+                        track_data.push(*denominator);
                         track_data.push(*clocks_per_quarter); // Clocks per quarter note
                         track_data.push(8); // Eighth notes per quarter (standard)
                     }

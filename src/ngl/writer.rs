@@ -43,6 +43,10 @@ use crate::ngl::reader::NglVersion;
 
 use super::error::Result;
 use super::pack_headers::{pack_document_header_n105, pack_score_header_n105};
+use super::pack_subobjects::{
+    pack_aconnect_n105, pack_agraphic_n105, pack_amodnr_n105, pack_anoteottava_n105,
+    pack_apsmeas_n105, pack_arptend_n105, pack_aslur_n105, pack_partinfo,
+};
 
 // =============================================================================
 // Endian Conversion Helpers (FIX_END pattern from OG EndianUtils.cp)
@@ -684,10 +688,42 @@ impl NglWriter {
         // 7. Write all subobject heaps (types 0-23)
         // Each heap: 2 bytes nFObjs + 16 bytes HEAP header + heap data
         // Iterate through all subobject types and serialize them
-        use super::pack_subobjects::{pack_ameasure_n105, pack_astaff_n105};
+        use super::pack_subobjects::{
+            pack_aclef_n105, pack_adynamic_n105, pack_akeysig_n105, pack_ameasure_n105,
+            pack_anote_n105, pack_anotebeam_n105, pack_anotetuple_n105, pack_astaff_n105,
+            pack_atimesig_n105,
+        };
 
         for subobj_type in 0..24 {
             let heap_data = match subobj_type {
+                // Type 0: PARTINFO (346 bytes per part)
+                0 => {
+                    let mut data = Vec::new();
+                    for part_info in &score.part_infos {
+                        data.extend_from_slice(&pack_partinfo(part_info));
+                    }
+                    (346u16, data)
+                }
+                // Type 2: ANOTE from SYNC (30 bytes, regular notes)
+                2 => {
+                    let mut data = Vec::new();
+                    for notes in score.notes.values() {
+                        for note in notes {
+                            data.extend_from_slice(&pack_anote_n105(note));
+                        }
+                    }
+                    (30u16, data)
+                }
+                // Type 3: ARPTEND (8 bytes per repeat ending)
+                3 => {
+                    let mut data = Vec::new();
+                    for rptends in score.rptend_subs.values() {
+                        for rptend in rptends {
+                            data.extend_from_slice(&pack_arptend_n105(rptend));
+                        }
+                    }
+                    (8u16, data)
+                }
                 // Type 6: ASTAFF (50 bytes per staff)
                 6 => {
                     let mut data = Vec::new();
@@ -708,10 +744,145 @@ impl NglWriter {
                     }
                     (40u16, data)
                 }
-                // TODO: Implement remaining subobject types
-                // Types 0-23 with other subobjects
+                // Type 8: ACLEF (10 bytes per clef)
+                8 => {
+                    let mut data = Vec::new();
+                    for clefs in score.clefs.values() {
+                        for clef in clefs {
+                            data.extend_from_slice(&pack_aclef_n105(clef));
+                        }
+                    }
+                    (10u16, data)
+                }
+                // Type 9: AKEYSIG (24 bytes per key signature)
+                9 => {
+                    let mut data = Vec::new();
+                    for keysigs in score.keysigs.values() {
+                        for keysig in keysigs {
+                            data.extend_from_slice(&pack_akeysig_n105(keysig));
+                        }
+                    }
+                    (24u16, data)
+                }
+                // Type 10: ATIMESIG (12 bytes per time signature)
+                10 => {
+                    let mut data = Vec::new();
+                    for timesigs in score.timesigs.values() {
+                        for timesig in timesigs {
+                            data.extend_from_slice(&pack_atimesig_n105(timesig));
+                        }
+                    }
+                    (12u16, data)
+                }
+                // Type 11: ANOTEBEAM (6 bytes per beam link)
+                11 => {
+                    let mut data = Vec::new();
+                    for notebeams in score.notebeams.values() {
+                        for notebeam in notebeams {
+                            data.extend_from_slice(&pack_anotebeam_n105(notebeam));
+                        }
+                    }
+                    (6u16, data)
+                }
+                // Type 12: ACONNECT (12 bytes per connect)
+                12 => {
+                    let mut data = Vec::new();
+                    for connects in score.connects.values() {
+                        for connect in connects {
+                            data.extend_from_slice(&pack_aconnect_n105(connect));
+                        }
+                    }
+                    (12u16, data)
+                }
+                // Type 13: ADYNAMIC (14 bytes per dynamic)
+                13 => {
+                    let mut data = Vec::new();
+                    for dynamics in score.dynamics.values() {
+                        for dynamic in dynamics {
+                            data.extend_from_slice(&pack_adynamic_n105(dynamic));
+                        }
+                    }
+                    (14u16, data)
+                }
+                // Type 14: AMODNR (6 bytes per modifier)
+                14 => {
+                    let mut data = Vec::new();
+                    for modnrs in score.modnrs.values() {
+                        for modnr in modnrs {
+                            data.extend_from_slice(&pack_amodnr_n105(modnr));
+                        }
+                    }
+                    (6u16, data)
+                }
+                // Type 15: AGRAPHIC (6 bytes per graphic)
+                15 => {
+                    let mut data = Vec::new();
+                    for graphics in score.graphics.values() {
+                        for graphic in graphics {
+                            data.extend_from_slice(&pack_agraphic_n105(graphic));
+                        }
+                    }
+                    (6u16, data)
+                }
+                // Type 16: ANOTEOTTAVA (4 bytes per ottava link)
+                16 => {
+                    let mut data = Vec::new();
+                    for ottavas in score.ottavas.values() {
+                        for ottava in ottavas {
+                            data.extend_from_slice(&pack_anoteottava_n105(ottava));
+                        }
+                    }
+                    (4u16, data)
+                }
+                // Type 17: ASLUR (42 bytes per slur)
+                17 => {
+                    let mut data = Vec::new();
+                    for slurs in score.slurs.values() {
+                        for slur in slurs {
+                            data.extend_from_slice(&pack_aslur_n105(slur));
+                        }
+                    }
+                    (42u16, data)
+                }
+                // Type 18: ANOTETUPLE (4 bytes per tuplet link)
+                18 => {
+                    let mut data = Vec::new();
+                    for tuplets in score.tuplets.values() {
+                        for tuplet in tuplets {
+                            data.extend_from_slice(&pack_anotetuple_n105(tuplet));
+                        }
+                    }
+                    (4u16, data)
+                }
+                // Type 19: ANOTE from GRSYNC (30 bytes, grace notes - same as ANOTE)
+                19 => {
+                    let mut data = Vec::new();
+                    for grnotes in score.grnotes.values() {
+                        for note in grnotes {
+                            data.extend_from_slice(&pack_anote_n105(note));
+                        }
+                    }
+                    (30u16, data)
+                }
+                // Type 23: APSMEAS (8 bytes per pseudo-measure)
+                23 => {
+                    let mut data = Vec::new();
+                    for psmeas_list in score.psmeas_subs.values() {
+                        for psmeas in psmeas_list {
+                            data.extend_from_slice(&pack_apsmeas_n105(psmeas));
+                        }
+                    }
+                    (8u16, data)
+                }
+                // Note: Types 1, 4, 5, 20, 21, 22 have no subobjects (empty heaps)
+                // Type 1: TAIL (no subobjects)
+                // Type 4: PAGE (no subobjects)
+                // Type 5: SYSTEM (no subobjects)
+                // Type 20: TEMPO (no subobjects)
+                // Type 21: SPACER (no subobjects)
+                // Type 22: ENDING (no subobjects)
                 _ => {
-                    // For now, skip unimplemented types (write empty heap)
+                    // Write empty heap for types with no subobjects
                     (0u16, Vec::new())
                 }
             };

@@ -12,7 +12,270 @@
 //! Source: Inverse of unpack_*.rs and NObjTypesN105.h
 
 use crate::basic_types::KsInfo;
-use crate::obj_types::{AMeasure, AStaff, SubObjHeader};
+use crate::obj_types::{
+    AClef, AConnect, ADynamic, AGraphic, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteOttava,
+    ANoteTuple, APsMeas, ARptEnd, ASlur, AStaff, ATimeSig, PartInfo, SubObjHeader,
+};
+
+/// Pack N105 ANOTE_5 to raw bytes (30 bytes total).
+///
+/// This is the most complex subobject, with extensive bitfield packing.
+///
+/// Layout (30 bytes):
+/// ```text
+/// 0-4   SUBOBJHEADER_5 (next, staffn, sub_type, flags)
+/// 4     Bitfield: inChord|rest|unpitched|beamed|otherStemSide (bits 4-0)
+/// 5     yqpit (ShortQd / i8)
+/// 6-7   xd (DDIST, big-endian)
+/// 8-9   yd (DDIST, big-endian)
+/// 10-11 ystem (DDIST, big-endian)
+/// 12-13 playTimeDelta (short, big-endian)
+/// 14-15 playDur (short, big-endian)
+/// 16-17 pTime (short, big-endian)
+/// 18    noteNum (Byte)
+/// 19    onVelocity (Byte)
+/// 20    offVelocity (Byte)
+/// 21    Bitfield: tiedL|tiedR|ymovedots(2)|ndots(4)
+/// 22    voice (SignedByte)
+/// 23    Bitfield: rspIgnore|accident(3)|accSoft|playAsCue|micropitch(2)
+/// 24    Bitfield: xmoveAcc(5)|merged|courtesyAcc|doubleDur
+/// 25    Bitfield: headShape(5)|xmovedots(3)
+/// 26-27 firstMod (LINK, big-endian)
+/// 28    Bitfield: slurredL(2)|slurredR(2)|inTuplet|inOttava|small|tempFlag
+/// 29    fillerN (padding byte)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 56-96
+pub fn pack_anote_n105(note: &ANote) -> Vec<u8> {
+    let mut buf = vec![0u8; 30];
+
+    // Offset 0-4: SUBOBJHEADER_5 (writes bytes 0-4)
+    pack_subobj_header_n105(&note.header, &mut buf);
+
+    // Byte 4: Overlay note flags onto header flags (bits 4-0)
+    let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
+    if note.in_chord {
+        b4 |= 0x10; // bit 4
+    }
+    if note.rest {
+        b4 |= 0x08; // bit 3
+    }
+    if note.unpitched {
+        b4 |= 0x04; // bit 2
+    }
+    if note.beamed {
+        b4 |= 0x02; // bit 1
+    }
+    if note.other_stem_side {
+        b4 |= 0x01; // bit 0
+    }
+    buf[4] = b4;
+
+    // Byte 5: yqpit (ShortQd / i8)
+    buf[5] = note.yqpit as u8;
+
+    // Bytes 6-17: DDIST and timing fields (all big-endian i16)
+    buf[6..8].copy_from_slice(&note.xd.to_be_bytes());
+    buf[8..10].copy_from_slice(&note.yd.to_be_bytes());
+    buf[10..12].copy_from_slice(&note.ystem.to_be_bytes());
+    buf[12..14].copy_from_slice(&note.play_time_delta.to_be_bytes());
+    buf[14..16].copy_from_slice(&note.play_dur.to_be_bytes());
+    buf[16..18].copy_from_slice(&note.p_time.to_be_bytes());
+
+    // Bytes 18-20: noteNum, velocities
+    buf[18] = note.note_num;
+    buf[19] = note.on_velocity;
+    buf[20] = note.off_velocity;
+
+    // Byte 21: tiedL(1)|tiedR(1)|ymovedots(2)|ndots(4)
+    let mut b21: u8 = 0;
+    if note.tied_l {
+        b21 |= 0x80; // bit 7
+    }
+    if note.tied_r {
+        b21 |= 0x40; // bit 6
+    }
+    b21 |= (note.y_move_dots & 0x03) << 4; // bits 5-4
+    b21 |= note.ndots & 0x0F; // bits 3-0
+    buf[21] = b21;
+
+    // Byte 22: voice (i8)
+    buf[22] = note.voice as u8;
+
+    // Byte 23: rspIgnore(1)|accident(3)|accSoft(1)|playAsCue(1)|micropitch(2)
+    let mut b23: u8 = 0;
+    b23 |= (note.rsp_ignore & 0x01) << 7; // bit 7
+    b23 |= (note.accident & 0x07) << 4; // bits 6-4
+    if note.acc_soft {
+        b23 |= 0x08; // bit 3
+    }
+    if note.play_as_cue {
+        b23 |= 0x04; // bit 2
+    }
+    b23 |= note.micropitch & 0x03; // bits 1-0
+    buf[23] = b23;
+
+    // Byte 24: xmoveAcc(5)|merged(1)|courtesyAcc(1)|doubleDur(1)
+    let mut b24: u8 = 0;
+    b24 |= (note.xmove_acc & 0x1F) << 3; // bits 7-3
+    if note.merged != 0 {
+        b24 |= 0x04; // bit 2
+    }
+    if note.courtesy_acc != 0 {
+        b24 |= 0x02; // bit 1
+    }
+    if note.double_dur != 0 {
+        b24 |= 0x01; // bit 0
+    }
+    buf[24] = b24;
+
+    // Byte 25: headShape(5)|xmovedots(3)
+    let mut b25: u8 = 0;
+    b25 |= (note.head_shape & 0x1F) << 3; // bits 7-3
+    b25 |= note.x_move_dots & 0x07; // bits 2-0
+    buf[25] = b25;
+
+    // Bytes 26-27: firstMod (LINK, big-endian)
+    buf[26..28].copy_from_slice(&note.first_mod.to_be_bytes());
+
+    // Byte 28: slurredL(2)|slurredR(2)|inTuplet(1)|inOttava(1)|small(1)|tempFlag(1)
+    let mut b28: u8 = 0;
+    if note.slurred_l {
+        b28 |= 0x80; // bit 7 (2-bit field, using only bit 7 for now)
+    }
+    if note.slurred_r {
+        b28 |= 0x20; // bit 5 (2-bit field at bits 5-4, using only bit 5)
+    }
+    if note.in_tuplet {
+        b28 |= 0x08; // bit 3
+    }
+    if note.in_ottava {
+        b28 |= 0x04; // bit 2
+    }
+    if note.small {
+        b28 |= 0x02; // bit 1
+    }
+    b28 |= note.temp_flag & 0x01; // bit 0
+    buf[28] = b28;
+
+    // Byte 29: fillerN (padding, leave as 0)
+
+    buf
+}
+
+/// Pack N105 ACLEF_5 to raw bytes (10 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-4   SUBOBJHEADER_5 (next, staffn, sub_type, flags)
+/// 4     Bitfield: selected|visible|soft|filler1(3)|small(2)
+/// 5     filler2
+/// 6-7   xd (DDIST, big-endian)
+/// 8-9   yd (DDIST, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 227-236
+pub fn pack_aclef_n105(clef: &AClef) -> Vec<u8> {
+    let mut buf = vec![0u8; 10];
+
+    // Offset 0-4: SUBOBJHEADER_5
+    pack_subobj_header_n105(&clef.header, &mut buf);
+
+    // Byte 4: Overlay filler1 and small onto header flags
+    let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
+    b4 |= (clef.filler1 & 0x07) << 2; // bits 4-2
+    b4 |= clef.small & 0x03; // bits 1-0
+    buf[4] = b4;
+
+    // Byte 5: filler2
+    buf[5] = clef.filler2;
+
+    // Bytes 6-9: xd, yd (DDIST, big-endian)
+    buf[6..8].copy_from_slice(&clef.xd.to_be_bytes());
+    buf[8..10].copy_from_slice(&clef.yd.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 AKEYSIG_5 to raw bytes (24 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-4   SUBOBJHEADER_5 (next, staffn, sub_type, flags)
+/// 4     Bitfield: selected|visible|soft|nonstandard|filler1(2)|small(2)
+/// 5     filler2 (SignedByte)
+/// 6-7   xd (DDIST, big-endian)
+/// 8-22  WHOLE_KSINFO_5 (15 bytes)
+/// 23    filler3
+/// ```
+///
+/// Source: NObjTypesN105.h lines 248-272
+pub fn pack_akeysig_n105(keysig: &AKeySig) -> Vec<u8> {
+    let mut buf = vec![0u8; 24];
+
+    // Offset 0-4: SUBOBJHEADER_5
+    pack_subobj_header_n105(&keysig.header, &mut buf);
+
+    // Byte 4: Overlay nonstandard, filler1, small onto header flags
+    let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
+    b4 |= (keysig.nonstandard & 0x01) << 4; // bit 4
+    b4 |= (keysig.filler1 & 0x03) << 2; // bits 3-2
+    b4 |= keysig.small & 0x03; // bits 1-0
+    buf[4] = b4;
+
+    // Byte 5: filler2 (i8)
+    buf[5] = keysig.filler2 as u8;
+
+    // Bytes 6-7: xd (DDIST, big-endian)
+    buf[6..8].copy_from_slice(&keysig.xd.to_be_bytes());
+
+    // Bytes 8-22: WHOLE_KSINFO_5 (15 bytes)
+    pack_ksinfo_n105(&keysig.ks_info, &mut buf, 8);
+
+    // Byte 23: padding (leave as 0)
+
+    buf
+}
+
+/// Pack N105 ATIMESIG_5 to raw bytes (12 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-4   SUBOBJHEADER_5 (next, staffn, sub_type, flags)
+/// 4     Bitfield: selected|visible|soft|filler(3)|small(2)
+/// 5     connStaff (SignedByte)
+/// 6-7   xd (DDIST, big-endian)
+/// 8-9   yd (DDIST, big-endian)
+/// 10    numerator (SignedByte)
+/// 11    denominator (SignedByte)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 283-293
+pub fn pack_atimesig_n105(timesig: &ATimeSig) -> Vec<u8> {
+    let mut buf = vec![0u8; 12];
+
+    // Offset 0-4: SUBOBJHEADER_5
+    pack_subobj_header_n105(&timesig.header, &mut buf);
+
+    // Byte 4: Overlay filler and small onto header flags
+    let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
+    b4 |= (timesig.filler & 0x07) << 2; // bits 4-2
+    b4 |= timesig.small & 0x03; // bits 1-0
+    buf[4] = b4;
+
+    // Byte 5: connStaff (i8)
+    buf[5] = timesig.conn_staff as u8;
+
+    // Bytes 6-9: xd, yd (DDIST, big-endian)
+    buf[6..8].copy_from_slice(&timesig.xd.to_be_bytes());
+    buf[8..10].copy_from_slice(&timesig.yd.to_be_bytes());
+
+    // Bytes 10-11: numerator, denominator (i8)
+    buf[10] = timesig.numerator as u8;
+    buf[11] = timesig.denominator as u8;
+
+    buf
+}
 
 /// Pack N105 ASTAFF_5 to raw bytes (50 bytes total).
 ///
@@ -253,6 +516,510 @@ fn pack_ksinfo_n105(ks_info: &KsInfo, buf: &mut [u8], offset: usize) {
 
     // nKSItems at offset+14
     buf[offset + 14] = ks_info.n_ks_items as u8;
+}
+
+// =============================================================================
+// Additional N105 Subobject Packers
+// =============================================================================
+
+/// Pack N105 ANOTEBEAM_5 to raw bytes (6 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2-3   bpSync (LINK, big-endian)
+/// 4     startend (SignedByte)
+/// 5     Bitfield: fracs(3)|fracGoLeft(1)|filler(4)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 297-305
+pub fn pack_anotebeam_n105(notebeam: &ANoteBeam) -> Vec<u8> {
+    let mut buf = vec![0u8; 6];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&notebeam.next.to_be_bytes());
+
+    // Bytes 2-3: bpSync (LINK, big-endian)
+    buf[2..4].copy_from_slice(&notebeam.bp_sync.to_be_bytes());
+
+    // Byte 4: startend (SignedByte)
+    buf[4] = notebeam.startend as u8;
+
+    // Byte 5: fracs(3)|fracGoLeft(1)|filler(4)
+    let mut b5: u8 = 0;
+    b5 |= (notebeam.fracs & 0x07) << 5; // bits 7-5
+    b5 |= (notebeam.frac_go_left & 0x01) << 4; // bit 4
+    b5 |= notebeam.filler & 0x0F; // bits 3-0
+    buf[5] = b5;
+
+    buf
+}
+
+/// Pack N105 ANOTETUPLE_5 to raw bytes (4 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2-3   tpSync (LINK, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 547-551
+pub fn pack_anotetuple_n105(tuplet: &ANoteTuple) -> Vec<u8> {
+    let mut buf = vec![0u8; 4];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&tuplet.next.to_be_bytes());
+
+    // Bytes 2-3: tpSync (LINK, big-endian)
+    buf[2..4].copy_from_slice(&tuplet.tp_sync.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 ADYNAMIC_5 to raw bytes (14 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-4   SUBOBJHEADER_5 (5 bytes)
+/// 4     Bitfield (overlaps SUBOBJ byte 4): selected:1|visible:1|soft:1|mouthWidth:5
+/// 5     small:2|otherWidth:6
+/// 6-7   xd (DDIST, big-endian)
+/// 8-9   yd (DDIST, big-endian)
+/// 10-11 endxd (DDIST, big-endian)
+/// 12-13 endyd (DDIST, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 357-369
+pub fn pack_adynamic_n105(dynamic: &ADynamic) -> Vec<u8> {
+    let mut buf = vec![0u8; 14];
+
+    // Bytes 0-3: SUBOBJHEADER_5 prefix (next, staffn, subType)
+    buf[0..2].copy_from_slice(&dynamic.header.next.to_be_bytes());
+    buf[2] = dynamic.header.staffn as u8;
+    buf[3] = dynamic.header.sub_type as u8;
+
+    // Byte 4: selected:1|visible:1|soft:1|mouthWidth:5
+    let mut b4: u8 = 0;
+    if dynamic.header.selected {
+        b4 |= 0x80; // bit 7
+    }
+    if dynamic.header.visible {
+        b4 |= 0x40; // bit 6
+    }
+    if dynamic.header.soft {
+        b4 |= 0x20; // bit 5
+    }
+    b4 |= dynamic.mouth_width & 0x1F; // bits 4-0
+    buf[4] = b4;
+
+    // Byte 5: small:2|otherWidth:6
+    let b5 = ((dynamic.small & 0x03) << 6) | (dynamic.other_width & 0x3F);
+    buf[5] = b5;
+
+    // Bytes 6-13: xd, yd, endxd, endyd (DDIST, big-endian)
+    buf[6..8].copy_from_slice(&dynamic.xd.to_be_bytes());
+    buf[8..10].copy_from_slice(&dynamic.yd.to_be_bytes());
+    buf[10..12].copy_from_slice(&dynamic.endxd.to_be_bytes());
+    buf[12..14].copy_from_slice(&dynamic.endyd.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 ACONNECT_5 to raw bytes (12 bytes total).
+///
+/// Layout (matching unpack_aconnect_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     selected:1|filler:1|connLevel:3|connectType:2
+/// 3     staffAbove (SignedByte)
+/// 4     staffBelow (SignedByte)
+/// 5     [PADDING]
+/// 6-7   xd (DDIST, big-endian)
+/// 8-9   firstPart (LINK, big-endian)
+/// 10-11 lastPart (LINK, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 338-349, unpack_stubs.rs:111-151
+pub fn pack_aconnect_n105(connect: &AConnect) -> Vec<u8> {
+    let mut buf = vec![0u8; 12];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&connect.next.to_be_bytes());
+
+    // Byte 2: selected:1|filler:1|connLevel:3|connectType:2
+    let mut b2: u8 = 0;
+    if connect.selected {
+        b2 |= 0x80; // bit 7
+    }
+    b2 |= (connect.filler & 0x01) << 6; // bit 6
+    b2 |= (connect.conn_level & 0x07) << 3; // bits 5-3
+    b2 |= (connect.connect_type & 0x03) << 1; // bits 2-1
+    buf[2] = b2;
+
+    // Bytes 3-4: staffAbove, staffBelow
+    buf[3] = connect.staff_above as u8;
+    buf[4] = connect.staff_below as u8;
+
+    // Byte 5: padding (already 0)
+
+    // Bytes 6-7: xd (DDIST, big-endian)
+    buf[6..8].copy_from_slice(&connect.xd.to_be_bytes());
+
+    // Bytes 8-9: firstPart (LINK, big-endian)
+    buf[8..10].copy_from_slice(&connect.first_part.to_be_bytes());
+
+    // Bytes 10-11: lastPart (LINK, big-endian)
+    buf[10..12].copy_from_slice(&connect.last_part.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 AMODNR_5 to raw bytes (6 bytes total).
+///
+/// Layout (matching unpack_amodnr_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     selected:1|visible:1|soft:1|xstd:5
+/// 3     modCode (Byte)
+/// 4     data (SignedByte)
+/// 5     ystdpit (SHORTSTD = SignedByte)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 382-391, unpack_stubs.rs:245-276
+pub fn pack_amodnr_n105(modnr: &AModNr) -> Vec<u8> {
+    let mut buf = vec![0u8; 6];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&modnr.next.to_be_bytes());
+
+    // Byte 2: selected:1|visible:1|soft:1|xstd:5
+    let mut b2: u8 = 0;
+    if modnr.selected {
+        b2 |= 0x80; // bit 7
+    }
+    if modnr.visible {
+        b2 |= 0x40; // bit 6
+    }
+    if modnr.soft {
+        b2 |= 0x20; // bit 5
+    }
+    b2 |= modnr.xstd & 0x1F; // bits 4-0
+    buf[2] = b2;
+
+    // Byte 3: modCode
+    buf[3] = modnr.mod_code;
+
+    // Byte 4: data
+    buf[4] = modnr.data as u8;
+
+    // Byte 5: ystdpit (SHORTSTD = SignedByte)
+    buf[5] = modnr.ystdpit as u8;
+
+    buf
+}
+
+/// Pack N105 AGRAPHIC_5 to raw bytes (6 bytes total).
+///
+/// Layout (matching unpack_agraphic_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2-5   strOffset (STRINGOFFSET = long, i32 big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 396-399, unpack_stubs.rs:285-295
+pub fn pack_agraphic_n105(graphic: &AGraphic) -> Vec<u8> {
+    let mut buf = vec![0u8; 6];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&graphic.next.to_be_bytes());
+
+    // Bytes 2-5: strOffset (i32, big-endian)
+    buf[2..6].copy_from_slice(&graphic.str_offset.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 ANOTEOTTAVA_5 to raw bytes (4 bytes total).
+///
+/// Layout:
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2-3   opSync (LINK, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h lines 461-465
+pub fn pack_anoteottava_n105(ottava: &ANoteOttava) -> Vec<u8> {
+    let mut buf = vec![0u8; 4];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&ottava.next.to_be_bytes());
+
+    // Bytes 2-3: opSync (LINK, big-endian)
+    buf[2..4].copy_from_slice(&ottava.op_sync.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 ASLUR_5 to raw bytes (42 bytes total).
+///
+/// Layout (matching unpack_aslur_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     selected:1|visible:1|soft:1|dashed:2|filler:3
+/// 3     filler (SignedByte, mac68k padding)
+/// 4-11  bounds (Rect: 4 x i16, big-endian)
+/// 12    firstInd (SignedByte)
+/// 13    lastInd (SignedByte)
+/// 14-17 reserved (long, i32 big-endian)
+/// 18-29 seg (SplineSeg: 3 x DPoint, 12 bytes)
+/// 30-33 startPt (Point: 2 x i16, big-endian)
+/// 34-37 endPt (Point: 2 x i16, big-endian)
+/// 38-41 endKnot (DPoint: 2 x i16, big-endian)
+/// ```
+///
+/// Source: NObjTypesN105.h, unpack_slur.rs:41-128
+pub fn pack_aslur_n105(slur: &ASlur) -> Vec<u8> {
+    let mut buf = vec![0u8; 42];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&slur.next.to_be_bytes());
+
+    // Byte 2: selected:1|visible:1|soft:1|dashed:2|filler:3
+    let mut b2: u8 = 0;
+    if slur.selected {
+        b2 |= 0x80; // bit 7
+    }
+    if slur.visible {
+        b2 |= 0x40; // bit 6
+    }
+    if slur.soft {
+        b2 |= 0x20; // bit 5
+    }
+    if slur.dashed {
+        b2 |= 0x18; // bits 4-3 (2-bit field)
+    }
+    // filler occupies bits 2-0, but stored as bool (unpack treats any non-zero as true)
+    // Leave bits 2-0 as 0 for now (filler is just padding)
+    buf[2] = b2;
+
+    // Byte 3: filler (i8, padding)
+    buf[3] = 0;
+
+    // Bytes 4-11: bounds (Rect: 4 x i16, big-endian)
+    buf[4..6].copy_from_slice(&slur.bounds.top.to_be_bytes());
+    buf[6..8].copy_from_slice(&slur.bounds.left.to_be_bytes());
+    buf[8..10].copy_from_slice(&slur.bounds.bottom.to_be_bytes());
+    buf[10..12].copy_from_slice(&slur.bounds.right.to_be_bytes());
+
+    // Bytes 12-13: firstInd, lastInd (i8)
+    buf[12] = slur.first_ind as u8;
+    buf[13] = slur.last_ind as u8;
+
+    // Bytes 14-17: reserved (i32, big-endian)
+    buf[14..18].copy_from_slice(&slur.reserved.to_be_bytes());
+
+    // Bytes 18-29: seg (SplineSeg: 3 x DPoint)
+    // seg.knot (DPoint: v, h)
+    buf[18..20].copy_from_slice(&slur.seg.knot.v.to_be_bytes());
+    buf[20..22].copy_from_slice(&slur.seg.knot.h.to_be_bytes());
+    // seg.c0 (DPoint: v, h)
+    buf[22..24].copy_from_slice(&slur.seg.c0.v.to_be_bytes());
+    buf[24..26].copy_from_slice(&slur.seg.c0.h.to_be_bytes());
+    // seg.c1 (DPoint: v, h)
+    buf[26..28].copy_from_slice(&slur.seg.c1.v.to_be_bytes());
+    buf[28..30].copy_from_slice(&slur.seg.c1.h.to_be_bytes());
+
+    // Bytes 30-33: startPt (Point: v, h)
+    buf[30..32].copy_from_slice(&slur.start_pt.v.to_be_bytes());
+    buf[32..34].copy_from_slice(&slur.start_pt.h.to_be_bytes());
+
+    // Bytes 34-37: endPt (Point: v, h)
+    buf[34..36].copy_from_slice(&slur.end_pt.v.to_be_bytes());
+    buf[36..38].copy_from_slice(&slur.end_pt.h.to_be_bytes());
+
+    // Bytes 38-41: endKnot (DPoint: v, h)
+    buf[38..40].copy_from_slice(&slur.end_knot.v.to_be_bytes());
+    buf[40..42].copy_from_slice(&slur.end_knot.h.to_be_bytes());
+
+    buf
+}
+
+/// Pack N105 PARTINFO to raw bytes (64 bytes minimum).
+///
+/// Layout (matching unpack_partinfo):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     partVelocity (SignedByte)
+/// 3     firstStaff (SignedByte)
+/// 4     patchNum (Byte)
+/// 5     lastStaff (SignedByte)
+/// 6     channel (Byte)
+/// 7     transpose (SignedByte)
+/// 8-9   loKeyNum (short, big-endian)
+/// 10-11 hiKeyNum (short, big-endian)
+/// 12-43 name[32] (C string)
+/// 44-55 shortName[12] (C string)
+/// 56    hiKeyName
+/// 57    hiKeyAcc
+/// 58    tranName
+/// 59    tranAcc
+/// 60    loKeyName
+/// 61    loKeyAcc
+/// 62    bankNumber0
+/// 63    bankNumber32
+/// 64-65 fmsOutputDevice (short, big-endian)
+/// 66+   fmsOutputDestination[280] (obsolete, write zeros)
+/// ```
+///
+/// Source: NBasicTypes.h:171-201, unpack_stubs.rs:33-93
+pub fn pack_partinfo(part_info: &PartInfo) -> Vec<u8> {
+    // Minimum size is 346 bytes (66 + 280), but we'll write the full struct
+    let mut buf = vec![0u8; 346];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&part_info.next.to_be_bytes());
+
+    // Bytes 2-7: velocity, staffs, patch, channel, transpose
+    buf[2] = part_info.part_velocity as u8;
+    buf[3] = part_info.first_staff as u8;
+    buf[4] = part_info.patch_num;
+    buf[5] = part_info.last_staff as u8;
+    buf[6] = part_info.channel;
+    buf[7] = part_info.transpose as u8;
+
+    // Bytes 8-11: key range (i16, big-endian)
+    buf[8..10].copy_from_slice(&part_info.lo_key_num.to_be_bytes());
+    buf[10..12].copy_from_slice(&part_info.hi_key_num.to_be_bytes());
+
+    // Bytes 12-43: name (32-byte C string)
+    buf[12..44].copy_from_slice(&part_info.name);
+
+    // Bytes 44-55: shortName (12-byte C string)
+    buf[44..56].copy_from_slice(&part_info.short_name);
+
+    // Bytes 56-61: key names and accidentals
+    buf[56] = part_info.hi_key_name;
+    buf[57] = part_info.hi_key_acc;
+    buf[58] = part_info.tran_name;
+    buf[59] = part_info.tran_acc;
+    buf[60] = part_info.lo_key_name;
+    buf[61] = part_info.lo_key_acc;
+
+    // Bytes 62-63: bank numbers
+    buf[62] = part_info.bank_number0;
+    buf[63] = part_info.bank_number32;
+
+    // Bytes 64-65: fmsOutputDevice (u16, big-endian)
+    buf[64..66].copy_from_slice(&part_info.fms_output_device.to_be_bytes());
+
+    // Bytes 66-345: fmsOutputDestination[280] (obsolete, already zeroed)
+    // The struct has this field but we write zeros
+
+    buf
+}
+
+/// Pack N105 ARPTEND_5 to raw bytes (8 bytes total).
+///
+/// Layout (matching unpack_arptend_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     staffn (SignedByte)
+/// 3     subType (SignedByte)
+/// 4     selected:1|visible:1|soft:1|spare:5
+/// 5     connAbove (Byte)
+/// 6     filler (Byte)
+/// 7     connStaff (SignedByte)
+/// ```
+///
+/// Source: NObjTypes.h:142-147, unpack_stubs.rs:337-373
+pub fn pack_arptend_n105(rptend: &ARptEnd) -> Vec<u8> {
+    let mut buf = vec![0u8; 8];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&rptend.header.next.to_be_bytes());
+
+    // Byte 2: staffn
+    buf[2] = rptend.header.staffn as u8;
+
+    // Byte 3: subType
+    buf[3] = rptend.header.sub_type as u8;
+
+    // Byte 4: selected:1|visible:1|soft:1|spare:5
+    let mut b4: u8 = 0;
+    if rptend.header.selected {
+        b4 |= 0x80; // bit 7
+    }
+    if rptend.header.visible {
+        b4 |= 0x40; // bit 6
+    }
+    if rptend.header.soft {
+        b4 |= 0x20; // bit 5
+    }
+    // bits 4-0 are spare (leave as 0)
+    buf[4] = b4;
+
+    // Byte 5: connAbove
+    buf[5] = rptend.conn_above;
+
+    // Byte 6: filler
+    buf[6] = rptend.filler;
+
+    // Byte 7: connStaff
+    buf[7] = rptend.conn_staff as u8;
+
+    buf
+}
+
+/// Pack N105 APSMEAS_5 to raw bytes (8 bytes total).
+///
+/// Layout (matching unpack_apsmeas_n105):
+/// ```text
+/// 0-1   next (LINK, big-endian)
+/// 2     staffn (SignedByte)
+/// 3     subType (SignedByte) — barline type
+/// 4     selected:1|visible:1|soft:1|spare:5
+/// 5     connAbove (Boolean)
+/// 6     filler1 (char)
+/// 7     connStaff (SignedByte)
+/// ```
+///
+/// Source: NObjTypesN105.h, unpack_stubs.rs:384-420
+pub fn pack_apsmeas_n105(psmeas: &APsMeas) -> Vec<u8> {
+    let mut buf = vec![0u8; 8];
+
+    // Bytes 0-1: next (LINK, big-endian)
+    buf[0..2].copy_from_slice(&psmeas.header.next.to_be_bytes());
+
+    // Byte 2: staffn
+    buf[2] = psmeas.header.staffn as u8;
+
+    // Byte 3: subType (barline type: PSM_DOTTED=8, PSM_DOUBLE=9, PSM_FINALDBL=10)
+    buf[3] = psmeas.header.sub_type as u8;
+
+    // Byte 4: selected:1|visible:1|soft:1|spare:5
+    let mut b4: u8 = 0;
+    if psmeas.header.selected {
+        b4 |= 0x80; // bit 7
+    }
+    if psmeas.header.visible {
+        b4 |= 0x40; // bit 6
+    }
+    if psmeas.header.soft {
+        b4 |= 0x20; // bit 5
+    }
+    // bits 4-0 are spare (leave as 0)
+    buf[4] = b4;
+
+    // Byte 5: connAbove (Boolean: 0 or 1)
+    buf[5] = if psmeas.conn_above { 1 } else { 0 };
+
+    // Byte 6: filler1
+    buf[6] = psmeas.filler1;
+
+    // Byte 7: connStaff
+    buf[7] = psmeas.conn_staff as u8;
+
+    buf
 }
 
 #[cfg(test)]
