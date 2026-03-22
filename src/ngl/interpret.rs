@@ -56,6 +56,10 @@ pub use super::unpack_stubs::{
     unpack_anoteottava_n105, unpack_apsmeas_n105, unpack_arptend_n105, unpack_partinfo,
 };
 
+/// Raw heap data tuple: (heap_type, obj_count, obj_size, obj_data)
+/// obj_data includes slot 0 (first obj_size bytes are zeros), reader prepends it.
+pub type RawHeapData = (u8, u16, u16, Vec<u8>);
+
 /// InterpretedScore: all decoded objects and subobjects from a .ngl file.
 ///
 /// This struct holds the fully interpreted score data, organized by type for efficient access.
@@ -77,6 +81,13 @@ pub struct InterpretedScore {
     /// Preserved for pixel-perfect roundtrip write. If None, writer reconstructs from
     /// graphic_strings and tempo_strings HashMaps.
     pub string_pool_raw: Option<Vec<u8>>,
+
+    /// Raw heap data from original NGL file (all 25 heaps: types 0-24)
+    /// Preserved for pixel-perfect roundtrip write. If None, writer reconstructs from
+    /// InterpretedScore objects/subobjects.
+    /// Format: Vec of (heap_type, obj_count, obj_size, obj_data)
+    /// Note: obj_data includes slot 0 (first obj_size bytes), which reader prepends.
+    pub heaps_raw: Option<Vec<RawHeapData>>,
 
     /// Link to the score HEADER object (start of score linked list).
     /// For NGL files, this comes from ScoreHeader.head_l (same as OG doc->headL).
@@ -375,6 +386,7 @@ impl InterpretedScore {
             doc_header_raw: None,
             score_header_raw: None,
             string_pool_raw: None,
+            heaps_raw: None,
         }
     }
 
@@ -786,6 +798,22 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
     score.doc_header_raw = Some(ngl.doc_header_raw.clone());
     score.score_header_raw = Some(ngl.score_header_raw.clone());
     score.string_pool_raw = Some(ngl.string_pool.clone());
+
+    // Preserve all raw heap data (types 0-24) for pixel-perfect roundtrip
+    let heaps_raw: Vec<RawHeapData> = ngl
+        .heaps
+        .iter()
+        .enumerate()
+        .map(|(idx, heap)| {
+            (
+                idx as u8,
+                heap.obj_count,
+                heap.obj_size,
+                heap.obj_data.clone(),
+            )
+        })
+        .collect();
+    score.heaps_raw = Some(heaps_raw);
 
     // Parse head_l from score header — equivalent to OG doc->headL.
     // This is the first field of ScoreHeader (2 bytes, big-endian u16).

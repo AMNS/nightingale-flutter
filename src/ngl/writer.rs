@@ -761,322 +761,356 @@ impl NglWriter {
 
         // 7. Write all subobject heaps (types 0-23)
         // Each heap: 2 bytes nFObjs + 16 bytes HEAP header + heap data
-        // Iterate through all subobject types and serialize them
-        use super::pack_subobjects::{
-            pack_aclef_n105, pack_adynamic_n105, pack_akeysig_n105, pack_ameasure_n105,
-            pack_anote_n105, pack_anotebeam_n105, pack_anotetuple_n105, pack_astaff_n105,
-            pack_atimesig_n105,
-        };
+        //
+        // If heaps_raw is present, write preserved raw data (pixel-perfect roundtrip).
+        // Otherwise, reconstruct heaps from InterpretedScore fields.
+        if let Some(ref heaps_raw) = score.heaps_raw {
+            // Pixel-perfect roundtrip: write preserved raw heap data
+            // Note: obj_data includes slot 0 (first obj_size bytes), which is NOT in file format
+            for (heap_type, obj_count, obj_size, obj_data) in heaps_raw.iter().take(24) {
+                // Write nFObjs (2 bytes)
+                buf.extend_from_slice(&obj_count.to_be_bytes());
 
-        for subobj_type in 0..24 {
-            let heap_data = match subobj_type {
-                // Type 0: PARTINFO (346 bytes per part)
-                0 => {
-                    let mut data = Vec::new();
-                    for part_info in &score.part_infos {
-                        data.extend_from_slice(&pack_partinfo(part_info));
+                // Write 16-byte HEAP header
+                buf.extend_from_slice(&0u32.to_be_bytes()); // Handle [0..3]
+                buf.extend_from_slice(&obj_size.to_be_bytes()); // objSize [4..5]
+                buf.extend_from_slice(&(*heap_type as i16).to_be_bytes()); // type [6..7]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree [8..9]
+                buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs [10..11]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // nFree [12..13]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel [14..15]
+
+                // Write heap data, skipping slot 0 (first obj_size bytes)
+                // Reader prepends slot 0, but file format does NOT include it
+                // obj_data format from reader: [slot0 (obj_size zeros) | file data]
+                // EXCEPTION: If obj_size is 0, reader doesn't prepend slot 0
+                if !obj_data.is_empty() {
+                    if *obj_size > 0 {
+                        buf.extend_from_slice(&obj_data[(*obj_size as usize)..]);
+                    } else {
+                        // No slot 0 when obj_size is 0
+                        buf.extend_from_slice(obj_data);
                     }
-                    (346u16, data)
                 }
-                // Type 2: ANOTE from SYNC (30 bytes, regular notes)
-                2 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for notes in score.notes.values() {
-                        for note in notes {
-                            link_map.register(note.header.next);
+            }
+        } else {
+            // Reconstruct heaps from InterpretedScore fields
+            use super::pack_subobjects::{
+                pack_aclef_n105, pack_adynamic_n105, pack_akeysig_n105, pack_ameasure_n105,
+                pack_anote_n105, pack_anotebeam_n105, pack_anotetuple_n105, pack_astaff_n105,
+                pack_atimesig_n105,
+            };
+
+            for subobj_type in 0..24 {
+                let heap_data = match subobj_type {
+                    // Type 0: PARTINFO (346 bytes per part)
+                    0 => {
+                        let mut data = Vec::new();
+                        for part_info in &score.part_infos {
+                            data.extend_from_slice(&pack_partinfo(part_info));
                         }
+                        (346u16, data)
                     }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for notes in score.notes.values() {
-                        for note in notes {
-                            data.extend_from_slice(&pack_anote_n105(note, &link_map));
-                        }
-                    }
-                    (30u16, data)
-                }
-                // Type 3: ARPTEND (8 bytes per repeat ending)
-                3 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for rptends in score.rptend_subs.values() {
-                        for rptend in rptends {
-                            link_map.register(rptend.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for rptends in score.rptend_subs.values() {
-                        for rptend in rptends {
-                            data.extend_from_slice(&pack_arptend_n105(rptend, &link_map));
-                        }
-                    }
-                    (8u16, data)
-                }
-                // Type 6: ASTAFF (50 bytes per staff)
-                6 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for staffs in score.staffs.values() {
-                        for staff in staffs {
-                            link_map.register(staff.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for staffs in score.staffs.values() {
-                        for staff in staffs {
-                            data.extend_from_slice(&pack_astaff_n105(staff, &link_map));
-                        }
-                    }
-                    (50u16, data)
-                }
-                // Type 7: AMEASURE (40 bytes per measure)
-                7 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for measures in score.measures.values() {
-                        for measure in measures {
-                            link_map.register(measure.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for measures in score.measures.values() {
-                        for measure in measures {
-                            data.extend_from_slice(&pack_ameasure_n105(measure, &link_map));
-                        }
-                    }
-                    (40u16, data)
-                }
-                // Type 8: ACLEF (10 bytes per clef)
-                8 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for clefs in score.clefs.values() {
-                        for clef in clefs {
-                            link_map.register(clef.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for clefs in score.clefs.values() {
-                        for clef in clefs {
-                            data.extend_from_slice(&pack_aclef_n105(clef, &link_map));
-                        }
-                    }
-                    (10u16, data)
-                }
-                // Type 9: AKEYSIG (24 bytes per key signature)
-                9 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for keysigs in score.keysigs.values() {
-                        for keysig in keysigs {
-                            link_map.register(keysig.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for keysigs in score.keysigs.values() {
-                        for keysig in keysigs {
-                            data.extend_from_slice(&pack_akeysig_n105(keysig, &link_map));
-                        }
-                    }
-                    (24u16, data)
-                }
-                // Type 10: ATIMESIG (12 bytes per time signature)
-                10 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for timesigs in score.timesigs.values() {
-                        for timesig in timesigs {
-                            link_map.register(timesig.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for timesigs in score.timesigs.values() {
-                        for timesig in timesigs {
-                            data.extend_from_slice(&pack_atimesig_n105(timesig, &link_map));
-                        }
-                    }
-                    (12u16, data)
-                }
-                // Type 11: ANOTEBEAM (6 bytes per beam link)
-                11 => {
-                    let mut data = Vec::new();
-                    for notebeams in score.notebeams.values() {
-                        for notebeam in notebeams {
-                            data.extend_from_slice(&pack_anotebeam_n105(notebeam));
-                        }
-                    }
-                    (6u16, data)
-                }
-                // Type 12: ACONNECT (12 bytes per connect)
-                12 => {
-                    let mut data = Vec::new();
-                    for connects in score.connects.values() {
-                        for connect in connects {
-                            data.extend_from_slice(&pack_aconnect_n105(connect));
-                        }
-                    }
-                    (12u16, data)
-                }
-                // Type 13: ADYNAMIC (14 bytes per dynamic)
-                13 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for dynamics in score.dynamics.values() {
-                        for dynamic in dynamics {
-                            link_map.register(dynamic.header.next);
-                        }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for dynamics in score.dynamics.values() {
-                        for dynamic in dynamics {
-                            data.extend_from_slice(&pack_adynamic_n105(dynamic, &link_map));
-                        }
-                    }
-                    (14u16, data)
-                }
-                // Type 14: AMODNR (6 bytes per modifier)
-                14 => {
-                    let mut data = Vec::new();
-                    for modnrs in score.modnrs.values() {
-                        for modnr in modnrs {
-                            data.extend_from_slice(&pack_amodnr_n105(modnr));
-                        }
-                    }
-                    (6u16, data)
-                }
-                // Type 15: AGRAPHIC (6 bytes per graphic)
-                15 => {
-                    let mut data = Vec::new();
-                    for (&obj_link, graphics) in &score.graphics {
-                        for graphic in graphics {
-                            // Create a corrected graphic with the new string pool offset
-                            let mut corrected = graphic.clone();
-                            if let Some(&new_offset) = graphic_offsets.get(&obj_link) {
-                                corrected.str_offset = new_offset;
+                    // Type 2: ANOTE from SYNC (30 bytes, regular notes)
+                    2 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for notes in score.notes.values() {
+                            for note in notes {
+                                link_map.register(note.header.next);
                             }
-                            data.extend_from_slice(&pack_agraphic_n105(&corrected));
                         }
-                    }
-                    (6u16, data)
-                }
-                // Type 16: ANOTEOTTAVA (4 bytes per ottava link)
-                16 => {
-                    let mut data = Vec::new();
-                    for ottavas in score.ottavas.values() {
-                        for ottava in ottavas {
-                            data.extend_from_slice(&pack_anoteottava_n105(ottava));
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for notes in score.notes.values() {
+                            for note in notes {
+                                data.extend_from_slice(&pack_anote_n105(note, &link_map));
+                            }
                         }
+                        (30u16, data)
                     }
-                    (4u16, data)
-                }
-                // Type 17: ASLUR (42 bytes per slur)
-                17 => {
-                    let mut data = Vec::new();
-                    for slurs in score.slurs.values() {
-                        for slur in slurs {
-                            data.extend_from_slice(&pack_aslur_n105(slur));
+                    // Type 3: ARPTEND (8 bytes per repeat ending)
+                    3 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for rptends in score.rptend_subs.values() {
+                            for rptend in rptends {
+                                link_map.register(rptend.header.next);
+                            }
                         }
-                    }
-                    (42u16, data)
-                }
-                // Type 18: ANOTETUPLE (4 bytes per tuplet link)
-                18 => {
-                    let mut data = Vec::new();
-                    for tuplets in score.tuplets.values() {
-                        for tuplet in tuplets {
-                            data.extend_from_slice(&pack_anotetuple_n105(tuplet));
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for rptends in score.rptend_subs.values() {
+                            for rptend in rptends {
+                                data.extend_from_slice(&pack_arptend_n105(rptend, &link_map));
+                            }
                         }
+                        (8u16, data)
                     }
-                    (4u16, data)
-                }
-                // Type 19: ANOTE from GRSYNC (30 bytes, grace notes - same as ANOTE)
-                19 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for grnotes in score.grnotes.values() {
-                        for note in grnotes {
-                            link_map.register(note.header.next);
+                    // Type 6: ASTAFF (50 bytes per staff)
+                    6 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for staffs in score.staffs.values() {
+                            for staff in staffs {
+                                link_map.register(staff.next);
+                            }
                         }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for grnotes in score.grnotes.values() {
-                        for note in grnotes {
-                            data.extend_from_slice(&pack_anote_n105(note, &link_map));
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for staffs in score.staffs.values() {
+                            for staff in staffs {
+                                data.extend_from_slice(&pack_astaff_n105(staff, &link_map));
+                            }
                         }
+                        (50u16, data)
                     }
-                    (30u16, data)
-                }
-                // Type 23: APSMEAS (8 bytes per pseudo-measure)
-                23 => {
-                    let mut link_map = SubobjLinkMap::new();
-                    // First pass: register all links in order
-                    for psmeas_list in score.psmeas_subs.values() {
-                        for psmeas in psmeas_list {
-                            link_map.register(psmeas.header.next);
+                    // Type 7: AMEASURE (40 bytes per measure)
+                    7 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for measures in score.measures.values() {
+                            for measure in measures {
+                                link_map.register(measure.header.next);
+                            }
                         }
-                    }
-                    // Second pass: pack with link map
-                    let mut data = Vec::new();
-                    for psmeas_list in score.psmeas_subs.values() {
-                        for psmeas in psmeas_list {
-                            data.extend_from_slice(&pack_apsmeas_n105(psmeas, &link_map));
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for measures in score.measures.values() {
+                            for measure in measures {
+                                data.extend_from_slice(&pack_ameasure_n105(measure, &link_map));
+                            }
                         }
+                        (40u16, data)
                     }
-                    (8u16, data)
-                }
-                // Note: Types 1, 4, 5, 20, 21, 22 have no subobjects (empty heaps)
-                // Type 1: TAIL (no subobjects)
-                // Type 4: PAGE (no subobjects)
-                // Type 5: SYSTEM (no subobjects)
-                // Type 20: TEMPO (no subobjects)
-                // Type 21: SPACER (no subobjects)
-                // Type 22: ENDING (no subobjects)
-                _ => {
-                    // Write empty heap for types with no subobjects
-                    (0u16, Vec::new())
-                }
-            };
+                    // Type 8: ACLEF (10 bytes per clef)
+                    8 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for clefs in score.clefs.values() {
+                            for clef in clefs {
+                                link_map.register(clef.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for clefs in score.clefs.values() {
+                            for clef in clefs {
+                                data.extend_from_slice(&pack_aclef_n105(clef, &link_map));
+                            }
+                        }
+                        (10u16, data)
+                    }
+                    // Type 9: AKEYSIG (24 bytes per key signature)
+                    9 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for keysigs in score.keysigs.values() {
+                            for keysig in keysigs {
+                                link_map.register(keysig.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for keysigs in score.keysigs.values() {
+                            for keysig in keysigs {
+                                data.extend_from_slice(&pack_akeysig_n105(keysig, &link_map));
+                            }
+                        }
+                        (24u16, data)
+                    }
+                    // Type 10: ATIMESIG (12 bytes per time signature)
+                    10 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for timesigs in score.timesigs.values() {
+                            for timesig in timesigs {
+                                link_map.register(timesig.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for timesigs in score.timesigs.values() {
+                            for timesig in timesigs {
+                                data.extend_from_slice(&pack_atimesig_n105(timesig, &link_map));
+                            }
+                        }
+                        (12u16, data)
+                    }
+                    // Type 11: ANOTEBEAM (6 bytes per beam link)
+                    11 => {
+                        let mut data = Vec::new();
+                        for notebeams in score.notebeams.values() {
+                            for notebeam in notebeams {
+                                data.extend_from_slice(&pack_anotebeam_n105(notebeam));
+                            }
+                        }
+                        (6u16, data)
+                    }
+                    // Type 12: ACONNECT (12 bytes per connect)
+                    12 => {
+                        let mut data = Vec::new();
+                        for connects in score.connects.values() {
+                            for connect in connects {
+                                data.extend_from_slice(&pack_aconnect_n105(connect));
+                            }
+                        }
+                        (12u16, data)
+                    }
+                    // Type 13: ADYNAMIC (14 bytes per dynamic)
+                    13 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for dynamics in score.dynamics.values() {
+                            for dynamic in dynamics {
+                                link_map.register(dynamic.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for dynamics in score.dynamics.values() {
+                            for dynamic in dynamics {
+                                data.extend_from_slice(&pack_adynamic_n105(dynamic, &link_map));
+                            }
+                        }
+                        (14u16, data)
+                    }
+                    // Type 14: AMODNR (6 bytes per modifier)
+                    14 => {
+                        let mut data = Vec::new();
+                        for modnrs in score.modnrs.values() {
+                            for modnr in modnrs {
+                                data.extend_from_slice(&pack_amodnr_n105(modnr));
+                            }
+                        }
+                        (6u16, data)
+                    }
+                    // Type 15: AGRAPHIC (6 bytes per graphic)
+                    15 => {
+                        let mut data = Vec::new();
+                        for (&obj_link, graphics) in &score.graphics {
+                            for graphic in graphics {
+                                // Create a corrected graphic with the new string pool offset
+                                let mut corrected = graphic.clone();
+                                if let Some(&new_offset) = graphic_offsets.get(&obj_link) {
+                                    corrected.str_offset = new_offset;
+                                }
+                                data.extend_from_slice(&pack_agraphic_n105(&corrected));
+                            }
+                        }
+                        (6u16, data)
+                    }
+                    // Type 16: ANOTEOTTAVA (4 bytes per ottava link)
+                    16 => {
+                        let mut data = Vec::new();
+                        for ottavas in score.ottavas.values() {
+                            for ottava in ottavas {
+                                data.extend_from_slice(&pack_anoteottava_n105(ottava));
+                            }
+                        }
+                        (4u16, data)
+                    }
+                    // Type 17: ASLUR (42 bytes per slur)
+                    17 => {
+                        let mut data = Vec::new();
+                        for slurs in score.slurs.values() {
+                            for slur in slurs {
+                                data.extend_from_slice(&pack_aslur_n105(slur));
+                            }
+                        }
+                        (42u16, data)
+                    }
+                    // Type 18: ANOTETUPLE (4 bytes per tuplet link)
+                    18 => {
+                        let mut data = Vec::new();
+                        for tuplets in score.tuplets.values() {
+                            for tuplet in tuplets {
+                                data.extend_from_slice(&pack_anotetuple_n105(tuplet));
+                            }
+                        }
+                        (4u16, data)
+                    }
+                    // Type 19: ANOTE from GRSYNC (30 bytes, grace notes - same as ANOTE)
+                    19 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for grnotes in score.grnotes.values() {
+                            for note in grnotes {
+                                link_map.register(note.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for grnotes in score.grnotes.values() {
+                            for note in grnotes {
+                                data.extend_from_slice(&pack_anote_n105(note, &link_map));
+                            }
+                        }
+                        (30u16, data)
+                    }
+                    // Type 23: APSMEAS (8 bytes per pseudo-measure)
+                    23 => {
+                        let mut link_map = SubobjLinkMap::new();
+                        // First pass: register all links in order
+                        for psmeas_list in score.psmeas_subs.values() {
+                            for psmeas in psmeas_list {
+                                link_map.register(psmeas.header.next);
+                            }
+                        }
+                        // Second pass: pack with link map
+                        let mut data = Vec::new();
+                        for psmeas_list in score.psmeas_subs.values() {
+                            for psmeas in psmeas_list {
+                                data.extend_from_slice(&pack_apsmeas_n105(psmeas, &link_map));
+                            }
+                        }
+                        (8u16, data)
+                    }
+                    // Note: Types 1, 4, 5, 20, 21, 22 have no subobjects (empty heaps)
+                    // Type 1: TAIL (no subobjects)
+                    // Type 4: PAGE (no subobjects)
+                    // Type 5: SYSTEM (no subobjects)
+                    // Type 20: TEMPO (no subobjects)
+                    // Type 21: SPACER (no subobjects)
+                    // Type 22: ENDING (no subobjects)
+                    _ => {
+                        // Write empty heap for types with no subobjects
+                        (0u16, Vec::new())
+                    }
+                };
 
-            let (obj_size, heap_data) = heap_data;
-            // Compute obj_count as usize first to avoid u16 overflow for large heaps.
-            // (heap_data.len() as u16) overflows if len > 65535, giving wrong nFObjs.
-            let obj_count = if obj_size > 0 {
-                (heap_data.len() / obj_size as usize) as u16
-            } else {
-                0
-            };
+                let (obj_size, heap_data) = heap_data;
+                // Compute obj_count as usize first to avoid u16 overflow for large heaps.
+                // (heap_data.len() as u16) overflows if len > 65535, giving wrong nFObjs.
+                let obj_count = if obj_size > 0 {
+                    (heap_data.len() / obj_size as usize) as u16
+                } else {
+                    0
+                };
 
-            // Write nFObjs (2 bytes, big-endian)
-            buf.extend_from_slice(&obj_count.to_be_bytes());
+                // Write nFObjs (2 bytes, big-endian)
+                buf.extend_from_slice(&obj_count.to_be_bytes());
 
-            // Write 16-byte HEAP header
-            // [0..3] Handle (runtime pointer, ignored - write 0)
-            // [4..5] objSize (i16, big-endian)
-            // [6..7] type (i16, big-endian)
-            // [8..9] firstFree (u16, ignored - write 0)
-            // [10..11] nObjs (u16, write obj_count)
-            // [12..13] nFree (u16, ignored - write 0)
-            // [14..15] lockLevel (u16, ignored - write 0)
-            buf.extend_from_slice(&0u32.to_be_bytes()); // Handle [0..3]
-            buf.extend_from_slice(&obj_size.to_be_bytes()); // objSize [4..5]
-            buf.extend_from_slice(&(subobj_type as i16).to_be_bytes()); // type [6..7]
-            buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree [8..9]
-            buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs [10..11]
-            buf.extend_from_slice(&0u16.to_be_bytes()); // nFree [12..13]
-            buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel [14..15]
+                // Write 16-byte HEAP header
+                // [0..3] Handle (runtime pointer, ignored - write 0)
+                // [4..5] objSize (i16, big-endian)
+                // [6..7] type (i16, big-endian)
+                // [8..9] firstFree (u16, ignored - write 0)
+                // [10..11] nObjs (u16, write obj_count)
+                // [12..13] nFree (u16, ignored - write 0)
+                // [14..15] lockLevel (u16, ignored - write 0)
+                buf.extend_from_slice(&0u32.to_be_bytes()); // Handle [0..3]
+                buf.extend_from_slice(&obj_size.to_be_bytes()); // objSize [4..5]
+                buf.extend_from_slice(&(subobj_type as i16).to_be_bytes()); // type [6..7]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree [8..9]
+                buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs [10..11]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // nFree [12..13]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel [14..15]
 
-            // Write heap data
-            buf.extend_from_slice(&heap_data);
-        }
+                // Write heap data
+                buf.extend_from_slice(&heap_data);
+            }
+        } // end else (reconstruct heaps)
 
         // 8. Write object heap (type 24)
         //
@@ -1086,30 +1120,63 @@ impl NglWriter {
         //   4 bytes  sizeAllObjsFile  (total byte length of packed object data, including these 4 bytes)
         //   N bytes  packed objects
         //
-        // serialize_object_heap() returns (heap_bytes, total_size) where heap_bytes is
-        // already [4-byte size | packed objects], matching what the reader expects after
-        // the HEAP header.
-        use super::pack_objects::{serialize_object_heap, LinkMap};
+        // If heaps_raw is present, write preserved raw data (pixel-perfect roundtrip).
+        // Otherwise, reconstruct object heap from InterpretedScore.objects.
+        if let Some(ref heaps_raw) = score.heaps_raw {
+            // Pixel-perfect roundtrip: write preserved object heap (type 24)
+            if let Some((heap_type, obj_count, obj_size, obj_data)) = heaps_raw.get(24) {
+                // Write nFObjs (2 bytes)
+                buf.extend_from_slice(&obj_count.to_be_bytes());
 
-        let link_map = LinkMap::new(); // serialize_object_heap registers all objects itself
-        let obj_count = score.objects.len() as u16;
-        let (heap_bytes, _total_size) = serialize_object_heap(score, link_map, &_tempo_offsets);
+                // Write 16-byte HEAP header
+                buf.extend_from_slice(&0u32.to_be_bytes()); // Handle [0..3]
+                buf.extend_from_slice(&obj_size.to_be_bytes()); // objSize [4..5]
+                buf.extend_from_slice(&(*heap_type as i16).to_be_bytes()); // type [6..7]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree [8..9]
+                buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs [10..11]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // nFree [12..13]
+                buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel [14..15]
 
-        // nFObjs (2 bytes, big-endian)
-        buf.extend_from_slice(&obj_count.to_be_bytes());
+                // Write heap data (4-byte total_size + packed objects), skipping slot 0
+                // IMPORTANT: Reader reads 4-byte total_size from file but doesn't store it in obj_data!
+                // obj_data = [slot0(obj_size) | packed objects (WITHOUT 4-byte size)]
+                // File format requires: [4-byte total_size | packed objects]
+                if !obj_data.is_empty() {
+                    let skip_bytes = if *obj_size > 0 { *obj_size as usize } else { 0 };
+                    let packed_objects = &obj_data[skip_bytes..];
 
-        // 16-byte HEAP header (identical structure to subobject heaps above)
-        buf.extend_from_slice(&0u32.to_be_bytes()); // Handle      [0..3]
-        buf.extend_from_slice(&12u16.to_be_bytes()); // objSize=12  [4..5]  (min OBJECTHEADER size)
-        buf.extend_from_slice(&24i16.to_be_bytes()); // type=24     [6..7]
-        buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree   [8..9]
-        buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs       [10..11]
-        buf.extend_from_slice(&0u16.to_be_bytes()); // nFree       [12..13]
-        buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel   [14..15]
+                    // Write 4-byte total_size (size of packed objects)
+                    let total_size = packed_objects.len() as u32;
+                    buf.extend_from_slice(&total_size.to_be_bytes());
 
-        // heap_bytes = [4-byte sizeAllObjsFile | packed objects]
-        // This is exactly what read_heap() reads after the HEAP header for is_object_heap=true
-        buf.extend_from_slice(&heap_bytes);
+                    // Write packed objects
+                    buf.extend_from_slice(packed_objects);
+                }
+            }
+        } else {
+            // Reconstruct object heap from InterpretedScore
+            use super::pack_objects::{serialize_object_heap, LinkMap};
+
+            let link_map = LinkMap::new(); // serialize_object_heap registers all objects itself
+            let obj_count = score.objects.len() as u16;
+            let (heap_bytes, _total_size) = serialize_object_heap(score, link_map, &_tempo_offsets);
+
+            // nFObjs (2 bytes, big-endian)
+            buf.extend_from_slice(&obj_count.to_be_bytes());
+
+            // 16-byte HEAP header (identical structure to subobject heaps above)
+            buf.extend_from_slice(&0u32.to_be_bytes()); // Handle      [0..3]
+            buf.extend_from_slice(&12u16.to_be_bytes()); // objSize=12  [4..5]  (min OBJECTHEADER size)
+            buf.extend_from_slice(&24i16.to_be_bytes()); // type=24     [6..7]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // firstFree   [8..9]
+            buf.extend_from_slice(&obj_count.to_be_bytes()); // nObjs       [10..11]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // nFree       [12..13]
+            buf.extend_from_slice(&0u16.to_be_bytes()); // lockLevel   [14..15]
+
+            // heap_bytes = [4-byte sizeAllObjsFile | packed objects]
+            // This is exactly what read_heap() reads after the HEAP header for is_object_heap=true
+            buf.extend_from_slice(&heap_bytes);
+        }
 
         // 9. Write CoreMIDI device list (optional)
         // TODO: Deferred implementation
