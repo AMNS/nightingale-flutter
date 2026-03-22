@@ -65,6 +65,14 @@ pub struct InterpretedScore {
     /// Used to preserve format version when round-tripping through write_to_bytes()
     pub version: crate::ngl::reader::NglVersion,
 
+    /// Raw document header bytes from original NGL file (72 bytes for N105)
+    /// Preserved for pixel-perfect roundtrip write. If None, writer creates defaults.
+    pub doc_header_raw: Option<Vec<u8>>,
+
+    /// Raw score header bytes from original NGL file (2148 bytes for N105)
+    /// Preserved for pixel-perfect roundtrip write. If None, writer creates defaults.
+    pub score_header_raw: Option<Vec<u8>>,
+
     /// Link to the score HEADER object (start of score linked list).
     /// For NGL files, this comes from ScoreHeader.head_l (same as OG doc->headL).
     /// For Notelist-generated scores, this is the first HEADER link.
@@ -359,6 +367,8 @@ impl InterpretedScore {
             composer: String::new(),
             // Default to N105 format
             version: crate::ngl::reader::NglVersion::N105,
+            doc_header_raw: None,
+            score_header_raw: None,
         }
     }
 
@@ -765,6 +775,10 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
 
     // Populate version from the original NGL file to preserve format
     score.version = ngl.version;
+
+    // Preserve raw headers for pixel-perfect roundtrip write
+    score.doc_header_raw = Some(ngl.doc_header_raw.clone());
+    score.score_header_raw = Some(ngl.score_header_raw.clone());
 
     // Parse head_l from score header — equivalent to OG doc->headL.
     // This is the first field of ScoreHeader (2 bytes, big-endian u16).

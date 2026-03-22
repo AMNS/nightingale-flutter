@@ -45,7 +45,7 @@ use super::error::Result;
 use super::pack_headers::{pack_document_header_n105, pack_score_header_n105};
 use super::pack_subobjects::{
     pack_aconnect_n105, pack_agraphic_n105, pack_amodnr_n105, pack_anoteottava_n105,
-    pack_apsmeas_n105, pack_arptend_n105, pack_aslur_n105, pack_partinfo,
+    pack_apsmeas_n105, pack_arptend_n105, pack_aslur_n105, pack_partinfo, SubobjLinkMap,
 };
 
 // =============================================================================
@@ -652,68 +652,88 @@ impl NglWriter {
     pub fn write_to_bytes(&self, score: &InterpretedScore) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
 
-        // 1. Write version tag (4 bytes) — always N105.
-        // We only produce N105 format regardless of the source file version.
-        buf.extend_from_slice(b"N105");
+        // 1. Write version tag (4 bytes) — use source version for roundtrip fidelity.
+        // Preserving the original version ensures byte-for-byte header compatibility.
+        match score.version {
+            NglVersion::N103 => buf.extend_from_slice(b"N103"),
+            NglVersion::N105 => buf.extend_from_slice(b"N105"),
+            _ => {
+                // For other versions (N101, N102, N106), default to N105
+                // since we don't fully support writing those formats yet
+                buf.extend_from_slice(b"N105");
+            }
+        }
 
         // 2. Write timestamp (4 bytes, big-endian)
         let timestamp = get_mac_timestamp();
         buf.extend_from_slice(&timestamp.to_be_bytes());
 
         // 3. Write document header (72 bytes)
-        let doc_header_default = DocumentHeader {
-            origin: Point { v: 0, h: 0 },
-            paper_rect: Rect {
-                top: 0,
-                left: 0,
-                bottom: 792,
-                right: 612,
-            },
-            orig_paper_rect: Rect {
-                top: 0,
-                left: 0,
-                bottom: 792,
-                right: 612,
-            },
-            hold_origin: Point { v: 0, h: 0 },
-            margin_rect: Rect {
-                top: 72,
-                left: 72,
-                bottom: 720,
-                right: 540,
-            },
-            sheet_origin: Point { v: 0, h: 0 },
-            current_sheet: 0,
-            num_sheets: 1,
-            first_sheet: 0,
-            first_page_number: 1,
-            start_page_number: 1,
-            num_rows: 1,
-            num_cols: 1,
-            page_type: 0,
-            meas_system: 0,
-            header_footer_margins: Rect {
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-            },
-            current_paper: Rect {
-                top: 0,
-                left: 0,
-                bottom: 792,
-                right: 612,
-            },
-            landscape: 0,
-            little_endian: 0,
-        };
-        let doc_header = pack_document_header_n105(&doc_header_default);
-        buf.extend_from_slice(&doc_header);
+        // For roundtrip fidelity, use preserved raw header if available
+        if let Some(ref raw_doc_header) = score.doc_header_raw {
+            buf.extend_from_slice(raw_doc_header);
+        } else {
+            // Notelist-generated scores or other sources: create defaults
+            let doc_header_default = DocumentHeader {
+                origin: Point { v: 0, h: 0 },
+                paper_rect: Rect {
+                    top: 0,
+                    left: 0,
+                    bottom: 792,
+                    right: 612,
+                },
+                orig_paper_rect: Rect {
+                    top: 0,
+                    left: 0,
+                    bottom: 792,
+                    right: 612,
+                },
+                hold_origin: Point { v: 0, h: 0 },
+                margin_rect: Rect {
+                    top: 72,
+                    left: 72,
+                    bottom: 720,
+                    right: 540,
+                },
+                sheet_origin: Point { v: 0, h: 0 },
+                current_sheet: 0,
+                num_sheets: 1,
+                first_sheet: 0,
+                first_page_number: 1,
+                start_page_number: 1,
+                num_rows: 1,
+                num_cols: 1,
+                page_type: 0,
+                meas_system: 0,
+                header_footer_margins: Rect {
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    right: 0,
+                },
+                current_paper: Rect {
+                    top: 0,
+                    left: 0,
+                    bottom: 792,
+                    right: 612,
+                },
+                landscape: 0,
+                little_endian: 0,
+            };
+            let doc_header = pack_document_header_n105(&doc_header_default);
+            buf.extend_from_slice(&doc_header);
+        }
 
         // 4. Write score header (2148 bytes for N105)
-        let reconstructed_header = reconstruct_score_header_from_interpreted(score);
-        let score_header = pack_score_header_n105(&reconstructed_header);
-        buf.extend_from_slice(&score_header);
+        // For roundtrip fidelity, use preserved raw header if available
+        if let Some(ref raw_score_header) = score.score_header_raw {
+            buf.extend_from_slice(raw_score_header);
+        } else {
+            // Notelist-generated scores or other sources: reconstruct from InterpretedScore
+            let reconstructed_header = reconstruct_score_header_from_interpreted(score);
+            let score_header = pack_score_header_n105(&reconstructed_header);
+            buf.extend_from_slice(&score_header);
+        }
 
         // 5. Write LASTtype sentinel (2 bytes, value 25)
         buf.extend_from_slice(&25u16.to_be_bytes());
@@ -745,70 +765,126 @@ impl NglWriter {
                 }
                 // Type 2: ANOTE from SYNC (30 bytes, regular notes)
                 2 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for notes in score.notes.values() {
+                        for note in notes {
+                            link_map.register(note.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for notes in score.notes.values() {
                         for note in notes {
-                            data.extend_from_slice(&pack_anote_n105(note));
+                            data.extend_from_slice(&pack_anote_n105(note, &link_map));
                         }
                     }
                     (30u16, data)
                 }
                 // Type 3: ARPTEND (8 bytes per repeat ending)
                 3 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for rptends in score.rptend_subs.values() {
+                        for rptend in rptends {
+                            link_map.register(rptend.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for rptends in score.rptend_subs.values() {
                         for rptend in rptends {
-                            data.extend_from_slice(&pack_arptend_n105(rptend));
+                            data.extend_from_slice(&pack_arptend_n105(rptend, &link_map));
                         }
                     }
                     (8u16, data)
                 }
                 // Type 6: ASTAFF (50 bytes per staff)
                 6 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for staffs in score.staffs.values() {
+                        for staff in staffs {
+                            link_map.register(staff.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for staffs in score.staffs.values() {
                         for staff in staffs {
-                            data.extend_from_slice(&pack_astaff_n105(staff));
+                            data.extend_from_slice(&pack_astaff_n105(staff, &link_map));
                         }
                     }
                     (50u16, data)
                 }
                 // Type 7: AMEASURE (40 bytes per measure)
                 7 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for measures in score.measures.values() {
+                        for measure in measures {
+                            link_map.register(measure.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for measures in score.measures.values() {
                         for measure in measures {
-                            data.extend_from_slice(&pack_ameasure_n105(measure));
+                            data.extend_from_slice(&pack_ameasure_n105(measure, &link_map));
                         }
                     }
                     (40u16, data)
                 }
                 // Type 8: ACLEF (10 bytes per clef)
                 8 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for clefs in score.clefs.values() {
+                        for clef in clefs {
+                            link_map.register(clef.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for clefs in score.clefs.values() {
                         for clef in clefs {
-                            data.extend_from_slice(&pack_aclef_n105(clef));
+                            data.extend_from_slice(&pack_aclef_n105(clef, &link_map));
                         }
                     }
                     (10u16, data)
                 }
                 // Type 9: AKEYSIG (24 bytes per key signature)
                 9 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for keysigs in score.keysigs.values() {
+                        for keysig in keysigs {
+                            link_map.register(keysig.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for keysigs in score.keysigs.values() {
                         for keysig in keysigs {
-                            data.extend_from_slice(&pack_akeysig_n105(keysig));
+                            data.extend_from_slice(&pack_akeysig_n105(keysig, &link_map));
                         }
                     }
                     (24u16, data)
                 }
                 // Type 10: ATIMESIG (12 bytes per time signature)
                 10 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for timesigs in score.timesigs.values() {
+                        for timesig in timesigs {
+                            link_map.register(timesig.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for timesigs in score.timesigs.values() {
                         for timesig in timesigs {
-                            data.extend_from_slice(&pack_atimesig_n105(timesig));
+                            data.extend_from_slice(&pack_atimesig_n105(timesig, &link_map));
                         }
                     }
                     (12u16, data)
@@ -835,10 +911,18 @@ impl NglWriter {
                 }
                 // Type 13: ADYNAMIC (14 bytes per dynamic)
                 13 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for dynamics in score.dynamics.values() {
+                        for dynamic in dynamics {
+                            link_map.register(dynamic.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for dynamics in score.dynamics.values() {
                         for dynamic in dynamics {
-                            data.extend_from_slice(&pack_adynamic_n105(dynamic));
+                            data.extend_from_slice(&pack_adynamic_n105(dynamic, &link_map));
                         }
                     }
                     (14u16, data)
@@ -900,20 +984,36 @@ impl NglWriter {
                 }
                 // Type 19: ANOTE from GRSYNC (30 bytes, grace notes - same as ANOTE)
                 19 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for grnotes in score.grnotes.values() {
+                        for note in grnotes {
+                            link_map.register(note.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for grnotes in score.grnotes.values() {
                         for note in grnotes {
-                            data.extend_from_slice(&pack_anote_n105(note));
+                            data.extend_from_slice(&pack_anote_n105(note, &link_map));
                         }
                     }
                     (30u16, data)
                 }
                 // Type 23: APSMEAS (8 bytes per pseudo-measure)
                 23 => {
+                    let mut link_map = SubobjLinkMap::new();
+                    // First pass: register all links in order
+                    for psmeas_list in score.psmeas_subs.values() {
+                        for psmeas in psmeas_list {
+                            link_map.register(psmeas.header.next);
+                        }
+                    }
+                    // Second pass: pack with link map
                     let mut data = Vec::new();
                     for psmeas_list in score.psmeas_subs.values() {
                         for psmeas in psmeas_list {
-                            data.extend_from_slice(&pack_apsmeas_n105(psmeas));
+                            data.extend_from_slice(&pack_apsmeas_n105(psmeas, &link_map));
                         }
                     }
                     (8u16, data)

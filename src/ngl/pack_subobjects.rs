@@ -11,11 +11,74 @@
 //!
 //! Source: Inverse of unpack_*.rs and NObjTypesN105.h
 
-use crate::basic_types::KsInfo;
+use crate::basic_types::{KsInfo, Link};
 use crate::obj_types::{
     AClef, AConnect, ADynamic, AGraphic, AKeySig, AMeasure, AModNr, ANote, ANoteBeam, ANoteOttava,
     ANoteTuple, APsMeas, ARptEnd, ASlur, AStaff, ATimeSig, PartInfo, SubObjHeader,
 };
+use std::collections::HashMap;
+
+// =============================================================================
+// Subobject LINK Mapping (HeapFileIO.cp WriteSubObjs equivalent)
+// =============================================================================
+
+/// SubobjLinkMap: Maps in-memory subobject LINK values to sequential file indices.
+///
+/// Unlike object LINKs (which use a single global namespace), subobject LINKs are
+/// scoped per heap type. Each heap type (ASTAFF, AMEASURE, etc.) has its own
+/// sequential numbering starting at 1.
+///
+/// This matches OG Nightingale's WriteSubObjs() function (HeapFileIO.cp:562-651),
+/// which temporarily backpatches the `next` field before writing each subobject.
+///
+/// Source: OG HeapFileIO.cp lines 590-595 (nextL = link+1; *(LINK *)LinkToPtr = nextL++)
+pub struct SubobjLinkMap {
+    /// Map from in-memory Link to file index, per heap type
+    map: HashMap<Link, Link>,
+    /// Next available file index (incremented as subobjects are added)
+    next_index: Link,
+}
+
+impl Default for SubobjLinkMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SubobjLinkMap {
+    /// Create a new SubobjLinkMap, starting with index 1 (0 reserved for NILINK).
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+            next_index: 1,
+        }
+    }
+
+    /// Register a Link value and return its file index.
+    pub fn register(&mut self, in_memory_link: Link) -> Link {
+        if in_memory_link == 0 {
+            // NILINK (null pointer) stays 0
+            return 0;
+        }
+        if let Some(&file_index) = self.map.get(&in_memory_link) {
+            file_index
+        } else {
+            let file_index = self.next_index;
+            self.map.insert(in_memory_link, file_index);
+            self.next_index += 1;
+            file_index
+        }
+    }
+
+    /// Convert a Link value using the mapping. Returns 0 if NILINK, or mapped index.
+    pub fn convert(&self, in_memory_link: Link) -> Link {
+        if in_memory_link == 0 {
+            0
+        } else {
+            self.map.get(&in_memory_link).copied().unwrap_or(0)
+        }
+    }
+}
 
 /// Pack N105 ANOTE_5 to raw bytes (30 bytes total).
 ///
@@ -46,11 +109,11 @@ use crate::obj_types::{
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 56-96
-pub fn pack_anote_n105(note: &ANote) -> Vec<u8> {
+pub fn pack_anote_n105(note: &ANote, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 30];
 
     // Offset 0-4: SUBOBJHEADER_5 (writes bytes 0-4)
-    pack_subobj_header_n105(&note.header, &mut buf);
+    pack_subobj_header_n105(&note.header, link_map, &mut buf);
 
     // Byte 4: Overlay note flags onto header flags (bits 4-0)
     let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
@@ -175,11 +238,11 @@ pub fn pack_anote_n105(note: &ANote) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 227-236
-pub fn pack_aclef_n105(clef: &AClef) -> Vec<u8> {
+pub fn pack_aclef_n105(clef: &AClef, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 10];
 
     // Offset 0-4: SUBOBJHEADER_5
-    pack_subobj_header_n105(&clef.header, &mut buf);
+    pack_subobj_header_n105(&clef.header, link_map, &mut buf);
 
     // Byte 4: Overlay filler1 and small onto header flags
     let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
@@ -210,11 +273,11 @@ pub fn pack_aclef_n105(clef: &AClef) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 248-272
-pub fn pack_akeysig_n105(keysig: &AKeySig) -> Vec<u8> {
+pub fn pack_akeysig_n105(keysig: &AKeySig, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 24];
 
     // Offset 0-4: SUBOBJHEADER_5
-    pack_subobj_header_n105(&keysig.header, &mut buf);
+    pack_subobj_header_n105(&keysig.header, link_map, &mut buf);
 
     // Byte 4: Overlay nonstandard, filler1, small onto header flags
     let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
@@ -251,11 +314,11 @@ pub fn pack_akeysig_n105(keysig: &AKeySig) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 283-293
-pub fn pack_atimesig_n105(timesig: &ATimeSig) -> Vec<u8> {
+pub fn pack_atimesig_n105(timesig: &ATimeSig, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 12];
 
     // Offset 0-4: SUBOBJHEADER_5
-    pack_subobj_header_n105(&timesig.header, &mut buf);
+    pack_subobj_header_n105(&timesig.header, link_map, &mut buf);
 
     // Byte 4: Overlay filler and small onto header flags
     let mut b4 = buf[4]; // Keep selected|visible|soft from header (bits 7-5)
@@ -310,11 +373,13 @@ pub fn pack_atimesig_n105(timesig: &ATimeSig) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 152-180
-pub fn pack_astaff_n105(staff: &AStaff) -> Vec<u8> {
+pub fn pack_astaff_n105(staff: &AStaff, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 50];
 
     // Offset 0-1: next (LINK, big-endian)
-    buf[0..2].copy_from_slice(&staff.next.to_be_bytes());
+    // Convert in-memory LINK to sequential file index before packing
+    let file_index = link_map.convert(staff.next);
+    buf[0..2].copy_from_slice(&file_index.to_be_bytes());
 
     // Offset 2: staffn
     buf[2] = staff.staffn as u8;
@@ -399,11 +464,11 @@ pub fn pack_astaff_n105(staff: &AStaff) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 192-210
-pub fn pack_ameasure_n105(measure: &AMeasure) -> Vec<u8> {
+pub fn pack_ameasure_n105(measure: &AMeasure, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 40];
 
     // Offset 0-3: SUBOBJHEADER_5
-    pack_subobj_header_n105(&measure.header, &mut buf);
+    pack_subobj_header_n105(&measure.header, link_map, &mut buf);
 
     // Offset 4: measureVisible:1 | connAbove:1 | filler1:3
     // (high 3 bits of this are unused, low 5 bits carry subobj flags from header byte 4)
@@ -462,9 +527,11 @@ pub fn pack_ameasure_n105(measure: &AMeasure) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 29-35
-fn pack_subobj_header_n105(header: &SubObjHeader, buf: &mut [u8]) {
+fn pack_subobj_header_n105(header: &SubObjHeader, link_map: &SubobjLinkMap, buf: &mut [u8]) {
     // Offset 0-1: next (LINK, big-endian)
-    buf[0..2].copy_from_slice(&header.next.to_be_bytes());
+    // Convert in-memory LINK to sequential file index before packing
+    let file_index = link_map.convert(header.next);
+    buf[0..2].copy_from_slice(&file_index.to_be_bytes());
 
     // Offset 2: staffn
     buf[2] = header.staffn as u8;
@@ -590,11 +657,13 @@ pub fn pack_anotetuple_n105(tuplet: &ANoteTuple) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h lines 357-369
-pub fn pack_adynamic_n105(dynamic: &ADynamic) -> Vec<u8> {
+pub fn pack_adynamic_n105(dynamic: &ADynamic, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 14];
 
     // Bytes 0-3: SUBOBJHEADER_5 prefix (next, staffn, subType)
-    buf[0..2].copy_from_slice(&dynamic.header.next.to_be_bytes());
+    // Convert in-memory LINK to sequential file index before packing
+    let file_index = link_map.convert(dynamic.header.next);
+    buf[0..2].copy_from_slice(&file_index.to_be_bytes());
     buf[2] = dynamic.header.staffn as u8;
     buf[3] = dynamic.header.sub_type as u8;
 
@@ -932,11 +1001,13 @@ pub fn pack_partinfo(part_info: &PartInfo) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypes.h:142-147, unpack_stubs.rs:337-373
-pub fn pack_arptend_n105(rptend: &ARptEnd) -> Vec<u8> {
+pub fn pack_arptend_n105(rptend: &ARptEnd, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 8];
 
     // Bytes 0-1: next (LINK, big-endian)
-    buf[0..2].copy_from_slice(&rptend.header.next.to_be_bytes());
+    // Convert in-memory LINK to sequential file index before packing
+    let file_index = link_map.convert(rptend.header.next);
+    buf[0..2].copy_from_slice(&file_index.to_be_bytes());
 
     // Byte 2: staffn
     buf[2] = rptend.header.staffn as u8;
@@ -984,11 +1055,13 @@ pub fn pack_arptend_n105(rptend: &ARptEnd) -> Vec<u8> {
 /// ```
 ///
 /// Source: NObjTypesN105.h, unpack_stubs.rs:384-420
-pub fn pack_apsmeas_n105(psmeas: &APsMeas) -> Vec<u8> {
+pub fn pack_apsmeas_n105(psmeas: &APsMeas, link_map: &SubobjLinkMap) -> Vec<u8> {
     let mut buf = vec![0u8; 8];
 
     // Bytes 0-1: next (LINK, big-endian)
-    buf[0..2].copy_from_slice(&psmeas.header.next.to_be_bytes());
+    // Convert in-memory LINK to sequential file index before packing
+    let file_index = link_map.convert(psmeas.header.next);
+    buf[0..2].copy_from_slice(&file_index.to_be_bytes());
 
     // Byte 2: staffn
     buf[2] = psmeas.header.staffn as u8;
@@ -1061,11 +1134,13 @@ mod tests {
         };
 
         // Pack and verify size
-        let packed = pack_astaff_n105(&original);
+        let mut link_map = SubobjLinkMap::new();
+        link_map.register(original.next);
+        let packed = pack_astaff_n105(&original, &link_map);
         assert_eq!(packed.len(), 50, "ASTAFF must be 50 bytes");
 
-        // Verify key fields are present
-        assert_eq!(u16::from_be_bytes([packed[0], packed[1]]), 42);
+        // Verify key fields are present (file index should be 1, not 42)
+        assert_eq!(u16::from_be_bytes([packed[0], packed[1]]), 1);
         assert_eq!(packed[2] as i8, 1);
         assert_eq!(packed[3] & 0xC0, 0xC0); // selected and visible set
         assert_eq!(i16::from_be_bytes([packed[4], packed[5]]), 100);
@@ -1108,11 +1183,13 @@ mod tests {
         };
 
         // Pack and verify size
-        let packed = pack_ameasure_n105(&original);
+        let mut link_map = SubobjLinkMap::new();
+        link_map.register(original.header.next);
+        let packed = pack_ameasure_n105(&original, &link_map);
         assert_eq!(packed.len(), 40, "AMEASURE must be 40 bytes");
 
-        // Verify header fields
-        assert_eq!(u16::from_be_bytes([packed[0], packed[1]]), 10);
+        // Verify header fields (file index should be 1, not 10)
+        assert_eq!(u16::from_be_bytes([packed[0], packed[1]]), 1);
         assert_eq!(packed[2] as i8, 1);
         assert_eq!(packed[3] as i8, 1);
     }
