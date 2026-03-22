@@ -76,6 +76,13 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
 
         // --- Render original to bitmap ---
         let mut original_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
+
+        // Load Bravura font for glyph rendering
+        let font_path = std::path::Path::new("assets/fonts/Bravura.otf");
+        if font_path.exists() {
+            original_renderer.load_music_font_file(font_path);
+        }
+
         render_score(&original_score, &mut original_renderer);
 
         let original_png_path = output_dir.join(format!("{}_original_page1.png", fixture_name));
@@ -120,6 +127,12 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
 
         // --- Render roundtrip to bitmap ---
         let mut roundtrip_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
+
+        // Load Bravura font for glyph rendering
+        if font_path.exists() {
+            roundtrip_renderer.load_music_font_file(font_path);
+        }
+
         render_score(&roundtrip_score, &mut roundtrip_renderer);
 
         let roundtrip_png_path = output_dir.join(format!("{}_roundtrip_page1.png", fixture_name));
