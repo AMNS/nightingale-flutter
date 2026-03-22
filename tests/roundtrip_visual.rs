@@ -12,7 +12,38 @@ use nightingale_core::ngl::writer::NglWriter;
 use nightingale_core::ngl::{interpret_heap, NglFile};
 use nightingale_core::render::{BitmapRenderer, MusicRenderer};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// Create and configure a BitmapRenderer for an NGL file.
+///
+/// Extracts page dimensions from the NGL document header and loads the Bravura font.
+/// This matches the setup pattern from ngl_all.rs:test_all_ngl_produce_valid_pdf.
+fn create_bitmap_renderer_for_ngl(ngl: &NglFile, dpi: f32) -> BitmapRenderer {
+    // Extract page dimensions from NGL document header (respects landscape/portrait)
+    // Reference: ngl_all.rs lines 402-412
+    let (page_width, page_height) =
+        nightingale_core::doc_types::DocumentHeader::from_n105_bytes(&ngl.doc_header_raw)
+            .map(|hdr| {
+                let w = (hdr.orig_paper_rect.right - hdr.orig_paper_rect.left) as f32;
+                let h = (hdr.orig_paper_rect.bottom - hdr.orig_paper_rect.top) as f32;
+                (
+                    if w > 0.0 { w } else { 612.0 },
+                    if h > 0.0 { h } else { 792.0 },
+                )
+            })
+            .unwrap_or((612.0, 792.0));
+
+    let mut renderer = BitmapRenderer::new(dpi);
+    renderer.set_page_size(page_width, page_height);
+
+    // Load Bravura font if available
+    let font_path = Path::new("assets/fonts/Bravura.otf");
+    if font_path.exists() {
+        renderer.load_music_font_file(font_path);
+    }
+
+    renderer
+}
 
 /// Test that NGL roundtrip (read → write → read) produces pixel-perfect identical rendering.
 ///
@@ -75,16 +106,8 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
         };
 
         // --- Render original to bitmap ---
-        let mut original_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
-        original_renderer
-            .set_page_size(original_score.page_width_pt, original_score.page_height_pt);
-
-        // Load Bravura font for glyph rendering
-        let font_path = std::path::Path::new("assets/fonts/Bravura.otf");
-        if font_path.exists() {
-            original_renderer.load_music_font_file(font_path);
-        }
-
+        // Use the same renderer setup as ngl_all.rs for consistency
+        let mut original_renderer = create_bitmap_renderer_for_ngl(&original_ngl, 150.0);
         render_score(&original_score, &mut original_renderer);
 
         let original_png_path = output_dir.join(format!("{}_original_page1.png", fixture_name));
@@ -128,17 +151,8 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
         };
 
         // --- Render roundtrip to bitmap ---
-        let mut roundtrip_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
-        roundtrip_renderer.set_page_size(
-            roundtrip_score.page_width_pt,
-            roundtrip_score.page_height_pt,
-        );
-
-        // Load Bravura font for glyph rendering
-        if font_path.exists() {
-            roundtrip_renderer.load_music_font_file(font_path);
-        }
-
+        // Use the same renderer setup as ngl_all.rs for consistency
+        let mut roundtrip_renderer = create_bitmap_renderer_for_ngl(&roundtrip_ngl, 150.0);
         render_score(&roundtrip_score, &mut roundtrip_renderer);
 
         let roundtrip_png_path = output_dir.join(format!("{}_roundtrip_page1.png", fixture_name));
