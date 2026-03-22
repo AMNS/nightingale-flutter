@@ -739,10 +739,25 @@ impl NglWriter {
         buf.extend_from_slice(&25u16.to_be_bytes());
 
         // 6. Write string pool size + data
-        let (strings, graphic_offsets, _tempo_offsets) = collect_strings_and_offsets(score);
-        let string_pool = serialize_string_pool(&strings);
-        buf.extend_from_slice(&(string_pool.len() as u32).to_be_bytes());
-        buf.extend_from_slice(&string_pool);
+        // For roundtrip fidelity, use preserved raw string pool if available
+        let (strings, graphic_offsets, _tempo_offsets) = if score.string_pool_raw.is_some() {
+            // Preserved pool - still need to collect offsets for GRAPHIC patching,
+            // but don't need to reconstruct the pool itself
+            collect_strings_and_offsets(score)
+        } else {
+            collect_strings_and_offsets(score)
+        };
+
+        if let Some(ref raw_pool) = score.string_pool_raw {
+            // Use preserved raw string pool for pixel-perfect roundtrip
+            buf.extend_from_slice(&(raw_pool.len() as u32).to_be_bytes());
+            buf.extend_from_slice(raw_pool);
+        } else {
+            // Notelist-generated scores or other sources: reconstruct from graphic_strings/tempo_strings
+            let string_pool = serialize_string_pool(&strings);
+            buf.extend_from_slice(&(string_pool.len() as u32).to_be_bytes());
+            buf.extend_from_slice(&string_pool);
+        }
 
         // 7. Write all subobject heaps (types 0-23)
         // Each heap: 2 bytes nFObjs + 16 bytes HEAP header + heap data
