@@ -36,10 +36,36 @@ fn create_bitmap_renderer_for_ngl(ngl: &NglFile, dpi: f32) -> BitmapRenderer {
     let mut renderer = BitmapRenderer::new(dpi);
     renderer.set_page_size(page_width, page_height);
 
-    // Load Bravura font if available
+    // Load Bravura music font if available
     let font_path = Path::new("assets/fonts/Bravura.otf");
     if font_path.exists() {
         renderer.load_music_font_file(font_path);
+    }
+
+    // Load Liberation Sans/Serif text fonts if available
+    // BitmapRenderer requires explicit text font loading (unlike PdfRenderer which uses built-in PDF fonts)
+    let text_fonts = vec![
+        ("assets/fonts/LiberationSans-Regular.ttf", "sans"),
+        ("assets/fonts/LiberationSans-Italic.ttf", "sans-italic"),
+        ("assets/fonts/LiberationSans-Bold.ttf", "sans-bold"),
+        (
+            "assets/fonts/LiberationSans-BoldItalic.ttf",
+            "sans-bold-italic",
+        ),
+        ("assets/fonts/LiberationSerif-Regular.ttf", "serif"),
+        ("assets/fonts/LiberationSerif-Italic.ttf", "serif-italic"),
+        ("assets/fonts/LiberationSerif-Bold.ttf", "serif-bold"),
+        (
+            "assets/fonts/LiberationSerif-BoldItalic.ttf",
+            "serif-bold-italic",
+        ),
+    ];
+
+    for (path_str, role) in text_fonts {
+        let path = Path::new(path_str);
+        if path.exists() {
+            renderer.load_text_font_file(path, role);
+        }
     }
 
     renderer
