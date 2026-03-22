@@ -10,7 +10,7 @@ use common::{compare_images_and_diff, save_bitmap_page};
 use nightingale_core::draw::render_score;
 use nightingale_core::ngl::writer::NglWriter;
 use nightingale_core::ngl::{interpret_heap, NglFile};
-use nightingale_core::render::BitmapRenderer;
+use nightingale_core::render::{BitmapRenderer, MusicRenderer};
 use std::fs;
 use std::path::PathBuf;
 
@@ -76,6 +76,8 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
 
         // --- Render original to bitmap ---
         let mut original_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
+        original_renderer
+            .set_page_size(original_score.page_width_pt, original_score.page_height_pt);
 
         // Load Bravura font for glyph rendering
         let font_path = std::path::Path::new("assets/fonts/Bravura.otf");
@@ -127,6 +129,10 @@ fn test_roundtrip_visual_fidelity_all_fixtures() {
 
         // --- Render roundtrip to bitmap ---
         let mut roundtrip_renderer = BitmapRenderer::new(150.0); // 150 DPI for tests
+        roundtrip_renderer.set_page_size(
+            roundtrip_score.page_width_pt,
+            roundtrip_score.page_height_pt,
+        );
 
         // Load Bravura font for glyph rendering
         if font_path.exists() {

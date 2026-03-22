@@ -426,6 +426,145 @@ pub fn calculate_velocity(
 }
 
 // =============================================================================
+// Tied Note Duration Calculation
+// =============================================================================
+
+/// Calculate total performance duration of a note and all following notes tied to it.
+///
+/// Returns the sum of durations across the tie chain:
+/// - For intermediate notes: use **notated duration** (time between Syncs)
+/// - For the final note: use its **play_dur** field
+///
+/// This matches OG Nightingale's TiedDur() function from MIDIUtils.cp lines 88-116.
+///
+/// # Arguments
+/// * `score` - The interpreted score
+/// * `starting_sync_first_sub` - The first_sub_obj value of the Sync containing the starting note
+/// * `starting_note` - The starting note (must have tied_r=true for non-zero extension)
+/// * `current_measure_time` - The accumulated time of the current measure (PDUR ticks from score start)
+///
+/// # Returns
+/// Total duration in PDUR ticks for MIDI note-off timing
+///
+/// # Algorithm
+/// 1. Start with duration = 0
+/// 2. While current note has tied_r (tied-to-right):
+///    a. Find next Sync with a note in same voice/pitch
+///    b. Add time between Syncs (notated duration) to total
+///    c. Move to the next note
+/// 3. Add final note's play_dur
+/// 4. Return total duration
+///
+/// Reference: OG MIDIUtils.cp lines 88-116 (TiedDur function)
+fn tied_dur(
+    score: &InterpretedScore,
+    starting_sync_first_sub: u16,
+    starting_note: &crate::obj_types::ANote,
+    current_measure_time: u32,
+) -> u32 {
+    use crate::ngl::interpret::ObjData;
+
+    // If note is not tied to the right, just return its play_dur
+    if !starting_note.tied_r {
+        return (starting_note.play_dur as u32).max(1);
+    }
+
+    let voice = starting_note.voice;
+    let note_num = starting_note.note_num;
+    let staff_num = starting_note.header.staffn;
+
+    let mut total_dur = 0u32;
+    let mut current_sync_first_sub = starting_sync_first_sub;
+    let mut current_note = starting_note.clone();
+    let mut looking_for_measure_time = current_measure_time;
+
+    // Walk the tie chain
+    loop {
+        // If current note is not tied to right, this is the last note in the chain
+        if !current_note.tied_r {
+            // Add play_dur of final note and exit
+            total_dur += (current_note.play_dur as u32).max(1);
+            break;
+        }
+
+        // Find current sync's absolute time
+        let mut found_next = false;
+        let current_sync_time = score
+            .objects
+            .iter()
+            .find(|obj| obj.header.first_sub_obj == current_sync_first_sub)
+            .and_then(|obj| {
+                if let ObjData::Sync(sync) = &obj.data {
+                    Some(looking_for_measure_time + sync.time_stamp as u32)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+
+        // Look for the next Sync containing a note with same voice, staff, and pitch
+        let mut looking = false;
+        let mut next_measure_time = looking_for_measure_time;
+        for obj in score.walk() {
+            // Update measure time as we walk
+            if let ObjData::Measure(measure) = &obj.data {
+                next_measure_time = measure.l_time_stamp as u32;
+            }
+
+            // Start looking after we pass the current sync
+            if obj.header.first_sub_obj == current_sync_first_sub {
+                looking = true;
+                continue;
+            }
+
+            if !looking {
+                continue;
+            }
+
+            // Only look at Syncs
+            if let ObjData::Sync(sync) = &obj.data {
+                // Check if this Sync has a note matching our voice/staff/pitch
+                if let Some(notes) = score.notes.get(&obj.header.first_sub_obj) {
+                    for note in notes {
+                        if note.voice == voice
+                            && note.header.staffn == staff_num
+                            && note.note_num == note_num
+                            && !note.rest
+                        {
+                            // Found the continuation note!
+                            let next_sync_time = next_measure_time + sync.time_stamp as u32;
+
+                            // Add notated duration (time between Syncs) to total
+                            let notated_dur = next_sync_time.saturating_sub(current_sync_time);
+                            total_dur += notated_dur;
+
+                            // Move to this note for next iteration
+                            current_sync_first_sub = obj.header.first_sub_obj;
+                            current_note = note.clone();
+                            looking_for_measure_time = next_measure_time;
+                            found_next = true;
+                            break;
+                        }
+                    }
+                }
+
+                if found_next {
+                    break;
+                }
+            }
+        }
+
+        // If we didn't find a continuation, the tie is broken - add current play_dur and exit
+        if !found_next {
+            total_dur += (current_note.play_dur as u32).max(1);
+            break;
+        }
+    }
+
+    total_dur.max(1) // Ensure at least 1 tick duration
+}
+
+// =============================================================================
 // MIDI Exporter
 // =============================================================================
 
@@ -705,8 +844,13 @@ impl MidiExporter {
                             },
                         });
 
-                        // Emit NoteOff at play_dur after NoteOn
-                        let note_off_time = note_on_time + (note.play_dur as u32).max(1);
+                        // Calculate total duration including any tied notes
+                        // Reference: OG MIDIFSave.cp lines 965-966 (playDur = TiedDur(...))
+                        let total_duration =
+                            tied_dur(score, obj.header.first_sub_obj, note, current_measure_time);
+
+                        // Emit NoteOff after total tied duration
+                        let note_off_time = note_on_time + total_duration;
 
                         self.timed_events.push(TimedEvent {
                             time: note_off_time,
