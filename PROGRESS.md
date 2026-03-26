@@ -1,146 +1,135 @@
-# Nightingale Modernization — Progress Tracker
+# Nightingale Modernization — Progress & Roadmap
 
-## Active Work: Phase A (Complete the Core) — MIDI Export Polish
+**Last Updated**: March 26, 2026
 
-**Last Updated**: March 19, 2026
+---
 
-**Recent Updates**:
-- ✅ Cruft cleanup complete: Deleted 3.2GB obsolete builds, 11 analysis files from root
-- ✅ Documentation consolidated: ENGRAVING_GAPS.md, ROADMAP.md updated with Phase A/B/C structure
-- ✅ **NGL Binary Writer COMPLETE**: All 26 fixtures pass round-trip validation (read → write → read)
-- 🎯 **Next**: MIDI export assessment + polish (tempo map, dynamics velocity)
+## Current Focus
 
-## Phase 0: Source Archaeology — COMPLETE
-- [x] Classify core source files by role (DATA_MODEL / ENGRAVING / UI / PLATFORM)
-- [x] Build dependency graph (DEPENDENCY_CHAIN.csv, DEPENDENCY_DIAGRAM.md)
-- [x] Produce porting roadmap (superseded by this file)
+### Priority 1: Flutter Renderer Overhaul
+**Status**: NOT STARTED
+**Goal**: Replace the CommandRenderer→ScorePainter pipeline with BitmapRenderer-based
+rendering for the main score view, matching the quality of the PDF output.
 
-## Phase 1: Rust Data Model — COMPLETE
-- [x] Rust workspace with cargo, pre-commit hooks (fmt + clippy + tests)
-- [x] DDIST/STDIST/SHORTQD coordinate types, 25 object/subobject structs
-- [x] .ngl binary reader (N103 + N105 formats), heap interpreter, all 25 types
-- [x] Notelist (.nl) parser, V1/V2, 13 record types
-- [x] Musical context system, forward-traversal propagation
-- [x] Score accessors, document header parser, duration math
+The current main score view uses CommandRenderer (records draw commands) → FFI bridge →
+ScorePainter (replays on Flutter Canvas). This produces noticeably lower quality than
+the PDF renderer or the BitmapRenderer used by the comparison screens. The comparison
+screens already demonstrate that BitmapRenderer produces excellent output — the task is
+to use that same approach for the primary score view.
 
-## Phase 2: Drawing / Rendering Layer — COMPLETE (polish ongoing)
-
-All OG drawing functions ported. Remaining work is engraving polish only.
-
-### Rendering Architecture
-- [x] MusicRenderer trait: 32 methods mirroring PS_Stdio.cp primitives
-- [x] PdfRenderer (pdf-writer): PostScript operators → PDF content stream, embedded Bravura SMuFL font
-- [x] BitmapRenderer (tiny-skia + ab_glyph): pure-Rust bitmap rendering for test-loop visual regression
-- [x] CommandRenderer: records RenderCommand stream for structural testing + Flutter bridge
-- [x] render_score() main loop (DrawHighLevel.cp port) dispatching all 16 object types
-
-### Notation Rendering (all complete)
-- [x] Staff lines, barlines (single/double/final/repeat/dotted), clefs (all 12 types + alias clefs)
-- [x] Key signatures (all 7 clef types, cancelling naturals), time signatures (numeric + common/cut)
-- [x] Noteheads (standard + custom: X, harmonic, square, diamond, slash), stems, flags, dots
-- [x] Accidentals (all 5 types + staggering), ledger lines, note collision avoidance (seconds in chords)
-- [x] Beams (slope computation, cross-staff, system-boundary break, stem gap fix)
-- [x] Ties (cross-system partial ties), slurs (NGL tapered Bezier + Notelist endpoint matching, cross-system)
-- [x] Tuplet brackets/numbers, grace notes (70% size, stem slash, beamed)
-- [x] Dynamics (hairpin + text), tempo marks (verbal + metronome glyph), volta brackets
-- [x] Articulations/ornaments (all 22 MODNR types), arpeggio signs, PSMEAS, GRDraw lines
-- [x] Part names, measure numbers, page numbers, header/footer text
-- [x] Rehearsal mark enclosures, chord symbol normalization
-- [x] Ottava (8va/8vb/15ma, dashed brackets — no fixture coverage)
-- [x] Sonata→SMuFL character mapping (90+ characters)
-- [x] Cross-staff notation, cross-system slurs, multi-page pagination
-
-### Layout & Spacing
-- [x] Multi-system layout (CreateSystem/NewSysNums port)
-- [x] OG Gourlay spacing pipeline (SymWidthRight/Left, FIdealSpace, ConsiderITWidths, Respace1Bar)
-- [x] Multiple voices per staff (VoiceRole, auto detection, stem direction, rest offset)
-- [x] Preamble layout, continuation preamble, clef changes, mid-score time sig changes
-- [x] Anacrusis measure width, line widths from lnSpace (staff/ledger/stem/barline)
-
-### Testing & QA
-- [x] 363 tests (358 passed + 5 ignored), 678 PDF outputs across 85 fixtures
-- [x] Insta snapshot regression, command-stream hash regression
-- [x] QA Compare tool: before/after visual diff workflow (scripts/qa-compare-smart.sh + Flutter UI)
-- [x] Flutter visual review screen with side-by-side/blink/slider comparison modes
-
-### Deferred
-- [ ] SMuFL metadata loading (anchors, engraving defaults)
-- [~] RPTEND subtypes RPT_DC/DS/SEGNO — OG also logs errors for these; no fixtures use them
-
-### Complete
-- [x] **.ngl binary writer — COMPLETE (March 19, 2026)**
-  - Full N105 format writer: `src/ngl/writer.rs` (600 lines) + `src/ngl/pack_*.rs` (1300+ lines)
-  - Object heap serialization: All 24 object types with LINK backpatching
-  - Subobject heap serialization: ASTAFF, AMEASURE (critical types for all fixtures)
-  - Round-trip validation: 26/26 fixtures pass (test_roundtrip_all_fixtures)
-  - Save functionality now fully operational
-
-## Phase 3: Engraving Engine — MOSTLY COMPLETE
-- [x] Beam.cp → beam.rs (GetBeamEndYStems, FixSyncInBeamset, cross-staff beams)
-- [x] Objects.cp → objects.rs (NormalStemUpDown, ArrangeChordNotes, ArrangeNCAccs, SetupKeySig)
-- [x] SpaceTime.cp → space_time.rs (complete Gourlay pipeline)
-- [x] Slurs.cp → draw_object.rs (NGL + Notelist, single-system + cross-system)
-- [x] Tuplet.cp → draw_tuplet.rs (DrawTUPLET/DrawPSTupletBracket)
-- [x] DrawObject.cp → draw_object.rs (all object types: OTTAVA/DYNAMIC/GRAPHIC/TEMPO/ENDING/etc.)
-- [ ] SFormat.cp / SFormatHighLevel.cp → format module (pagination, system layout from scratch)
-
-## Phase 4: Flutter Shell — IN PROGRESS
-- [x] flutter_rust_bridge setup (v2.11.1, flat DTO bridge)
-- [x] FlutterRenderer backend (command-based → CustomPaint, 32 command types)
-- [x] Score view widget with multi-page rendering, zoom, file browser
-- [x] QA Compare screen (before/after visual diffs with multiple view modes)
-- [x] OG Comparison screen (modern vs OG Nightingale reference PDFs)
-- [ ] Tool palette, basic editing
-
-## Phase 5: MusicXML — IN PROGRESS
-
-### Export (NGL → MusicXML) — DONE
-- [x] Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
-- [x] Beams, ties, slurs, dynamics (text + hairpin wedges)
-- [x] Tuplets, grace notes, tempo marks, volta endings, repeat barlines, ottava
-- [x] Articulations, ornaments, technical marks
-- [x] Part groups (brackets/braces from Connect objects)
-- [x] All 26 NGL fixtures pass MusicXML DTD validation
-
-### Import (MusicXML → InterpretedScore) — IN PROGRESS (parsing complete, rendering issues remain)
-- [x] Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
-- [x] Accidentals, dots, ties, slurs, dynamics
-- [x] Tuplets (time-modification → Tuplet + ANoteTuple objects)
-- [x] Grace notes (→ GrSync + AGrNote objects with full pitch positioning)
-- [x] Articulations and ornaments (AModNr sub-objects, 14 mod_code types)
-- [x] Tempo marks (Tempo objects + score.tempo_strings)
-- [x] Volta endings (Ending objects), repeat barlines (RptEnd objects with measure linking)
-- [x] Ottava (Ottava objects with oct_sign_type mapping)
-- [x] Part groups (Connect objects from `<part-group>` elements)
-- [x] Title/composer credits (page-relative GrString GRAPHICs from `<movement-title>`/`<creator>`)
-- [x] **PRIORITY 1: System/page layout** — COMPLETE! layout_score() integrated into MusicXML import tests, pagination working, 104 golden bitmaps passing
-- [x] **PRIORITY 2: Beams** — chord beaming fixed via refined fix_beam_flags logic in process_sync_chords() (sets beamed=true on far note, clears on non-far notes). Remaining visual issues in SchbAvMaSample (2.71% pixel diff) warrant deeper investigation of beam slope/width edge cases.
-- [~] **PRIORITY 3: Staff line continuity** — empty staves for parts not playing in measure(s) not rendering continuation staves. Requires understanding staff visibility model and rendering pipeline.
-- [x] **PRIORITY 4: Guitar clef octave transposition** — COMPLETE. Import/export handles `<clef-octave-change>-1` → TRTENOR_CLEF, pitch calc uses middleCHalfLn=3, renders gClef8vb glyph. Round-trip test passes.
-- [x] **PRIORITY 5: Non-ASCII characters** — WORKING. UTF-8→WinAnsi pipeline handles Western European (ä/ö/ü/é/è/à/ñ). Limitation: chars outside Windows-1252 (Eastern European, CJK) become `?` — inherent to PDF Type1 fonts, not a bug.
-- [x] **PRIORITY 6: Lyric vertical positioning** — FIXED. Lyric yd corrected from staff_height+40 to staff_height+64 (=448 DDIST for rastral 5), matching OG Nightingale's measured lyric placement of one interline space below bottom staff line. Title/composer Y-positioning still uses fixed page-relative values (acceptable).
-- [ ] **Round-trip fidelity** — NGL→XML→import→render should be visually stable
-- [x] Code consolidation: `create_graphic_text()` helper eliminates 36 lines of duplication
-
-### Validation
-- [x] MusicXML golden bitmap regression (56 goldens across 18 xmlsamples)
+### Priority 2: MusicXML Import Polish
+**Status**: IN PROGRESS (parsing complete, rendering issues remain)
+- [ ] Staff line continuity — empty staves not rendering continuation lines
+- [ ] Round-trip fidelity — NGL→XML→import→render should be visually stable
 - [ ] Validate against MuseScore / Dorico round-trip
 
-## Phase 6: Sound Playback / MIDI — NOT STARTED
-- [ ] MIDI export (port NightingaleMIDI.cp logic — duration/pitch/velocity/channel)
-- [ ] Real-time playback via Flutter (Rust emits events, Flutter drives synth)
-- [ ] Metronome / click track
-- [ ] Tempo map from TEMPO objects
-- [ ] Playback cursor: highlight currently playing note in UI
+### Priority 3: Score Formatting Engine
+**Status**: NOT STARTED
+**Goal**: Auto-layout from scratch (SFormat.cp / SFormatHighLevel.cp port)
+- System breaks, page breaks, spacing optimization
+- Currently we only preserve OG layout from NGL files
+
+### Deferred
+- **MIDI Export** — Basic infrastructure works (`src/midi/export.rs`). Tempo map,
+  velocity dynamics, articulation mapping remain. Good enough for now.
+- **Editing Operations** — Tool palette, basic note entry (Phase B)
+- **Cross-Platform** — Linux/Windows builds (Phase C)
+
+---
+
+## Completed Phases
+
+### Phase 1: Rust Data Model — COMPLETE
+- Rust workspace with cargo, pre-commit hooks (fmt + clippy + tests)
+- DDIST/STDIST/SHORTQD coordinate types, 25 object/subobject structs
+- .ngl binary reader (N103 + N105 formats), heap interpreter, all 25 types
+- Notelist (.nl) parser, V1/V2, 13 record types
+- Musical context system, forward-traversal propagation
+- Score accessors, document header parser, duration math
+
+### Phase 2: Drawing / Rendering Layer — COMPLETE
+- MusicRenderer trait: 32 methods mirroring PS_Stdio.cp primitives
+- PdfRenderer (pdf-writer): PostScript operators → PDF content stream, embedded Bravura SMuFL font
+- BitmapRenderer (tiny-skia + ab_glyph): pure-Rust bitmap rendering for visual regression
+- CommandRenderer: records RenderCommand stream for structural testing + Flutter bridge
+- render_score() main loop (DrawHighLevel.cp port) dispatching all 16 object types
+
+#### Notation Rendering
+- Staff lines, barlines (single/double/final/repeat/dotted), clefs (all 12 types + aliases)
+- Key signatures (all 7 clef types, cancelling naturals), time signatures (numeric + common/cut)
+- Noteheads (standard + custom: X, harmonic, square, diamond, slash), stems, flags, dots
+- Accidentals (all 5 types + staggering), ledger lines, note collision avoidance
+- Beams (slope computation, cross-staff, system-boundary break)
+- Ties (cross-system partial ties), slurs (NGL tapered Bezier + Notelist, cross-system)
+- Tuplet brackets/numbers, grace notes (70% size, stem slash, beamed)
+- Dynamics (hairpin + text), tempo marks (verbal + metronome glyph), volta brackets
+- Articulations/ornaments (all 22 MODNR types), arpeggio signs, GRDraw lines
+- Part names, measure numbers, page numbers, header/footer text
+- Rehearsal mark enclosures, chord symbol normalization
+- Ottava (8va/8vb/15ma, dashed brackets)
+- Sonata→SMuFL character mapping (90+ characters)
+- Cross-staff notation, cross-system slurs, multi-page pagination
+
+#### Layout & Spacing
+- Multi-system layout (CreateSystem/NewSysNums port)
+- OG Gourlay spacing pipeline (SymWidthRight/Left, FIdealSpace, Respace1Bar)
+- Multiple voices per staff, preamble layout, continuation preamble
+- Anacrusis measure width, SMuFL-based line widths
+
+### Phase 3: Engraving Engine — COMPLETE
+- Beam.cp → beam.rs (GetBeamEndYStems, cross-staff beams)
+- Objects.cp → objects.rs (NormalStemUpDown, ArrangeChordNotes, ArrangeNCAccs)
+- SpaceTime.cp → space_time.rs (complete Gourlay pipeline)
+- Slurs, tuplets, dynamics, all object types ported
+
+### Phase 4: Flutter Shell — IN PROGRESS
+- flutter_rust_bridge setup (v2.11.1, flat DTO bridge)
+- FlutterRenderer backend (command-based → CustomPaint, 32 command types)
+- Score view widget with multi-page rendering, zoom, file browser
+- QA Compare screen (before/after visual diffs)
+- OG Comparison screen (modern vs OG reference PDFs)
+- **TODO**: Renderer overhaul (Priority 1 above)
+
+### Phase 5: MusicXML — MOSTLY COMPLETE
+
+#### Export (NGL → MusicXML) — DONE
+- Notes, rests, chords, multi-voice, multi-part, clefs, key sigs, time sigs
+- Beams, ties, slurs, dynamics, tuplets, grace notes, tempo marks
+- Volta endings, repeat barlines, ottava, articulations, ornaments
+- Part groups (brackets/braces), all 26 NGL fixtures pass DTD validation
+
+#### Import (MusicXML → InterpretedScore) — IN PROGRESS
+- Full parsing: notes, rests, chords, accidentals, ties, slurs, dynamics
+- Tuplets, grace notes, articulations, ornaments, tempo marks
+- Volta endings, repeat barlines, ottava, part groups
+- Title/composer credits, guitar clef transposition, lyrics
+- System/page layout integrated, beaming fixed
+- **Remaining**: staff line continuity, round-trip fidelity
+
+### NGL Binary Writer — COMPLETE
+- Full N105 format writer: `src/ngl/writer.rs` + `src/ngl/pack_*.rs`
+- All 24 object types with LINK backpatching
+- 26/26 fixtures pass round-trip validation (read → write → read)
+- Pixel-perfect roundtrip rendering verified
+
+---
 
 ## Stats
+
 | Metric | Value |
 |--------|-------|
-| Rust source files | 49 (.rs files under src/) |
-| Rust source lines | ~34,700 |
-| Rust test lines | ~8,900 (under tests/) |
-| Test count | 363 (358 passed + 5 ignored) |
-| Test fixture files | 26 .ngl + 41 .nl + 18 .musicxml |
+| Rust source files | 56 (.rs files under src/) |
+| Rust source lines | ~51,900 |
+| Rust test lines | ~7,800 (under tests/) |
+| Test count | 408 (399 passed + 9 ignored) |
+| Test fixture files | 26 .ngl + 41 .nl + 55 .musicxml |
 | Insta snapshots | 87 |
-| Bitmap goldens | 678 (26 NGL + 41 Notelist + 18 MusicXML, all pages) |
-| Module subdirs | 6 (draw, musicxml, ngl, notelist, render + top-level) |
+
+---
+
+## Key Documents
+
+- **CLAUDE.md** — Project guide (architecture, conventions, porting patterns)
+- **PROGRESS.md** — This file (progress tracker + roadmap)
+- **TESTING.md** — Test infrastructure and strategy
+- **README.md** — Project overview

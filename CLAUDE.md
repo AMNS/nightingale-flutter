@@ -385,7 +385,7 @@ Primary test data sources (in priority order):
 1. **Notelist files** (`tests/notelist_examples/`) — simplest, most portable
 2. **NGL fixture files** (`tests/fixtures/`) — real Nightingale documents
 3. **VexFlow examples** — consider translating simple ones to Notelist format
-4. **MusicXML** — future import path; see icebox code and seiso.com converters
+4. **MusicXML** — future import path; see seiso.com converters
    (nl2xml: https://www.seiso.com/nl2xml/, xml2nl: https://www.seiso.com/xml2nl/)
 
 ## Subagent Usage
@@ -491,6 +491,6 @@ src/draw/
 - Comments: when porting, include a reference to the original C file and line number
 - Commits:
   - Keep commits small and focused on one change
-  - **DO NOT** make commits with only progress/documentation updates (ROADMAP.md, SESSION_SUMMARY.md, etc.)
+  - **DO NOT** make commits with only progress/documentation updates (PROGRESS.md, SESSION_SUMMARY.md, etc.)
   - Roll documentation updates into substantive commits (e.g., commit code + test + doc updates together)
   - Use descriptive commit messages that explain what and why

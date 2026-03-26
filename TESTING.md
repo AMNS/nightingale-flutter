@@ -115,9 +115,14 @@ Rust tests in `tests/` verify **structural correctness**, not pixel-perfect outp
 - E.g., `grace_notes_before_barline.nl`, `beam_across_rest.nl`, `ledger_lines_stem_collision.nl`
 - **Purpose:** Regression tests for specific bugs/features
 
+### 5. Roundtrip Visual Regression (`roundtrip_visual.rs`)
+- Renders all 26 NGL fixtures via BitmapRenderer, writes NGL, re-reads, re-renders
+- Compares original vs roundtrip bitmaps (must be 0% pixel difference)
+- Validates that the NGL writer preserves rendering fidelity
+- **Purpose:** Ensure save/load cycle is lossless
+
 ### What We Don't Test
 
-- **Pixel-perfect bitmap regression** — music engraving evolves; pixel diffs are too brittle
 - **Cross-validation against OG Nightingale** — implementation has diverged too far
 - **Exhaustive combinatorial coverage** — real-world scores provide better coverage
 
@@ -176,9 +181,8 @@ flutter run -d macos
 The pre-commit hook runs the full test suite. Don't run `cargo test --all` manually before committing — the hook already does it.
 
 CI should:
-1. Run `cargo test` (structural validation)
+1. Run `cargo test` (structural validation + roundtrip visual regression)
 2. Run `cargo clippy` and `cargo fmt --check`
-3. **Not** run bitmap regression (we don't have bitmap goldens anymore)
 
 ## Principles
 
@@ -192,31 +196,11 @@ CI should:
 
 5. **Delete tests that don't pull their weight** — if a test is flaky, unclear, or redundant, remove it.
 
-## Migration Notes
+## Current Stats
 
-Previous testing approach had multiple overlapping layers:
-- Bitmap pixel-level regression (700+ golden PNGs)
-- Command stream snapshots
-- PDF generation
-- Cross-validation against OG Nightingale
-- Canonical comparison against known-good PDFs
-
-This was expensive to maintain and brittle. The new approach is:
-- **Command stream snapshots** (structural validation)
-- **PDF generation** (smoke test)
-- **Flutter app visual review** (human judgment)
-- **Focused LilyPond-style tests** (regression insurance for specific bugs)
-
-Files moved to `icebox/` during cleanup:
-- `tests/og_comparison.rs` — OG Nightingale diverged too far
-- `tests/cross_validate.rs` — unclear value
-- `tests/canonical_comparison.rs` — redundant with visual review
-- `tests/golden_diff.rs` — bitmap-specific, no longer needed
-- `tests/golden_bitmaps/` — 700+ PNG files, replaced by Flutter app review
-
-## Future Directions
-
-1. **Expand focused test suite** — add LilyPond-style minimal examples to `tests/focused/`
-2. **Automate Flutter screenshot capture** — could snapshot Flutter-rendered PNGs for regression, but keep it opt-in
-3. **MusicXML roundtrip tests** — import → export → import should be idempotent
-4. **SMuFL compliance tests** — verify glyph rendering matches SMuFL spec
+| Metric | Value |
+|--------|-------|
+| Total tests | 408 (399 passed + 9 ignored) |
+| Test files | 11 (.rs files under tests/) |
+| Test fixtures | 26 NGL + 41 Notelist + 55 MusicXML |
+| Insta snapshots | 87 |
