@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_fonts`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `load_fonts`, `load_png`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// List all OG fixtures with metadata.
 ///
@@ -30,6 +30,18 @@ Future<ComparisonPageResult> getComparison(
         required int pageNum}) =>
     RustLib.instance.api.crateApiCompareGetComparison(
         projectRoot: projectRoot, fixtureName: fixtureName, pageNum: pageNum);
+
+/// List all before/after QA compare fixtures in test-output/qa-compare/.
+Future<List<QaCompareFixtureInfo>> listQaCompareFixtures(
+        {required String projectRoot}) =>
+    RustLib.instance.api
+        .crateApiCompareListQaCompareFixtures(projectRoot: projectRoot);
+
+/// Get a QA comparison for a before/after PNG pair.
+Future<QaComparisonResult> getQaComparison(
+        {required String projectRoot, required String fixtureName}) =>
+    RustLib.instance.api.crateApiCompareGetQaComparison(
+        projectRoot: projectRoot, fixtureName: fixtureName);
 
 /// Result of comparing one page.
 class ComparisonPageResult {
@@ -149,4 +161,104 @@ class OgFixtureInfo {
           ogPageCount == other.ogPageCount &&
           ourPageCount == other.ourPageCount &&
           ogExists == other.ogExists;
+}
+
+/// Information about a before/after QA comparison fixture.
+class QaCompareFixtureInfo {
+  /// Fixture name (e.g. "grace_notes_test")
+  final String fixtureName;
+
+  /// Whether both before and after PNGs exist
+  final bool hasPair;
+
+  const QaCompareFixtureInfo({
+    required this.fixtureName,
+    required this.hasPair,
+  });
+
+  @override
+  int get hashCode => fixtureName.hashCode ^ hasPair.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QaCompareFixtureInfo &&
+          runtimeType == other.runtimeType &&
+          fixtureName == other.fixtureName &&
+          hasPair == other.hasPair;
+}
+
+/// Result of comparing before/after PNGs.
+class QaComparisonResult {
+  /// Before PNG RGBA bitmap (width * height * 4 bytes)
+  final Uint8List beforeRgba;
+  final int beforeWidth;
+  final int beforeHeight;
+
+  /// After PNG RGBA bitmap
+  final Uint8List afterRgba;
+  final int afterWidth;
+  final int afterHeight;
+
+  /// Diff RGBA bitmap (matching=dimmed, different=red)
+  final Uint8List diffRgba;
+  final int diffWidth;
+  final int diffHeight;
+
+  /// Total pixel count
+  final BigInt totalPixels;
+
+  /// Number of differing pixels
+  final BigInt diffPixels;
+
+  /// Diff percentage (0.0-100.0)
+  final double diffPct;
+
+  const QaComparisonResult({
+    required this.beforeRgba,
+    required this.beforeWidth,
+    required this.beforeHeight,
+    required this.afterRgba,
+    required this.afterWidth,
+    required this.afterHeight,
+    required this.diffRgba,
+    required this.diffWidth,
+    required this.diffHeight,
+    required this.totalPixels,
+    required this.diffPixels,
+    required this.diffPct,
+  });
+
+  @override
+  int get hashCode =>
+      beforeRgba.hashCode ^
+      beforeWidth.hashCode ^
+      beforeHeight.hashCode ^
+      afterRgba.hashCode ^
+      afterWidth.hashCode ^
+      afterHeight.hashCode ^
+      diffRgba.hashCode ^
+      diffWidth.hashCode ^
+      diffHeight.hashCode ^
+      totalPixels.hashCode ^
+      diffPixels.hashCode ^
+      diffPct.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QaComparisonResult &&
+          runtimeType == other.runtimeType &&
+          beforeRgba == other.beforeRgba &&
+          beforeWidth == other.beforeWidth &&
+          beforeHeight == other.beforeHeight &&
+          afterRgba == other.afterRgba &&
+          afterWidth == other.afterWidth &&
+          afterHeight == other.afterHeight &&
+          diffRgba == other.diffRgba &&
+          diffWidth == other.diffWidth &&
+          diffHeight == other.diffHeight &&
+          totalPixels == other.totalPixels &&
+          diffPixels == other.diffPixels &&
+          diffPct == other.diffPct;
 }

@@ -1,4 +1,4 @@
-import 'dart:io' show Directory, Platform;
+import 'dart:io' show Directory, File, Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'src/rust/api/score.dart';
@@ -95,19 +95,58 @@ class ScoreBrowser extends StatefulWidget {
   State<ScoreBrowser> createState() => _ScoreBrowserState();
 }
 
+// Render at 144 DPI for retina quality. Zoom slider adjusts display size.
+const double _renderDpi = 144.0;
+
 class _ScoreBrowserState extends State<ScoreBrowser> {
-  // Score display state
-  List<RenderCommandDto>? _commands;
+  // Score display state — bitmap pages from BitmapRenderer
+  List<PageBitmapDto>? _pages;
   String _status = 'Select a score';
   bool _loading = false;
   double _scale = 1.5;
   int _selectedIndex = -1;
+  String _fontDir = '';
 
   @override
   void initState() {
     super.initState();
+    _resolveFontDir();
     // Auto-load the first score
     _loadScore(0);
+  }
+
+  /// Resolve the font directory. Tries project root first (dev mode),
+  /// then falls back to the macOS .app bundle path (release builds).
+  void _resolveFontDir() {
+    // Try 1: project root (works with `flutter run`)
+    var root = findProjectRoot(startPath: Directory.current.path);
+    if (root.isEmpty) {
+      root = findProjectRoot(startPath: Platform.resolvedExecutable);
+    }
+    if (root.isNotEmpty) {
+      final dir = '$root/assets/fonts';
+      if (Directory(dir).existsSync()) {
+        _fontDir = dir;
+        debugPrint('[Nightingale] fontDir=$_fontDir (project root)');
+        return;
+      }
+    }
+
+    // Try 2: macOS .app bundle — fonts are at:
+    //   .app/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/fonts/
+    if (Platform.isMacOS) {
+      final exe = Platform.resolvedExecutable;
+      // exe = /path/to/Nightingale.app/Contents/MacOS/Nightingale
+      final contentsDir = File(exe).parent.parent.path;
+      final bundleFontDir = '$contentsDir/Frameworks/App.framework/Resources/flutter_assets/assets/fonts';
+      if (Directory(bundleFontDir).existsSync()) {
+        _fontDir = bundleFontDir;
+        debugPrint('[Nightingale] fontDir=$_fontDir (app bundle)');
+        return;
+      }
+    }
+
+    debugPrint('[Nightingale] WARNING: could not find font directory');
   }
 
   Future<void> _loadScore(int index) async {
@@ -119,36 +158,32 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
     });
 
     try {
-      List<RenderCommandDto> commands;
+      final data = await rootBundle.load(score.assetPath);
+      final bytes = data.buffer.asUint8List();
+      debugPrint('[Nightingale] Loading ${score.format.toUpperCase()}: '
+          '${score.assetPath} (${data.lengthInBytes} bytes)');
+
+      List<PageBitmapDto> pages;
       if (score.format == 'ngl') {
-        final data = await rootBundle.load(score.assetPath);
-        final bytes = data.buffer.asUint8List();
-        debugPrint('[Nightingale] Loading NGL: ${score.assetPath} (${data.lengthInBytes} bytes)');
-        commands = await renderNglFromBytes(data: bytes);
+        pages = await renderNglToBitmaps(
+          data: bytes, fontDir: _fontDir, dpi: _renderDpi);
       } else {
-        // Notelist files are Mac Roman encoded — load as raw bytes and let
-        // Rust decode via the encoding-next crate's MAC_ROMAN codec.
-        final data = await rootBundle.load(score.assetPath);
-        final bytes = data.buffer.asUint8List();
-        debugPrint('[Nightingale] Loading Notelist: ${score.assetPath} (${data.lengthInBytes} bytes)');
-        commands = await renderNotelistFromBytes(data: bytes);
+        pages = await renderNotelistToBitmaps(
+          data: bytes, fontDir: _fontDir, dpi: _renderDpi);
       }
 
-      debugPrint('[Nightingale] Got ${commands.length} render commands for ${score.title}');
+      debugPrint('[Nightingale] Got ${pages.length} pages for ${score.title}');
 
       setState(() {
-        _commands = commands;
+        _pages = pages;
         _loading = false;
-        if (commands.isEmpty) {
-          _status = 'Error: no render commands produced for ${score.title}';
+        if (pages.isEmpty) {
+          _status = 'Error: no pages rendered for ${score.title}';
         } else {
-          int pages = 0;
-          for (final cmd in commands) {
-            if (cmd.kind == cmdBeginPage) pages++;
-          }
           final fmt = score.format.toUpperCase();
-          _status = '${score.title}  [$fmt]  |  ${commands.length} commands  |  '
-              '${pages > 0 ? pages : 1} page${pages > 1 ? 's' : ''}';
+          _status = '${score.title}  [$fmt]  |  '
+              '${pages.length} page${pages.length > 1 ? 's' : ''}  |  '
+              '${_renderDpi.round()} DPI';
         }
       });
     } catch (e, stackTrace) {
@@ -372,7 +407,7 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
 
                 // Score canvas
                 Expanded(
-                  child: _commands == null
+                  child: _pages == null
                       ? Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -386,17 +421,20 @@ class _ScoreBrowserState extends State<ScoreBrowser> {
                             ],
                           ),
                         )
-                      : _commands!.isEmpty
+                      : _pages!.isEmpty
                           ? Center(
                               child: Text(
-                                'No render commands produced.\nThe file may be empty or invalid.',
+                                'No pages rendered.\nThe file may be empty or invalid.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: colorScheme.error),
                               ),
                             )
-                          : ScoreView(
-                              commands: _commands!,
-                              scale: _scale,
+                          : BitmapScoreView(
+                              pages: _pages!,
+                              // Convert user zoom to display scale:
+                              // At 144 DPI, 1pt = 2px. scale * 72/DPI keeps
+                              // the visual size matching the old command path.
+                              scale: _scale * 72.0 / _renderDpi,
                             ),
                 ),
               ],

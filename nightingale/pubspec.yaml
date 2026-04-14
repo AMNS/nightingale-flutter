@@ -64,6 +64,7 @@ flutter:
 
   assets:
     - assets/scores/
+    - assets/fonts/
 
   # Bravura SMuFL font for music notation glyphs.
   # Source: https://github.com/steinbergmedia/bravura (OFL license)

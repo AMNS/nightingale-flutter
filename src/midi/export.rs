@@ -727,7 +727,7 @@ impl MidiExporter {
                             32 => 5, // thirty-second note (2^5 = 32)
                             _ => {
                                 // For invalid values, default to quarter note
-                                eprintln!(
+                                crate::log_debug!(
                                     "Warning: invalid time signature denominator {}, defaulting to 4",
                                     ts.denominator
                                 );

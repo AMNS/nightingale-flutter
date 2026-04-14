@@ -891,7 +891,7 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
                 score.pg_font_style = hdr.font_style_pg;
             }
             Err(e) => {
-                eprintln!("[interpret_heap] ScoreHeader parse failed: {}", e);
+                crate::log_debug!("[interpret_heap] ScoreHeader parse failed: {}", e);
             }
         }
     }
@@ -995,24 +995,27 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
             obj_sizes[obj_type as usize] as usize
         } else {
             // Invalid type — bail out since data is corrupt
-            eprintln!(
+            crate::log_debug!(
                 "Warning: Object {} at offset {} has invalid type {}, stopping",
-                obj_idx, cursor, obj_type as i8
+                obj_idx,
+                cursor,
+                obj_type as i8
             );
             break;
         };
 
         if file_obj_size == 0 {
             // Type 14 (MODNR) has 0 object size — no MODNR objects exist
-            eprintln!(
+            crate::log_debug!(
                 "Warning: Object {} has zero-length type {}, stopping",
-                obj_idx, obj_type
+                obj_idx,
+                obj_type
             );
             break;
         }
 
         if cursor + file_obj_size > data_end {
-            eprintln!(
+            crate::log_debug!(
                 "Warning: Object {} at offset {} truncated (need {} bytes, have {})",
                 obj_idx,
                 cursor,
@@ -1916,9 +1919,10 @@ pub fn interpret_heap(ngl: &NglFile) -> Result<InterpretedScore, String> {
 
             _ => {
                 // Should not happen — we already validated the type above
-                eprintln!(
+                crate::log_debug!(
                     "Warning: Skipping object {} with unhandled type: {}",
-                    obj_idx, header.obj_type
+                    obj_idx,
+                    header.obj_type
                 );
                 // Still advance past this object (we know its size from the type lookup)
                 cursor += file_obj_size;

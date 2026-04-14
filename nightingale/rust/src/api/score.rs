@@ -8,8 +8,17 @@
 // which flutter_rust_bridge serialises efficiently.
 
 use nightingale_core::draw::draw_high_level::render_score;
+use nightingale_core::ngl::interpret::InterpretedScore;
 use nightingale_core::ngl::{interpret_heap, NglFile};
-use nightingale_core::render::{CommandRenderer, MusicRenderer, RenderCommand};
+use nightingale_core::render::{BitmapRenderer, CommandRenderer, MusicRenderer, RenderCommand};
+
+/// Safe stderr logging that won't panic on broken pipe (release .app bundles).
+macro_rules! log_debug {
+    ($($arg:tt)*) => {{
+        use std::io::Write;
+        let _ = writeln!(std::io::stderr(), $($arg)*);
+    }};
+}
 
 // ── Tag constants (must match Dart side) ────────────────────────
 // 32 command types matching the RenderCommand enum variants.
@@ -467,6 +476,57 @@ fn render_to_dtos(
     renderer.commands().iter().map(convert).collect()
 }
 
+// ── Bitmap DTO ──────────────────────────────────────────────────
+
+/// One page rendered as an RGBA bitmap.
+#[derive(Debug, Clone)]
+pub struct PageBitmapDto {
+    pub width: u32,
+    pub height: u32,
+    /// Premultiplied RGBA, width * height * 4 bytes.
+    pub rgba: Vec<u8>,
+}
+
+/// Load music + text fonts into a BitmapRenderer from a font directory.
+fn load_fonts_for_bitmap(renderer: &mut BitmapRenderer, font_dir: &str) {
+    let font_dir_path = std::path::Path::new(font_dir);
+    let bravura_path = font_dir_path.join("Bravura.otf");
+    if bravura_path.exists() {
+        if let Ok(data) = std::fs::read(&bravura_path) {
+            renderer.load_music_font(data);
+        }
+    }
+    renderer.load_text_fonts_from_dir(font_dir_path);
+}
+
+/// Render an InterpretedScore to a list of page bitmaps.
+///
+/// `font_dir` is the absolute path to a directory containing Bravura.otf and text fonts.
+fn render_to_bitmaps(
+    score: &InterpretedScore,
+    font_dir: &str,
+    dpi: f64,
+) -> Vec<PageBitmapDto> {
+    let mut renderer = BitmapRenderer::new(dpi as f32);
+    renderer.set_page_size(score.page_width_pt, score.page_height_pt);
+    if !font_dir.is_empty() {
+        load_fonts_for_bitmap(&mut renderer, font_dir);
+    }
+    render_score(score, &mut renderer);
+
+    (0..renderer.page_count())
+        .filter_map(|i| {
+            let (w, h) = renderer.page_dimensions(i)?;
+            let data = renderer.page_data(i)?;
+            Some(PageBitmapDto {
+                width: w,
+                height: h,
+                rgba: data.to_vec(),
+            })
+        })
+        .collect()
+}
+
 // ── Public API (exposed to Dart via flutter_rust_bridge) ────────
 
 /// Load an NGL file from raw bytes and render it to a list of drawing commands.
@@ -476,14 +536,14 @@ pub fn render_ngl_from_bytes(data: Vec<u8>) -> Vec<RenderCommandDto> {
     let ngl = match NglFile::read_from_bytes(&data) {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("[nightingale-bridge] NGL parse error: {e}");
+            log_debug!("[nightingale-bridge] NGL parse error: {e}");
             return vec![];
         }
     };
     let score = match interpret_heap(&ngl) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[nightingale-bridge] NGL interpret error: {e}");
+            log_debug!("[nightingale-bridge] NGL interpret error: {e}");
             return vec![];
         }
     };
@@ -502,7 +562,7 @@ pub fn render_notelist_from_text(text: String) -> Vec<RenderCommandDto> {
     let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
         Ok(nl) => nl,
         Err(e) => {
-            eprintln!("[nightingale-bridge] Notelist parse error: {e}");
+            log_debug!("[nightingale-bridge] Notelist parse error: {e}");
             return vec![];
         }
     };
@@ -525,12 +585,56 @@ pub fn render_notelist_from_bytes(data: Vec<u8>) -> Vec<RenderCommandDto> {
     let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
         Ok(nl) => nl,
         Err(e) => {
-            eprintln!("[nightingale-bridge] Notelist parse error: {e}");
+            log_debug!("[nightingale-bridge] Notelist parse error: {e}");
             return vec![];
         }
     };
     let score = notelist_to_score(&notelist);
     render_to_dtos(&score)
+}
+
+/// Load an NGL file from raw bytes and render to page bitmaps.
+///
+/// `font_dir` is the absolute path to a directory containing Bravura.otf and text fonts.
+/// `dpi` controls resolution (72.0 = screen, 144.0 = retina).
+/// Returns an empty vec on parse/interpret failure.
+pub fn render_ngl_to_bitmaps(data: Vec<u8>, font_dir: String, dpi: f64) -> Vec<PageBitmapDto> {
+    let ngl = match NglFile::read_from_bytes(&data) {
+        Ok(n) => n,
+        Err(e) => {
+            log_debug!("[nightingale-bridge] NGL parse error: {e}");
+            return vec![];
+        }
+    };
+    let score = match interpret_heap(&ngl) {
+        Ok(s) => s,
+        Err(e) => {
+            log_debug!("[nightingale-bridge] NGL interpret error: {e}");
+            return vec![];
+        }
+    };
+    render_to_bitmaps(&score, &font_dir, dpi)
+}
+
+/// Load a Notelist from raw bytes (Mac Roman) and render to page bitmaps.
+///
+/// `font_dir` is the absolute path to a directory containing Bravura.otf and text fonts.
+/// `dpi` controls resolution (72.0 = screen, 144.0 = retina).
+/// Returns an empty vec on parse/convert failure.
+pub fn render_notelist_to_bitmaps(data: Vec<u8>, font_dir: String, dpi: f64) -> Vec<PageBitmapDto> {
+    use nightingale_core::notelist::{notelist_to_score, parse_notelist};
+    use std::io::Cursor;
+
+    let text = mac_roman_to_string(&data);
+    let notelist = match parse_notelist(Cursor::new(text.as_bytes())) {
+        Ok(nl) => nl,
+        Err(e) => {
+            log_debug!("[nightingale-bridge] Notelist parse error: {e}");
+            return vec![];
+        }
+    };
+    let score = notelist_to_score(&notelist);
+    render_to_bitmaps(&score, &font_dir, dpi)
 }
 
 /// Decode Mac Roman bytes to a UTF-8 String using the `encoding_next` crate.
@@ -545,7 +649,7 @@ fn mac_roman_to_string(bytes: &[u8]) -> String {
     MAC_ROMAN
         .decode(bytes, DecoderTrap::Replace)
         .unwrap_or_else(|e| {
-            eprintln!("[nightingale-bridge] Mac Roman decode error: {e}");
+            log_debug!("[nightingale-bridge] Mac Roman decode error: {e}");
             String::from_utf8_lossy(bytes).into_owned()
         })
 }

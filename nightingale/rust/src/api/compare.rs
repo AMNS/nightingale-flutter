@@ -15,6 +15,14 @@ use nightingale_core::render::{BitmapRenderer, MusicRenderer};
 use std::fs;
 use std::path::Path;
 
+/// Safe stderr logging that won't panic on broken pipe (release .app bundles).
+macro_rules! log_debug {
+    ($($arg:tt)*) => {{
+        use std::io::Write;
+        let _ = writeln!(std::io::stderr(), $($arg)*);
+    }};
+}
+
 // ── DTO types ───────────────────────────────────────────────────
 
 /// Information about a fixture with OG reference.
@@ -118,10 +126,10 @@ fn load_fonts(renderer: &mut BitmapRenderer, font_dir: &str) {
 /// `project_root` is the absolute path to the nightingale-modernize directory.
 /// Used to locate tests/fixtures/ and tests/og_reference/.
 pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
-    eprintln!("[compare] list_og_fixtures: project_root={}", project_root);
+    log_debug!("[compare] list_og_fixtures: project_root={}", project_root);
     let fixture_dir = format!("{}/tests/fixtures", project_root);
     let og_ref_dir = format!("{}/tests/og_reference", project_root);
-    eprintln!(
+    log_debug!(
         "[compare]   fixture_dir exists={}, og_ref_dir exists={}",
         std::path::Path::new(&fixture_dir).exists(),
         std::path::Path::new(&og_ref_dir).exists()
@@ -132,7 +140,7 @@ pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
         .map(|f| {
             let og_pdf_path = format!("{}/{}", og_ref_dir, f.og_pdf);
             let og_exists = std::path::Path::new(&og_pdf_path).exists();
-            eprintln!(
+            log_debug!(
                 "[compare]   {} — og_pdf={} exists={}",
                 f.fixture_name, og_pdf_path, og_exists
             );
@@ -157,7 +165,7 @@ pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
                             r.page_count() as i32
                         }
                         Err(e) => {
-                            eprintln!(
+                            log_debug!(
                                 "[compare]   {} — interpret_heap error: {:?}",
                                 f.fixture_name, e
                             );
@@ -165,7 +173,7 @@ pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
                         }
                     },
                     Err(e) => {
-                        eprintln!(
+                        log_debug!(
                             "[compare]   {} — NglFile parse error: {:?}",
                             f.fixture_name, e
                         );
@@ -173,7 +181,7 @@ pub fn list_og_fixtures(project_root: String) -> Vec<OgFixtureInfo> {
                     }
                 },
                 Err(e) => {
-                    eprintln!(
+                    log_debug!(
                         "[compare]   {} — read NGL error: {} (path={})",
                         f.fixture_name, e, ngl_path
                     );
@@ -204,7 +212,7 @@ pub fn get_comparison(
     fixture_name: String,
     page_num: i32,
 ) -> ComparisonPageResult {
-    eprintln!(
+    log_debug!(
         "[compare] get_comparison: root={} fixture={} page={}",
         project_root, fixture_name, page_num
     );
@@ -228,7 +236,7 @@ pub fn get_comparison(
     let fixture = match OG_FIXTURES.iter().find(|f| f.fixture_name == fixture_name) {
         Some(f) => f,
         None => {
-            eprintln!(
+            log_debug!(
                 "[compare]   FAIL: fixture '{}' not found in OG_FIXTURES",
                 fixture_name
             );
@@ -242,7 +250,7 @@ pub fn get_comparison(
 
     // Render our version
     let ngl_path = format!("{}/{}.ngl", fixture_dir, fixture_name);
-    eprintln!(
+    log_debug!(
         "[compare]   ngl_path={} exists={}",
         ngl_path,
         std::path::Path::new(&ngl_path).exists()
@@ -250,21 +258,21 @@ pub fn get_comparison(
     let data = match fs::read(&ngl_path) {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("[compare]   FAIL: read NGL: {}", e);
+            log_debug!("[compare]   FAIL: read NGL: {}", e);
             return empty;
         }
     };
     let ngl = match NglFile::read_from_bytes(&data) {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("[compare]   FAIL: parse NGL: {:?}", e);
+            log_debug!("[compare]   FAIL: parse NGL: {:?}", e);
             return empty;
         }
     };
     let score = match interpret_heap(&ngl) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[compare]   FAIL: interpret_heap: {:?}", e);
+            log_debug!("[compare]   FAIL: interpret_heap: {:?}", e);
             return empty;
         }
     };
@@ -275,7 +283,7 @@ pub fn get_comparison(
     render_score(&score, &mut renderer);
 
     let page_idx = (page_num - 1) as usize;
-    eprintln!(
+    log_debug!(
         "[compare]   rendered {} pages, requesting page_idx={}",
         renderer.page_count(),
         page_idx
@@ -286,18 +294,18 @@ pub fn get_comparison(
     ) {
         (Some(data), Some((w, h))) => (data.to_vec(), w, h),
         _ => {
-            eprintln!(
+            log_debug!(
                 "[compare]   FAIL: page_data or page_dimensions returned None for idx {}",
                 page_idx
             );
             return empty;
         }
     };
-    eprintln!("[compare]   ours: {}x{}", ours_w, ours_h);
+    log_debug!("[compare]   ours: {}x{}", ours_w, ours_h);
 
     // Render OG page
     let og_pdf_path = format!("{}/{}", og_ref_dir, fixture.og_pdf);
-    eprintln!(
+    log_debug!(
         "[compare]   og_pdf={} exists={}",
         og_pdf_path,
         std::path::Path::new(&og_pdf_path).exists()
@@ -305,17 +313,17 @@ pub fn get_comparison(
     let og = match render_og_page(&og_ref_dir, fixture.og_pdf, page_num as usize, 72.0) {
         Some(r) => r,
         None => {
-            eprintln!("[compare]   FAIL: render_og_page returned None");
+            log_debug!("[compare]   FAIL: render_og_page returned None");
             return empty;
         }
     };
-    eprintln!("[compare]   og: {}x{}", og.width, og.height);
+    log_debug!("[compare]   og: {}x{}", og.width, og.height);
 
     // Compare
     let (diff_rgba, diff_w, diff_h, total, diff_px, pct) =
         compare_rgba_images(&ours_rgba, ours_w, ours_h, &og.rgba, og.width, og.height);
 
-    eprintln!(
+    log_debug!(
         "[compare]   diff: {:.2}% ({}/{} px) canvas {}x{}",
         pct, diff_px, total, diff_w, diff_h
     );
@@ -349,7 +357,7 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
 
     // Validate PNG signature
     if data.len() < 8 || &data[0..8] != b"\x89PNG\r\n\x1a\n" {
-        eprintln!("[compare] PNG signature check failed: {}", path.display());
+        log_debug!("[compare] PNG signature check failed: {}", path.display());
         return None;
     }
 
@@ -360,7 +368,7 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
     {
         // Placeholder: return dummy dimensions for now
         // TODO: Implement PNG decoding using CoreImage or the `image` crate
-        eprintln!(
+        log_debug!(
             "[compare] PNG loading: {} (decode not yet impl)",
             path.display()
         );
@@ -373,7 +381,7 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
 
     #[cfg(not(target_os = "macos"))]
     {
-        eprintln!(
+        log_debug!(
             "[compare] PNG loading: {} (not implemented on this platform)",
             path.display()
         );
@@ -383,7 +391,7 @@ fn load_png(path: &Path) -> Option<(Vec<u8>, u32, u32)> {
 
 /// List all before/after QA compare fixtures in test-output/qa-compare/.
 pub fn list_qa_compare_fixtures(project_root: String) -> Vec<QaCompareFixtureInfo> {
-    eprintln!(
+    log_debug!(
         "[compare] list_qa_compare_fixtures: project_root={}",
         project_root
     );
@@ -396,7 +404,7 @@ pub fn list_qa_compare_fixtures(project_root: String) -> Vec<QaCompareFixtureInf
     let after_path = Path::new(&after_dir);
 
     if !before_path.exists() || !after_path.exists() {
-        eprintln!("[compare]   QA compare dirs not found");
+        log_debug!("[compare]   QA compare dirs not found");
         return vec![];
     }
 
@@ -424,13 +432,13 @@ pub fn list_qa_compare_fixtures(project_root: String) -> Vec<QaCompareFixtureInf
     }
 
     fixtures.sort_by(|a, b| a.fixture_name.cmp(&b.fixture_name));
-    eprintln!("[compare]   found {} QA compare fixtures", fixtures.len());
+    log_debug!("[compare]   found {} QA compare fixtures", fixtures.len());
     fixtures
 }
 
 /// Get a QA comparison for a before/after PNG pair.
 pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaComparisonResult {
-    eprintln!("[compare] get_qa_comparison: fixture={}", fixture_name);
+    log_debug!("[compare] get_qa_comparison: fixture={}", fixture_name);
 
     let qa_compare_dir = format!("{}/test-output/qa-compare", project_root);
     let before_path = format!("{}/before/{}.png", qa_compare_dir, fixture_name);
@@ -454,11 +462,11 @@ pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaCompar
     // Load before PNG
     let (before_rgba, before_w, before_h) = match load_png(Path::new(&before_path)) {
         Some((data, w, h)) => {
-            eprintln!("[compare]   before: {}x{}", w, h);
+            log_debug!("[compare]   before: {}x{}", w, h);
             (data, w, h)
         }
         None => {
-            eprintln!("[compare]   FAIL: load before PNG: {}", before_path);
+            log_debug!("[compare]   FAIL: load before PNG: {}", before_path);
             return empty;
         }
     };
@@ -466,11 +474,11 @@ pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaCompar
     // Load after PNG
     let (after_rgba, after_w, after_h) = match load_png(Path::new(&after_path)) {
         Some((data, w, h)) => {
-            eprintln!("[compare]   after: {}x{}", w, h);
+            log_debug!("[compare]   after: {}x{}", w, h);
             (data, w, h)
         }
         None => {
-            eprintln!("[compare]   FAIL: load after PNG: {}", after_path);
+            log_debug!("[compare]   FAIL: load after PNG: {}", after_path);
             return empty;
         }
     };
@@ -485,7 +493,7 @@ pub fn get_qa_comparison(project_root: String, fixture_name: String) -> QaCompar
         after_h,
     );
 
-    eprintln!(
+    log_debug!(
         "[compare]   diff: {:.2}% ({}/{} px) canvas {}x{}",
         pct, diff_px, total, diff_w, diff_h
     );

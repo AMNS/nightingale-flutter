@@ -299,7 +299,7 @@ impl BitmapRenderer {
                     }
                 }
             }
-            eprintln!(
+            crate::log_debug!(
                 "[bitmap] Sonata font loaded: {} cmap entries, {} reverse mappings",
                 font.cmap.len(),
                 rev.len()

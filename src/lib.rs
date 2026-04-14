@@ -12,6 +12,16 @@
 //! See CLAUDE.md for architecture decisions and porting plan.
 //! See PROGRESS.md for current status and next steps.
 
+/// Safe stderr logging that won't panic on broken pipe (release .app bundles).
+/// Use this instead of `eprintln!` in any code that may run from the Flutter bridge.
+#[macro_export]
+macro_rules! log_debug {
+    ($($arg:tt)*) => {{
+        use std::io::Write;
+        let _ = writeln!(std::io::stderr(), $($arg)*);
+    }};
+}
+
 pub mod basic_types;
 pub mod beam;
 pub mod comparison;

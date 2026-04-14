@@ -4,6 +4,8 @@
 // 32 command types matching the RenderCommand enum variants.
 // See CMD_* constants in rust/src/api/score.rs.
 
+import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'src/rust/api/score.dart';
@@ -794,6 +796,164 @@ class ScoreView extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── BitmapScoreView widget ────────────────────────────────────────
+
+/// Convert raw RGBA bytes to a ui.Image via ImmutableBuffer + ImageDescriptor.
+Future<ui.Image> rgbaToImage(List<int> rgba, int width, int height) async {
+  final buffer = await ui.ImmutableBuffer.fromUint8List(
+    rgba is Uint8List ? rgba : Uint8List.fromList(rgba),
+  );
+  final descriptor = ui.ImageDescriptor.raw(
+    buffer,
+    width: width,
+    height: height,
+    pixelFormat: ui.PixelFormat.rgba8888,
+  );
+  final codec = await descriptor.instantiateCodec();
+  final frame = await codec.getNextFrame();
+  codec.dispose();
+  descriptor.dispose();
+  buffer.dispose();
+  return frame.image;
+}
+
+/// Widget that displays rendered score pages as bitmaps.
+///
+/// Each page is a pre-rendered RGBA bitmap from BitmapRenderer on the Rust side.
+/// Pages are stacked vertically with gaps and drop shadows, matching ScoreView's layout.
+class BitmapScoreView extends StatefulWidget {
+  final List<PageBitmapDto> pages;
+  final double scale;
+
+  const BitmapScoreView({
+    super.key,
+    required this.pages,
+    this.scale = 1.0,
+  });
+
+  @override
+  State<BitmapScoreView> createState() => _BitmapScoreViewState();
+}
+
+class _BitmapScoreViewState extends State<BitmapScoreView> {
+  List<ui.Image?> _images = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeImages();
+  }
+
+  @override
+  void didUpdateWidget(BitmapScoreView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.pages, widget.pages)) {
+      _disposeImages();
+      _decodeImages();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeImages();
+    super.dispose();
+  }
+
+  void _disposeImages() {
+    for (final img in _images) {
+      img?.dispose();
+    }
+    _images = [];
+  }
+
+  Future<void> _decodeImages() async {
+    setState(() => _loading = true);
+    final images = <ui.Image?>[];
+    for (final page in widget.pages) {
+      try {
+        final img = await rgbaToImage(page.rgba, page.width, page.height);
+        images.add(img);
+      } catch (e) {
+        debugPrint('[BitmapScoreView] Failed to decode page: $e');
+        images.add(null);
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _images = images;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading || _images.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    const padding = 24.0;
+    const pageGap = 16.0;
+
+    return Container(
+      color: Colors.grey.shade200,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: const EdgeInsets.all(padding),
+            child: Column(
+              children: [
+                for (int i = 0; i < _images.length; i++) ...[
+                  if (i > 0) const SizedBox(height: pageGap),
+                  _buildPage(i),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPage(int index) {
+    final img = _images[index];
+    if (img == null) {
+      return const SizedBox(width: 100, height: 100);
+    }
+
+    // The bitmap was rendered at a given DPI. At scale=1.0 we display
+    // at the rendered size. The zoom slider scales from there.
+    final displayWidth = img.width * widget.scale;
+    final displayHeight = img.height * widget.scale;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 4,
+            offset: const Offset(2, 2),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: displayWidth,
+        height: displayHeight,
+        child: RawImage(
+          image: img,
+          width: displayWidth,
+          height: displayHeight,
+          filterQuality: FilterQuality.medium,
         ),
       ),
     );

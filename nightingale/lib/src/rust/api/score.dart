@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `convert`, `mac_roman_to_string`, `render_to_dtos`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `convert`, `load_fonts_for_bitmap`, `mac_roman_to_string`, `render_to_bitmaps`, `render_to_dtos`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`
 
 /// Load an NGL file from raw bytes and render it to a list of drawing commands.
 ///
@@ -31,6 +31,30 @@ Future<List<RenderCommandDto>> renderNotelistFromText({required String text}) =>
 Future<List<RenderCommandDto>> renderNotelistFromBytes(
         {required List<int> data}) =>
     RustLib.instance.api.crateApiScoreRenderNotelistFromBytes(data: data);
+
+/// Load an NGL file from raw bytes and render to page bitmaps.
+///
+/// `font_dir` is the absolute path to a directory containing Bravura.otf and text fonts.
+/// `dpi` controls resolution (72.0 = screen, 144.0 = retina).
+/// Returns an empty vec on parse/interpret failure.
+Future<List<PageBitmapDto>> renderNglToBitmaps(
+        {required List<int> data,
+        required String fontDir,
+        required double dpi}) =>
+    RustLib.instance.api.crateApiScoreRenderNglToBitmaps(
+        data: data, fontDir: fontDir, dpi: dpi);
+
+/// Load a Notelist from raw bytes (Mac Roman) and render to page bitmaps.
+///
+/// `font_dir` is the absolute path to a directory containing Bravura.otf and text fonts.
+/// `dpi` controls resolution (72.0 = screen, 144.0 = retina).
+/// Returns an empty vec on parse/convert failure.
+Future<List<PageBitmapDto>> renderNotelistToBitmaps(
+        {required List<int> data,
+        required String fontDir,
+        required double dpi}) =>
+    RustLib.instance.api.crateApiScoreRenderNotelistToBitmaps(
+        data: data, fontDir: fontDir, dpi: dpi);
 
 /// Render a score file from a filesystem path (auto-detects .ngl vs .nl).
 ///
@@ -66,6 +90,33 @@ int renderCommandCount({required List<int> data}) =>
 
 /// Bridge health check.
 String bridgeHello() => RustLib.instance.api.crateApiScoreBridgeHello();
+
+/// One page rendered as an RGBA bitmap.
+class PageBitmapDto {
+  final int width;
+  final int height;
+
+  /// Premultiplied RGBA, width * height * 4 bytes.
+  final Uint8List rgba;
+
+  const PageBitmapDto({
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  @override
+  int get hashCode => width.hashCode ^ height.hashCode ^ rgba.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PageBitmapDto &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          rgba == other.rgba;
+}
 
 /// Flat DTO for one drawing command.
 ///
